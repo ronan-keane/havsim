@@ -43,7 +43,7 @@ def mainroad_newveh(self, vehid, *args):
 #inflow amounts
 def onramp_inflow(timeind, *args):
     # return .06 + np.random.rand()/25
-    return .08
+    return .07
 def mainroad_inflow(*args):
     # return .43 + np.random.rand()*24/100
     return .48
@@ -66,7 +66,7 @@ def speed_inflow_ramp(*args):
 get_inflow1 = {'time_series':onramp_inflow}
 get_inflow2 = {'time_series':mainroad_inflow}
 # increment_inflow = {'method': 'ceql'}
-increment_inflow = {'method': 'seql', 'c':.8}
+increment_inflow = {'method': 'seql', 'kwargs':{'c':.8}}
 # increment_inflow = {'method': 'shifted', 'accel_bound':-.3, 'shift':1.5}
 # increment_inflow = {'method': 'speed', 'accel_bound':-.1, 'speed_series':speed_inflow}
 # increment_inflow_ramp = {'method': 'speed', 'accel_bound':-.1, 'speed_series':speed_inflow_ramp}
@@ -75,9 +75,9 @@ downstream1 ={'method':'free', }
 # downstream1 = {'method': 'speed', 'time_series':mainroad_outflow}
 
 #make road network with boundary conditions - want to make an api for this in the future
-#main road has len mainroadlen, on ramp connects to right lane of main road on (startmerge, endmerge), 
+#main road has len mainroadlen, on ramp connects to right lane of main road on (startmerge, endmerge),
 #onramplen has onramplen before reaching the merge section
-mainroadlen = 2000 
+mainroadlen = 2000
 startmerge = 1100
 endmerge = 1300
 onramplen = 200

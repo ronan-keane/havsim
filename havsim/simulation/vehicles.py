@@ -159,7 +159,7 @@ def inv_flow_helper(veh, x, leadlen=None, output_type='v', congested=True, eql_t
         raise RuntimeError('could not invert provided equilibrium function')
 
 
-def set_lc_helper(veh, chk_lc=1, get_fol=True):
+def set_lc_helper(veh, timeind, chk_lc=True, chk_lc_prob=1, get_fol=True):
     """Calculates the new headways to be passed to the lane changing (LC) model.
 
     Evaluates the lane changing situation to decide if we need to evaluate lane changing model on the
@@ -169,8 +169,11 @@ def set_lc_helper(veh, chk_lc=1, get_fol=True):
 
     Args:
         veh: Vehicle to have their lane changing model called.
-        chk_lc: float between 0 and 1 which gives the probability of checking the lane changing model
-            when the vehicle is in a discretionary state.
+        timeind: time index
+        chk_lc: bool, if True we are in mandatory or active discretionary state. If False we are in normal
+            discretionary state and don't necessarily evaluate the LC model every timestep.
+        chk_lc_prob: float between 0 and 1 which gives the probability of checking the lane changing model
+            when the vehicle is in the normal discretionary state.
         get_fol: if True, we also find the new follower headway.
 
     Returns:
@@ -178,6 +181,8 @@ def set_lc_helper(veh, chk_lc=1, get_fol=True):
         tuple of floats: (lside, rside, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd). lside/rside
             are bools which are True if we need to check that side in the LC model. rest are float headways,
             giving the new headway for that vehicle. If get_fol = False, newfolhd is not present.
+            If a vehicle would have no leader in the new configuration, None is returned as the headway. If
+            a AnchorVehicle acts as a (l/r)fol, the headway is computed as normal.
     """
     # first determine what situation we are in and which sides we need to check
     l_lc, r_lc = veh.l_lc, veh.r_lc
@@ -211,11 +216,13 @@ def set_lc_helper(veh, chk_lc=1, get_fol=True):
         lside, rside = True, False
         chk_cond = False
 
-    if chk_cond:  # decide if we want to evaluate lc model or not - this only applies to discretionary state
-        # when there is no cooperation or tactical positioning
-        if chk_lc >= 1:
+    if not chk_lc:  # decide if we want to evaluate lc model or not - this only applies to discretionary state
+        # when vehicle is not actively trying to change
+        if timeind < veh.disc_cooldown:
+            return False, None
+        if chk_lc_prob >= 1:
             pass
-        elif np.random.rand() > chk_lc:
+        elif np.random.rand() > chk_lc_prob:
             return False, None
 
     # next we compute quantities to send to LC model for the required sides
@@ -229,15 +236,11 @@ def set_lc_helper(veh, chk_lc=1, get_fol=True):
     else:
         newrfolhd = newrhd = None
 
-    # if get_fol option is given to wrapper, it means model requires the follower's quantities as well
     if get_fol:
-        fol, lead = veh.fol, veh.lead
-        # if fol.cf_parameters is None:
-        #     newfolhd = None
-        if lead is None:
+        if veh.lead is None:
             newfolhd = None
         else:
-            newfolhd = get_headway(fol, lead)
+            newfolhd = get_headway(veh.fol, veh.lead)
     else:
         return True, (lside, rside, newlfolhd, newlhd, newrfolhd, newrhd)
 
@@ -256,15 +259,13 @@ def get_new_hd(lcsidefol, veh, lcsidelane):
         newlcsidefolhd: new float headway for lcsidefol
         newlcsidehd: new float headway for veh
     """
-    # helper functino for set_lc_helper
+    # helper function for set_lc_helper
     lcsidelead = lcsidefol.lead
     if lcsidelead is None:
         newlcsidehd = None
     else:
         newlcsidehd = get_headway(veh, lcsidelead)
-    # if lcsidefol.cf_parameters is None:
-    #     newlcsidefolhd = None
-    # else:
+
     newlcsidefolhd = get_headway(lcsidefol, veh)
 
     return newlcsidefolhd, newlcsidehd

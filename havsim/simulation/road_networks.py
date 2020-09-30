@@ -620,7 +620,7 @@ class AnchorVehicle:
         self.leadmem = [[lead, starttime]]
 
     def get_cf(self, *args):
-        """Dummy method returns 0 for lc model."""
+        """Dummy method returns 0 for cf model."""
         return 0
 
     def set_relax(self, *args):

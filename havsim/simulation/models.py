@@ -215,16 +215,19 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
 
         newhd = newrhd
         newlcsidefolhd = newrfolhd
-        selfsafe = newra
+        vehsafe = newra
         lcsidefolsafe = newrfola
+        lcsidefol = veh.rfol
+
     else:
         side = 'l'
         incentive = lincentive
 
         newhd = newlhd
         newlcsidefolhd = newlfolhd
-        selfsafe = newla
+        vehsafe = newla
         lcsidefolsafe = newlfola
+        lcsidefol = veh.lfol
 
     # different possible safety criteria formulations #####
     # default value of safety -
@@ -242,7 +245,7 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
 
     # safeguards for negative headway (necessary for IDM)
     if newhd is not None and newhd < 0:
-        selfsafe = safe - 5
+        vehsafe = safe - 5
     if newlcsidefolhd is not None and newlcsidefolhd < 0:
         lcsidefolsafe = safe - 5
 
@@ -253,10 +256,10 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
         # if incentive > p[2]:
         # version 2 - only need to meet incentive to trigger tactical/cooperative state
         if incentive > p[2] or veh.chk_lc:
-            if selfsafe > safe and lcsidefolsafe > safe:
+            if vehsafe > safe and lcsidefolsafe > safe:
                 lc_actions[veh] = side
             else:
-                if veh.chk_lc == False:  # always check discretionary for next p[6] timesteps
+                if veh.chk_lc == False:  # always check discretionary on same side for next p[6] timesteps
                     veh.chk_lc = True
                     veh.disc_endtime = timeind + p[6]
                     if side == 'r':
@@ -270,17 +273,17 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
                             veh.lside = True
                     elif veh.r_lc is not None:
                         veh.rside = True
-                coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, selfsafe, safe, side, lctype,
+                coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, side, lctype,
                                 use_coop=use_coop, use_tact=use_tact)
         elif veh.chk_lc == True:  # incentive not met -> end always check discretionary state
         # (redundant for version 2)
             veh.chk_lc = False
 
     else:  # mandatory state
-        if selfsafe > safe and lcsidefolsafe > safe:
+        if vehsafe > safe and lcsidefolsafe > safe:
             lc_actions[veh] = side
         else:
-            coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, selfsafe, safe, side, lctype,
+            coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, side, lctype,
                             use_coop=use_coop, use_tact=use_tact)
     return
 
@@ -331,7 +334,7 @@ def mobil_helper(polite, bias, in_disc, lfol, llead, veh, newlfolhd, newlhd, veh
         return newlfola, newla, 0
 
 
-def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, selfsafe, safe, side, lctype, use_coop=True,
+def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol, in_disc, use_coop=True,
                     use_tact=True, jam_spacing=2):
     """Cooperative and tactical model for a lane changing decision model.
 
@@ -345,8 +348,8 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, selfsafe, safe, side, lc
     faster than vehicle, then the vehicle gets deceleration to try to change behind them. If vehicle is
     faster than lcside leader, then the vehicle gets acceleration to try to overtake. if only one is
     violating safety, the vehicle moves in a way to prevent that violation. Meaning -
-    if only the follower's safety is violated, the vehicle accelerates
-    if the vehicle's own safety is violated; the vehicle decelerates
+    if only the follower's safety is violated, the vehicle accelerates.
+    if the vehicle's own safety is violated; the vehicle decelerates.
     the tactical model only modifies the acceleration of veh.
 
     in the cooperative model, we try to identify a cooperating vehicle. A cooperating vehicle always gets a
@@ -378,20 +381,15 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, selfsafe, safe, side, lc
     between these two positions.
 
     Implementation details -
-    when a vehicle has cooperation or tactical components applied, it has a lc_side attribute which is
-    set to either 'l' or 'r' instead of None. This marks the vehicle as having the coop/tact added, and
-    will make it so the vehicle attempts to complete the LC at every timestep even if its only a discretionary
-    change. vehicles also have a coop_veh attribute which stores the cooperating vehicle. A cooperating
-    vehicle does not have any attribute marking it as such.
-    the lc_urgency attribute needs to be set whenever a mandatory route event begins. the lc_side, coop_veh,
-    and lc_urgency attributes need to be reset to None whenever the change is completed.
-    in the road event where a lane ends on the side == lc_side, then lc_side and coop_veh need to be reset.
+    vehicles also have a coop_veh attribute which stores the cooperating vehicle. A cooperating
+    vehicle does not have any attribute marking it as such. A vehicle's shift_eql method is what is
+    used to widen/shrink gaps to allow lane changing.
 
     Args:
         veh: vehicle which wants to change lanes
         newlcsidefolhd: new lcside follower headway
         lcsidefolsafe: safety value for lcside follower; viable if > safe
-        selfsafe: safety value for vehicle; viable if > safe
+        vehsafe: safety value for vehicle; viable if > safe
         safe: safe value for change
         side: either 'l' or 'r', side vehicle wants to change
         lctype:either 'discretionary' or 'mandatory'
@@ -406,11 +404,7 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, selfsafe, safe, side, lc
     # clearly it would be possible to modify different things, such as how the acceleration modifications
     # are obtained, and changing the conditions for entering/exiting the cooperative/tactical conditions
     # in particular we might want to add extra conditions for entering cooperative state
-    tact = use_tact
-    if side == 'l':
-        lcsidefol = veh.lfol
-    else:
-        lcsidefol = veh.rfol
+    coop_veh_is_lcsidefolfol = False
 
     if use_coop and use_tact:
         coop_veh = veh.coop_veh
@@ -421,72 +415,54 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, selfsafe, safe, side, lc
             elif coop_veh is lcsidefol.fol and newlcsidefolhd < jam_spacing and \
             coop_veh.hd + newlcsidefolhd + lcsidefol.len > jam_spacing:  # coop_veh = lcsidefol.fol
                 coop_veh.acc += coop_veh.shift_eql('decel')
-                if lcsidefol.speed > veh.speed:
-                    tactstate = 'decel'
-                else:
-                    tactstate = 'accel'
-                veh.acc += veh.shift_eql(tactstate)
-                tact = False
+                coop_veh_is_lcsidefolfol = True
+
             else:  # cooperation is not valid -> reset
-                veh.lc_side = None
                 veh.coop_veh = None
 
         # if there is no coop_veh, then see if we can get vehicle to cooperate
-        elif newlcsidefolhd is not None:  # newlcsidefolhd is None only if lcsidefol is an anchor vehicle
+        if veh.coop_veh is None and lcsidefol.cf_parameters is not None:
+            coop_veh = None
             if newlcsidefolhd > jam_spacing:
                 coop_veh = lcsidefol
             elif lcsidefol.fol.cf_parameters is not None and \
             lcsidefol.fol.hd+lcsidefol.len + newlcsidefolhd > jam_spacing:
                 coop_veh = lcsidefol.fol
+                coop_veh_is_lcsidefolfol = True
 
-            temp = coop_veh.coop_parameters
-            if lctype == 'mandatory':
-                start, end = veh.lc_urgency[:]
-                temp += (veh.pos - start)/(end - start+1e-6)
-
-            if temp >= 1 or np.random.rand() < temp:
+            if coop_veh is not None and check_if_veh_cooperates(veh, coop_veh, in_disc):
                 veh.coop_veh = coop_veh
-                veh.lc_side = side
-                # apply cooperation
                 coop_veh.acc += coop_veh.shift_eql('decel')
-                # apply tactical in case coop_veh = lcsidefol.fol (otherwise we go to normal tactical model)
-                if coop_veh is not lcsidefol:
-                    tact = False
-                    if lcsidefol.speed > veh.speed:
-                        tactstate = 'decel'
-                    else:
-                        tactstate = 'accel'
-                    veh.acc += veh.shift_eql(tactstate)
 
-    elif use_coop and not use_tact:
+    elif not use_tact and use_coop:
         coop_veh = veh.coop_veh
         if coop_veh is not None:
-            if coop_veh is lcsidefol and newlcsidefolhd > jam_spacing:  # conditions for cooperation when there is no tactical
+            if coop_veh is lcsidefol and newlcsidefolhd > jam_spacing:  # coop_veh = lcsidefol
                 coop_veh.acc += coop_veh.shift_eql('decel')
             else:  # cooperating vehicle not valid -> reset
-                veh.lc_side = None
                 veh.coop_veh = None
-        elif newlcsidefolhd is not None and  newlcsidefolhd > jam_spacing:  # vehicle is valid
-                # check cooperation condition
-                temp = lcsidefol.coop_parameters
-                if lctype == 'mandatory':
-                    start, end = veh.lc_urgency[:]
-                    temp += (veh.pos - start)/(end - start + 1e-6)
+        if veh.coop_veh is None and lcsidefol.cf_parameters is not None and newlcsidefolhd > jam_spacing:
+            # vehicle is valid, check cooperation condition
+            if check_if_veh_cooperates(veh, lcsidefol, in_disc):
+                veh.coop_veh = lcsidefol
+                lcsidefol.acc += lcsidefol.shift_eql('decel')
 
-                if temp >= 1 or np.random.rand() < temp:  # cooperation agreed/forced -> add cooperation
-                    veh.coop_veh = lcsidefol
-                    veh.lc_side = side
-                    # apply cooperation
-                    lcsidefol.acc += lcsidefol.shift_eql('decel')
+    if use_tact:
+        tactical_model(veh, lcsidefol, lcsidefolsafe, vehsafe, safe, coop_veh_is_lcsidefolfol)
 
-    if tact:  # apply tactical model
-        # mark side if not already
-        if veh.lc_side != side:
-            veh.lc_side = side
-        # find vehicle which is preventing change - if both lcsidefol and lcsidelead are prventing,
-        # default to looking at the lcsidelead speed
+
+def tactical_model(veh, lcsidefol, lcsidefolsafe, vehsafe, safe, coop_veh_is_lcsidefolfol):
+    """Applies tactical model (see coop_tact_model for explanation)."""
+    if coop_veh_is_lcsidefolfol:  # special rule for cooperation by lcsidefol.fol
+        if lcsidefol.speed > veh.speed:
+            tactstate = 'decel'
+        else:
+            tactstate = 'accel'
+        veh.acc += veh.shift_eql(tactstate)
+    else: # in normal rule, you find the safety that is blocking and move to widen that gap.
+        # if both lcsidefol and lcsidelead are blocking, look at lcsidelead speed
         if lcsidefolsafe < safe:
-            if selfsafe < safe:  # both unsafe
+            if vehsafe < safe:  # both unsafe
                 if lcsidefol.lead.speed > veh.speed:  # edge case where lcsidefol.lead is None?
                     tactstate = 'decel'
                 else:
@@ -495,8 +471,16 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, selfsafe, safe, side, lc
                 tactstate = 'accel'
         else:  # only leader unsafe
             tactstate = 'decel'
-
         veh.acc += veh.shift_eql(tactstate)
+
+
+def check_if_veh_cooperates(veh, coop_veh, in_disc):
+    """Calculates condition for coop_veh to cooperate with veh. Returns bool (see coop_tact_model)."""
+    temp = coop_veh.coop_parameters  # temp is the baseline probability for cooperation
+    if not in_disc:
+        start, end = veh.lc_urgency[:]
+        temp += (veh.pos - start)/(end - start+1e-6)
+    return (temp >= 1 or np.random.rand() < temp)
 
 
 def IDM_parameters(*args):

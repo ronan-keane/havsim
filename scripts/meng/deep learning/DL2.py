@@ -6,10 +6,10 @@ import tensorflow as tf
 import math
 
 try:
-    with open('C:/Users/rlk268/OneDrive - Cornell University/havsim/data/recon-ngsim.pkl', 'rb') as f:
+    with open('/Users/nkluke/Documents/Cornell/CS5999/havsim/data/recon-ngsim.pkl', 'rb') as f:
         meas, platooninfo = pickle.load(f) #load data
 except:
-    with open('/home/rlk268/havsim/data/recon-ngsim.pkl', 'rb') as f:
+    with open('/Users/nkluke/Documents/Cornell/CS5999/havsim/data/recon-ngsim.pkl', 'rb') as f:
         meas, platooninfo = pickle.load(f) #load data
 
 try:
@@ -39,7 +39,7 @@ training, norm = deep_learning.make_dataset(meas, platooninfo, train_veh)
 maxhd, maxv, mina, maxa = norm
 testing, unused = deep_learning.make_dataset(meas, platooninfo, test_veh)
 
-model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=60)
+model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=100)
 loss = deep_learning.masked_MSE_loss
 opt = tf.keras.optimizers.Adam(learning_rate = .0008)
 

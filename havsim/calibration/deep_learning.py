@@ -74,6 +74,9 @@ class RNNCFModel(tf.keras.Model):
         self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=.3,
                                                   kernel_regularizer=tf.keras.regularizers.l2(l=.02),
                                                   recurrent_regularizer=tf.keras.regularizers.l2(l=.02))
+        self.lstm_cell2 = tf.keras.layers.LSTMCell(lstm_units, dropout=.2, 
+                                                kernel_regularizer=tf.keras.regularizers.l2(l=.02),
+                                                recurrent_regularizer=tf.keras.regularizers.l2(l=.02))
         self.dense1 = tf.keras.layers.Dense(1)
         self.dense2 = tf.keras.layers.Dense(10, activation='relu',
                                             kernel_regularizer=tf.keras.regularizers.l2(l=.02))
@@ -113,7 +116,7 @@ class RNNCFModel(tf.keras.Model):
                 (number of vehicles, number of LSTM units)
         """
         # prepare data for call
-        lead_inputs, init_state, hidden_states = inputs
+        lead_inputs, init_state, hidden_states, hidden_states2 = inputs
         lead_inputs = tf.unstack(lead_inputs, axis=1)  # unpacked over time dimension
         cur_pos, cur_speed = tf.unstack(init_state, axis=1)
         outputs = []
@@ -128,7 +131,9 @@ class RNNCFModel(tf.keras.Model):
 
             # call to model
             self.lstm_cell.reset_dropout_mask()
+            self.lstm_cell2.reset_dropout_mask()
             x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
+            x, hidden_states2 = self.lstm_cell2(x, hidden_states2, training)
             x = self.dense2(x)
             x = self.dense1(x)  # output of the model is current acceleration for the batch
 
@@ -140,7 +145,7 @@ class RNNCFModel(tf.keras.Model):
             outputs.append(cur_pos)
 
         outputs = tf.stack(outputs, 1)
-        return outputs, cur_speed, hidden_states
+        return outputs, cur_speed, hidden_states, hidden_states2
 
 
 def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
@@ -229,11 +234,11 @@ def train_step(x, y_true, sample_weight, model, loss_fn, optimizer):
     with tf.GradientTape() as tape:
         # would using model.predict_on_batch instead of model.call be faster to evaluate?
         # the ..._on_batch methods use the model.distribute_strategy - see tf.keras source code
-        y_pred, cur_speeds, hidden_state = model(x, training=True)
+        y_pred, cur_speeds, hidden_state, hidden_state2 = model(x, training=True)
         loss = loss_fn(y_true, y_pred, sample_weight) + sum(model.losses)
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    return y_pred, cur_speeds, hidden_state, loss
+    return y_pred, cur_speeds, hidden_state, hidden_state2, loss
 
 
 def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100, n=20,
@@ -268,16 +273,18 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
     # make inputs for network
     cur_state = [ds[veh]['IC'] for veh in vehs]
     hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
+    hidden_states2 = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
     hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
+    hidden_states2 = tf.convert_to_tensor(hidden_states2, dtype='float32')
     lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
     prev_loss = math.inf
     early_stop_counter = 0
 
     for i in range(nbatches):
         # call train_step
-        veh_states, cur_speeds, hidden_states, loss_value = \
-            train_step([lead_inputs, cur_state, hidden_states], true_traj, loss_weights, model,
+        veh_states, cur_speeds, hidden_states, hidden_states2, loss_value = \
+            train_step([lead_inputs, cur_state, hidden_states, hidden_states2], true_traj, loss_weights, model,
                        loss, optimizer)
 
         # print out and early stopping
@@ -322,9 +329,13 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
 
             cur_state = tf.tensor_scatter_nd_update(cur_state, inds_to_update, cur_state_updates)
             h, c = hidden_states
+            h2, c2 = hidden_states2
             h = tf.tensor_scatter_nd_update(h, inds_to_update, hidden_state_updates)
             c = tf.tensor_scatter_nd_update(c, inds_to_update, hidden_state_updates)
+            h2 = tf.tensor_scatter_nd_update(h2, inds_to_update, hidden_state_updates)
+            c2 = tf.tensor_scatter_nd_update(c2, inds_to_update, hidden_state_updates)
             hidden_states = [h, c]
+            hidden_states2 = [h2, c2]
 
         lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
 
@@ -348,11 +359,13 @@ def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
     nt = max([i[1] for i in vehs_counter.values()])
     cur_state = [ds[veh]['IC'] for veh in vehs]
     hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
+    hidden_states2 = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
     hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
+    hidden_states2 = tf.convert_to_tensor(hidden_states2, dtype='float32')
     lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt, **kwargs)
 
-    y_pred, cur_speeds, hidden_state = model([lead_inputs, cur_state, hidden_states])
+    y_pred, cur_speeds, hidden_state, hidden_state2 = model([lead_inputs, cur_state, hidden_states, hidden_states2])
     if loss is not None:
         out_loss = loss(true_traj, y_pred, loss_weights)
         return y_pred, cur_speeds, out_loss

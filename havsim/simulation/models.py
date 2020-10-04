@@ -114,20 +114,24 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
 
    The mobil is a dicretionary/incentive lane changing model, and we use the safety conditions
     proposed by Treiber, Kesting to accompany mobil (see their book (Traffic Flow Dynamics, 2013)).
-    We have also added an original tactical/cooperative model which uses Vehicle's shift_eql method
-    to modify the car following acceleration (see coop_tact_model). Lastly, we add a probability
+    We added an original tactical/cooperative model which uses Vehicle's shift_eql method
+    to modify the car following acceleration (see coop_tact_model). We also add a probability
     of checking the discretionary model, and a cooldown period after making a discretionary change, during
     which vehicles cannot make another discretionary change.
+    We also use the concept of an 'activated' discretionary state, where after meeting their
+    incentive criteria, vehicles will always check the LC/tactical/cooperation model (whereas in the
+    normal discretionary state, vehicles only have a probability to check the LC model)
 
     parameters of IDM-
         0 - safety criteria (maximum deceleration allowed after LC, more negative = less strict),
-        1 - safety criteria for maximum deceleration allowed, when velocity is 0
+        1 - See the comment block on different possible safety criteria formulations. This is the
+            safety criteria for maximum deceleration allowed, when velocity is 0.
         2 - incentive criteria (>0, larger = more strict. smaller = discretionary changes more likely),
         3 - politeness (taking other vehicles into account, 0 = ignore other vehicles, ~.1-.2 = realistic),
         4 - bias on left side (can add a bias to make vehicles default to a certain side of the road),
         5 - bias on right side,
         6 - probability of checking LC while in discretionary state (not in original model. set to
-            >=1/dt to always check discretionary. units are probability of checking per 1 second)
+            to always check discretionary. units are probability of checking per timestep)
         7 - number of timesteps in cooperative/tactical state after meeting incentive criteria for
             a discretionary change (not in original model)
         8 - number of timesteps after a discretionary change when another discretionary change is not
@@ -201,11 +205,11 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
     # calculate safeties and incentives for each side
     if veh.lside:
         newlfola, newla, lincentive = mobil_helper(p[3], p[4], in_disc, veh.lfol, veh.lfol.lead, veh,
-                                                   newlfolhd, newlhd, veha, fola, newfola,
+                                                   veh.llane, newlfolhd, newlhd, veha, fola, newfola,
                                                    timeind, dt, userelax_cur, userelax_new)
     if veh.rside:
         newrfola, newra, rincentive = mobil_helper(p[3], p[5], in_disc, veh.rfol, veh.rfol.lead, veh,
-                                                   newrfolhd, newrhd, veha, fola, newfola,
+                                                   veh.rlane, newrfolhd, newrhd, veha, fola, newfola,
                                                    timeind, dt, userelax_cur, userelax_new)
 
     # determine which side we want to potentially intiate LC for
@@ -229,7 +233,7 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
         lcsidefolsafe = newlfola
         lcsidefol = veh.lfol
 
-    # different possible safety criteria formulations #####
+    ### different possible safety criteria formulations ###
     # default value of safety -
     # safe = p[0] (or use the maximum safety, p[1])
 
@@ -241,7 +245,7 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
     #     safe = p[0]
     # else:
     #     safe = p[1]  # or use the relative velocity safety
-    # #####
+    # ####################################################
 
     # safeguards for negative headway (necessary for IDM)
     if newhd is not None and newhd < 0:
@@ -275,9 +279,9 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
                         veh.rside = True
                 coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, side, lctype,
                                 use_coop=use_coop, use_tact=use_tact)
-        elif veh.chk_lc == True:  # incentive not met -> end always check discretionary state
-        # (redundant for version 2)
-            veh.chk_lc = False
+        # elif veh.chk_lc == True:  # incentive not met -> end always check discretionary state
+        # # (redundant for version 2)
+        #     veh.chk_lc = False
 
     else:  # mandatory state
         if vehsafe > safe and lcsidefolsafe > safe:
@@ -288,7 +292,7 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
     return
 
 
-def mobil_helper(polite, bias, in_disc, lfol, llead, veh, newlfolhd, newlhd, veha, fola, newfola,
+def mobil_helper(polite, bias, in_disc, lfol, llead, veh, vehlane, newlfolhd, newlhd, veha, fola, newfola,
                  timeind, dt, userelax_cur, userelax_new):
     """Helper function for MOBIL computes safeties and incentives.
 
@@ -300,6 +304,7 @@ def mobil_helper(polite, bias, in_disc, lfol, llead, veh, newlfolhd, newlhd, veh
         lfol: the left (or right) follower
         llead: left leader (leader of lfol)
         veh: ego vehicle (for which the LC is considered)
+        vehlane: lane veh is evaluating the change for
         newlfolhd: new headway for lfol
         newlhd: new headway for veh
         veha: current vehicle acceleration, used for incentive
@@ -319,7 +324,7 @@ def mobil_helper(polite, bias, in_disc, lfol, llead, veh, newlfolhd, newlhd, veh
     newlfola = lfol.get_cf(newlfolhd, lfol.speed, veh, lfol.lane, timeind, dt, userelax)
 
     userelax = userelax_new and veh.in_relax
-    newla = veh.get_cf(newlhd, veh.speed, llead, veh.llane, timeind, dt, userelax)
+    newla = veh.get_cf(newlhd, veh.speed, llead, vehlane, timeind, dt, userelax)
 
     if in_disc:
         if not userelax_cur and lfol.in_relax:

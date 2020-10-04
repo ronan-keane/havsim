@@ -4,6 +4,7 @@ Base Vehicle class and its helper functions.
 """
 import scipy.optimize as sc
 import numpy as np
+import math
 
 from havsim.simulation.road_networks import get_dist, get_headway
 from havsim.simulation.relaxation import new_relaxation
@@ -159,7 +160,7 @@ def inv_flow_helper(veh, x, leadlen=None, output_type='v', congested=True, eql_t
         raise RuntimeError('could not invert provided equilibrium function')
 
 
-def set_lc_helper(veh, timeind, chk_lc=True, chk_lc_prob=1, get_fol=True):
+def set_lc_helper(veh, lside, rside, timeind, chk_lc=True, chk_lc_prob=1, get_fol=True):
     """Calculates the new headways to be passed to the lane changing (LC) model.
 
     Evaluates the lane changing situation to decide if we need to evaluate lane changing model on the
@@ -184,38 +185,8 @@ def set_lc_helper(veh, timeind, chk_lc=True, chk_lc_prob=1, get_fol=True):
             If a vehicle would have no leader in the new configuration, None is returned as the headway. If
             a AnchorVehicle acts as a (l/r)fol, the headway is computed as normal.
     """
-    # first determine what situation we are in and which sides we need to check
-    l_lc, r_lc = veh.l_lc, veh.r_lc
-    if l_lc is None:  # TODO keep the lside, rside, chk_cond in memory instead of always updating them
-        if r_lc is None:
-            return False, None
-        elif r_lc == 'discretionary':
-            lside, rside = False, True
-            chk_cond = not veh.lc_side
-        else:
-            lside, rside = False, True
-            chk_cond = False
-    elif l_lc == 'discretionary':
-        if r_lc is None:
-            lside, rside = True, False
-            chk_cond = not veh.lc_side
-        elif r_lc == 'discretionary':
-            if veh.lc_side is not None:
-                chk_cond = False
-                if veh.lc_side == 'l':
-                    lside, rside = True, False
-                else:
-                    lside, rside = False, True
-            else:
-                chk_cond = True
-                lside, rside = True, True
-        else:
-            lside, rside = False, True
-            chk_cond = False
-    else:
-        lside, rside = True, False
-        chk_cond = False
-
+    if not lside and not rside:
+        return False, None
     if not chk_lc:  # decide if we want to evaluate lc model or not - this only applies to discretionary state
         # when vehicle is not actively trying to change
         if timeind < veh.disc_cooldown:
@@ -227,7 +198,7 @@ def set_lc_helper(veh, timeind, chk_lc=True, chk_lc_prob=1, get_fol=True):
 
     # next we compute quantities to send to LC model for the required sides
     if lside:
-        newlfolhd, newlhd = get_new_hd(veh.lfol, veh, veh.llane)  # better to just store left/right lanes
+        newlfolhd, newlhd = get_new_hd(veh.lfol, veh, veh.llane)
     else:
         newlfolhd = newlhd = None
 
@@ -315,12 +286,14 @@ class Vehicle:
             control how a vehicle can modify its acceleration in order to facilitate lane changing.
         coop_parameters: float between (0, 1) which gives the base probability of the vehicle
             cooperating with a vehicle wanting to change lanes
-        lc_side: if the vehicle enters into a tactical or cooperative state, lc_side gives which side the
-            vehicle wants to change in, either 'l' or 'r'
         lc_urgency: for mandatory lane changes, lc_urgency is a tuple of floats which control if
             the ego vehicle can force cooperation (simulating aggressive behavior)
         coop_veh: For cooperation, coop_veh is a reference the vehicle giving cooperation. There is no
             attribute (currently) which allows the ego vehicle to see if itself is giving cooperation.
+        disc_cooldown: when a vehicle makes a discretionary change, it cannot make another discretionary
+            change until after time index disc_cooldown. Initialized as -math.inf
+        disc_endtime: when a vehicle enters the active discretionary state, it stays in that state until
+            time index disc_endtime
         lead: leading vehicle (Vehicle)
         fol: following vehicle (Vehicle)
         lfol: left follower (Vehicle)
@@ -345,6 +318,10 @@ class Vehicle:
         rlane: the Lane to the right of the current lane the vehicle is on, or None
         l_lc: the current lane changing state for the left side, None, 'discretionary' or 'mandatory'
         r_lc: the current lane changing state for the right side, None, 'discretionary' or 'mandatory'
+        lside: If True, we need to evaluate making a left lane change
+        rside: If True, we need to evaluate making a right lane change
+        in_disc: If True, we are in a discretionary lane changing state
+        chk_lc: If True, we are either in a mandatory or active discretionary lane changing state
         cur_route: dictionary where keys are lanes, value is a list of route event dictionaries which
             defines the route a vehicle with parameters p needs to take on that lane
         route_events: list of current route events for current lane
@@ -426,9 +403,11 @@ class Vehicle:
         # cooperative/tactical model
         self.shift_parameters = [-3, 1.5] if shift_parameters is None else shift_parameters
         self.coop_parameters = coop_parameters
-        self.lc_side = None
+        # any attributes not set by update_lc_state must be set in __init__
         self.lc_urgency = None
         self.coop_veh = None
+        self.disc_cooldown = -math.inf
+        self.disc_endtime = -math.inf
 
         # leader/follower relationships
         self.lead = lead
@@ -470,7 +449,7 @@ class Vehicle:
         self.posmem.append(pos)
         self.speedmem.append(spd)
 
-        # llane/rlane and l/r
+        # initialize LC model - set llane/rlane, l/r_lc and initial lc state
         self.llane = self.lane.get_connect_left(pos)
         if self.llane is None:
             self.l_lc = None
@@ -485,6 +464,7 @@ class Vehicle:
             self.r_lc = 'discretionary'
         else:
             self.r_lc = None
+        self.update_lc_state
 
         # set lane/route events - sets lane_events, route_events, cur_route attributes
         self.cur_route = update_lane_routes.make_cur_route(
@@ -653,14 +633,60 @@ class Vehicle:
         Returns:
             None. (Modifies lc_actions, some vehicle attributes, in place)
         """
-        call_model, args = set_lc_helper(self, self.lc_parameters[-1]*dt)
+        call_model, args = set_lc_helper(self, self.lside, self.rside, timeind, self.chk_lc,
+                                         self.lc_parameters[6])
         if call_model:
             models.mobil(self, lc_actions, *args, timeind, dt)
         return
 
-    def reset_lc_state(self):
-        """After a lc is completed successfully, reset the lc model state (e.g. reset cooperation)"""
-        self.lc_side = self.coop_veh = self.lc_urgency = None
+    def update_lc_state(self, timeind, lc=None):
+        """Updates the lane changing internal state when completing, aborting, or beginning lane changing.
+
+        Cases when this is called -
+            -after a route event ends a discretionary state or begins a mandatory state
+            -after the network topology changes (e.g. a new left lane, or right lane ends)
+            -after a lane changing is completed
+        """
+        # do not allow multiple discretionary within short time period
+        if lc and self.in_disc:
+            self.disc_cooldown = timeind+self.lc_parameters[8]
+
+        # activated_disc_side is 'lside' if vehicle is actively trying to make a left discretionary change
+        if self.chk_lc and self.in_disc:
+            activated_disc_side = 'lside' if self.lside else 'rside'
+        else:
+            activated_disc_side = False
+
+        # main logic is to determine lside, rside, in_disc attributes.
+        l_lc, r_lc = self.l_lc, self.r_lc
+        if l_lc is None:
+            if r_lc is None:
+                self.lside, self.rside, self.in_disc = False, False, False
+            elif r_lc == 'discretionary':
+                self.lside, self.rside, self.in_disc = False, True, True
+            else:
+                self.lside, self.rside, self.in_disc = False, True, False
+        elif l_lc == 'discretionary':
+            if r_lc is None:
+                self.lside, self.rside, self.in_disc = True, False, True
+            elif r_lc == 'discretionary':
+                self.lside, self.rside, self.in_disc = True, True, True
+            else:
+                self.lside, self.rside, self.in_disc = False, True, False
+        else:
+            self.lside, self.rside, self.in_disc = True, False, False
+
+        # chk_lc should be True for mandatory or activated discretionary state, False otherwise
+        if activated_disc_side:
+            # can't discretionary change anymore -> end activated state
+            if not getattr(self, activated_disc_side):
+                self.chk_lc = False
+            else:
+                # if we stay in activated state, only the activated side of lside, rside, can be True
+                opside = 'rside' if activated_disc_side == 'lside' else 'lside'
+                setattr(self, opside, False)
+        else:
+            self.chk_lc = not self.in_disc
 
     def acc_bounds(self, acc):
         """Apply acceleration bounds."""

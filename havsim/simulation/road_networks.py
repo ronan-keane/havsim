@@ -684,12 +684,7 @@ class Lane:
         events: lane events (see update_lane_events)
     """
     # TODO need a RoadNetwork object, possibly Road object as well.
-    # should create common road configurations. Should different road configurations have their own
-    # logics to create routes?
-    # Also combine lane events and route events into a single sorted list. This would let you check only 1
-    # position per timestep instead of two. Can store the next value to check as well, to avoid the indexing
-    # operations. (note: if a lane and route event have the same position, update the lane event first)
-    # Also need a better (easier) way to allow boundary conditions to be defined, and in a more modular way
+    # should create common road configurations.
     # E.g. of good design - create road network by specifying types of roads (e.g. road, on/off ramp, merge)
     # add boundary conditions to road network.
 

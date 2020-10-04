@@ -9,6 +9,7 @@ import math
 def update_lrfol(veh):
     """After a vehicle's state has been updated, this updates its left and right followers.
 
+    It is recommended to use update_all_lrfol_multiple instead of this.
     We keep each vehicle's left/right followers updated by doing a single distance compute each timestep.
     The current way of dealing with l/r followers is designed for timesteps which are relatively small.
     (e.g. .1 or .25 seconds) where we also keep l/rfol updated at all timesteps. Other strategies would be
@@ -17,7 +18,7 @@ def update_lrfol(veh):
     See update_change documentation for explanation of naming conventions.
     Called in simulation by update_all_lrfol.
     update_all_lrfol_multiple can be used to handle edge cases so that the vehicle order is always correct,
-    but is slightly more computationally expensive and not required in normal situations.
+    but is slightly more computationally expensive.
     The edge cases occur when vehicles overtake multiple vehicles in a single timestep.
 
     Args:
@@ -199,7 +200,9 @@ def update_rfol_recursive(veh, rfol, rovertaken):
 
 # Another option you could do is to only store lfol/rfol, to keep it updated you would have to
 # do 2 dist calculations per side per timestep (do a call of leadfol find where we already have either
-# a follower or leader as guess). When there is a lane change store a dict which has the lane changing
+# a follower or leader as guess. To explain why you need to do 2 dist calculations - consider how to
+# update the opsidefol of the new lcside leaders).
+# When there is a lane change store a dict which has the lane changing
 # vehicle as a key, and store as the value the new guess to use. You would need to use this dict to update
 # guesses whenever it is time to update the lfol/rfol. Updating guesses efficiently is the challenge here.
 # This strategy would have higher costs per timestep to keep lfol/rfol updated, but would be simpler to
@@ -214,8 +217,7 @@ def update_rfol_recursive(veh, rfol, rovertaken):
 # likewise, if you don't need to always have the lead/fol updated every timestep, there is no reason to
 # keep it updated. On the other hand, if you need more than just the lfol/rfol, perhaps those should
 # kept updated as well.
-# TODO optimizing the vehicle orders can be done in the future when it is more clear exactly what information
-# is needed at each timestep.
+# TODO optimizing/refactoring the vehicle orders can be considered
 # ######
 
 def update_leadfol_after_lc(veh, lcsidelane, newlcsidelane, side, timeind):

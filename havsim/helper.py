@@ -102,8 +102,67 @@ def extract_lc_data(dataset, dt = 0.1):
 
         convert_to_mem(veh_df, veh_dict)
         all_veh_dict[veh_id] = veh_dict
-        
+
     return res, all_veh_dict
+
+class VehicleData:
+    def __init__(self, posmem=None, speedmem=None, vehid=None, starttime=None, dt=None, vehlen=None,
+                 lanemem=None, leadmem=None, folmem=None, endtime=None, lfolmem=None, rfolmem=None,
+                 rleadmem=None, lleadmem=None):
+        self.posmem = posmem
+        self.speedmem = speedmem
+        self.vehid = vehid
+        self.starttime = starttime
+        self.dt = dt
+        self.len = vehlen
+        self.lanemem = lanemem
+        self.leadmem = leadmem
+        self.folmem = folmem
+        self.endtime = endtime
+        self.lfolmem = lfolmem
+        self.rfolmem = rfolmem
+        self.rleadmem = rleadmem
+        self.lleadmem = lleadmem
+
+    def value_at(self, attribute, time):
+        """Gets value of sparse data representation (e.g. leadmem, lanemem) at specific time."""
+        raise NotImplementedError
+
+    def sparse_to_dense(self, attribute):
+        """convert sparse data representation (e.g. leadmem, lanemem) to it's dense representation."""
+        raise NotImplementedError
+
+    def lead_times(self):
+        """Find the longest time interval with leader is not None and return the starting/ending times."""
+        raise NotImplementedError
+
+    def __hash__(self):
+        """Vehicles/VehicleData are hashable by their unique vehicle ID."""
+        return hash(self.vehid)
+
+    def __eq__(self, other):
+        """Used for comparing two vehicles with ==."""
+        return self.vehid == other.vehid
+
+    def __ne__(self, other):
+        """Used for comparing two vehicles with !=."""
+        return not self.vehid == other.vehid
+
+    def __repr__(self):
+        """Display for vehicle in interactive console."""
+        return 'saved data for vehicle '+str(self.vehid)
+
+    def __str__(self):
+        """Convert to a str representation."""
+        return self.__repr__()
+
+
+def convert_to_data(vehicle):
+    """Converts a (subclassed) Vehicle to VehicleData."""
+    # should convert Vehicle objects to their vehid. Need to convert Lanes to some index?
+    raise NotImplementedError
+    return VehicleData(vehicle)
+
 
 def get_lead_data(veh, meas, platooninfo, rp=None, dt=.1):
     """Returns lead vehicle trajectory and possibly relaxation

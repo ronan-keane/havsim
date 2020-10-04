@@ -154,13 +154,13 @@ def update_lane_events(veh, timeind, remove_vehicles):
 
         elif curevent['event'] == 'exit':
             fol = veh.fol
-            # # need to check l/rlead for edge case when you overtake and exit in same timestep?
-            # for i in veh.llead:
-            #     i.rfol = fol
-            #     fol.llead.append(i)
-            # for i in veh.rlead:
-            #     i.lfol = fol
-            #     fol.rlead.append(i)
+            # need to check l/rlead for edge case when you overtake and exit in same timestep?
+            for i in veh.llead:
+                i.rfol = fol
+                fol.llead.append(i)
+            for i in veh.rlead:
+                i.lfol = fol
+                fol.rlead.append(i)
 
             # update vehicle orders
             fol.lead = None

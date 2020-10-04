@@ -737,7 +737,10 @@ class Vehicle:
 
     def __repr__(self):
         """Display for vehicle in interactive console."""
-        return 'vehicle '+str(self.vehid)+' on lane '+str(self.lane)+' at position '+str(self.pos)
+        if not self.endtime:
+            return 'vehicle '+str(self.vehid)+' on lane '+str(self.lane)+' at position '+str(self.pos)
+        else:
+            return 'vehicle '+str(self.vehid)
 
     def __str__(self):
         """Convert vehicle to a str representation."""

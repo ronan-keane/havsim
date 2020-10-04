@@ -20,7 +20,7 @@ import time
 # q,k = calculateflows(meas, [[200,600],[1000,1400]], [0, 9900], 30*10, lane = 6)
 
 #option 3 - can also just make boudnary conditions based on what the FD looks like
-# tempveh = hs.Vehicle(-1, None, [33.3, 1., 2, 1.1, 1.5], None, maxspeed = 33.3-1e-6)
+# tempveh = hs.Vehicle(-1, None, [30, 1.1, 3, 1.1, 1.5], None, maxspeed = 30-1e-6)
 # spds = np.arange(0,33.3,.01)
 # flows = np.array([tempveh.get_flow(i) for i in spds])
 # density = np.divide(flows,spds)
@@ -33,23 +33,23 @@ import time
 def onramp_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
     kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15,
-              'shift_parameters': [-3, 2]}
+              'shift_parameters': [-1.5, 1.5]}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 
 def mainroad_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15, 'shift_parameters': [-3, 2]}
+    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15, 'shift_parameters': [-1.5, 1.5]}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 #inflow amounts
 def onramp_inflow(timeind, *args):
     # return .06 + np.random.rand()/25
-    return .09
+    return .1
 def mainroad_inflow(*args):
     # return .43 + np.random.rand()*24/100
     return .48
 
 #outflow using speed series
-tempveh = hs.Vehicle(-1, None, [33.3, 1., 2, 1.1, 1.5], None, maxspeed = 33.3-1e-6)
+tempveh = hs.Vehicle(-1, None, [30, 1.1, 3, 1.1, 1.5], None, maxspeed = 30-1e-6)
 outspeed = tempveh.inv_flow(.48, congested = False)
 inspeed, inhd = tempveh.inv_flow(.48, output_type = 'both', congested = True)
 inspeedramp, inhd = tempveh.inv_flow(.07, output_type = 'both', congested = True)

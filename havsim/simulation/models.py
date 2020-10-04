@@ -488,7 +488,7 @@ def IDM_parameters(*args):
     """Suggested parameters for the IDM/MOBIL."""
     # time headway parameter = 1 -> always unstable in congested regime.
     # time headway = 1.5 -> restabilizes at high density
-    cf_parameters = [33.3, 1., 2, 1.1, 1.5]  # note speed is supposed to be in m/s
+    cf_parameters = [30, 1.1, 3, 1.1, 1.5]  # note speed is supposed to be in m/s
     # note last 3 parameters have units in terms of timesteps, not seconds
     lc_parameters = [-4, -20, .5, .1, 0, .2, .1, 20, 20]
 

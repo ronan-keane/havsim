@@ -26,13 +26,14 @@ for timeind in timeinds:
 
     print(veh.cf_model(veh.cf_parameters, [hd, vehspeed, leadspeed]))
 
-    ttc = hd / (vehspeed - leadspeed)
-    if ttc < 1.5 and ttc > 0:
+    ttc = hd / (vehspeed - leadspeed +1e-6)
+    if ttc < 1.2 and ttc > 0:
         temp = (ttc/1.5)**2
-        currelax, currelax_v = relax[timeind-relaxstart, :]*temp
+        currelax, currelax_v = relax[timeind-relaxstart]
+        currelax, currelax_v = temp*currelax, temp*currelax_v
         # currelax = relax[timeind-relaxstart]*temp
     else:
-        currelax, currelax_v = relax[timeind-relaxstart, :]
+        currelax, currelax_v = relax[timeind-relaxstart]
         # currelax = relax[timeind-relaxstart]
     print(veh.cf_model(veh.cf_parameters, [hd + currelax, vehspeed, leadspeed + currelax_v]))
     # print(veh.cf_model(veh.cf_parameters, [hd , vehspeed, leadspeed]) + currelax)

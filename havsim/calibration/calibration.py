@@ -115,7 +115,6 @@ class CalibrationVehicle(hs.Vehicle):
     def update(self, timeind, dt):
         """Update for longitudinal state. Updates LeadVehicle if applicable."""
         super().update(timeind, dt)
-
         if self.in_leadveh:  # only difference is we update the LeadVehicle if applicable
             self.leadveh.update(timeind+1)
 
@@ -187,7 +186,7 @@ class Calibration:
         lc_events: sorted list of remaining lead change events
         lc_event: function that can apply a lc_events
     """
-    def __init__(self, vehicles, add_events, lc_events, dt, lc_event_fun = None, endtime = None):
+    def __init__(self, vehicles, add_events, lc_events, dt, lc_event_fun = None, endtime = None, calibration_kwargs = {}):
         """Inits Calibration.
 
         Args:
@@ -198,7 +197,7 @@ class Calibration:
             lc_event_fun: can give a custom function for handling lc_events, otherwise we use the default
             endtime: last time index which is simulated. The starttime is inferred from add_events.
         """
-
+        self.parameter_type = calibration_kwargs['parameter_type']
         self.all_vehicles = vehicles
         self.all_add_events = add_events
         self.all_lc_events = lc_events
@@ -235,12 +234,23 @@ class Calibration:
         Returns:
             loss (float).
         """
-        param_size = int(len(parameters) / len(self.all_vehicles))
-        # reset all vehicles, and assign their parameters
-        for veh_index in range(len(self.all_vehicles)):
-            veh = self.all_vehicles[veh_index]
-            param_start_index = int(veh_index * param_size)
-            veh.initialize(parameters[param_start_index:param_start_index+param_size])  # TODO need some method to assign parameters to vehicles
+        if self.parameter_type == "non_uniform":
+            curr_veh = 0
+            curr_param_index = 0
+            # reset all vehicles, and assign their parameters
+            while curr_veh < len(self.all_vehicles):
+                veh = self.all_vehicles[curr_veh]
+                curr_param_num = parameters[curr_param_index]
+                end_index = curr_param_index+1+curr_param_num
+                veh.initialize(parameters[curr_param_index+1:end_index]) 
+                curr_veh += 1
+                curr_param_index = end_index
+        elif self.parameter_type == "uniform":
+            param_size = int(len(parameters) / len(self.all_vehicles))
+            for veh_index in range(len(self.all_vehicles)):
+                veh = self.all_vehicles[veh_index]
+                param_start_index = int(veh_index * param_size)
+                veh.initialize(parameters[param_start_index:param_start_index+param_size])
 
         # initialize events, add the first vehicle(s), initialize vehicles headways/LeadVehicles
         self.vehicles = set()
@@ -400,11 +410,13 @@ def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibr
     lcevent_list = []
     id2obj = {}
     if type(vehicles) == list:
-        vehicles = set(vehicles)
+        # vehicles = set(vehicles)
+        vehicles = list(vehicles)
+    max_endtime = 0
+    max_y = 0
     for veh in vehicles:
         # make lead memory - a list of position/speed tuples for any leaders which are not simulated
         leads = set(platooninfo[veh][4])
-        #they are being simulated so need to get rid of this?
         needleads = leads.difference(vehicles)
         if len(needleads) > 0:
             leadstatemem = []
@@ -427,8 +439,10 @@ def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibr
 
         # get initial values, y for veh
         t_nstar, inittime, endtime = platooninfo[veh][0:3]
+        max_endtime = max(endtime, max_endtime)
         initlead, initpos, initspd, length = meas[veh][inittime-t_nstar,[4,2,3,6]]
         y = meas[veh][inittime-t_nstar:endtime+1-t_nstar,2]
+        # max_y = max(y, max_y)
         laneind = meas[veh][-1,7]
         # create vehicle object
         newveh = vehicle_class(veh, y, initpos, initspd, inittime, leadstatemem, leadinittime,
@@ -443,8 +457,8 @@ def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibr
     addevent_list.sort(key = lambda x: x[0], reverse = True)  # sort events in time
     lcevent_list.sort(key = lambda x: x[0], reverse = True)
     # make calibration object
-    return calibration_class(vehicle_list, addevent_list, lcevent_list, dt, endtime=endtime,
-                             lc_event_fun=lc_event_fun, **calibration_kwargs)
+    return calibration_class(vehicle_list, addevent_list, lcevent_list, dt, endtime=max_endtime,
+                             lc_event_fun=lc_event_fun, calibration_kwargs=calibration_kwargs)
 
 
 def make_lc_event(vehicles, id2obj, meas, platooninfo, dt, addevent_list, lcevent_list):
@@ -582,6 +596,7 @@ def update_lead(curveh, newlead, leadlen, timeind):
         curveh.in_leadveh = False
     elif newlead is None:
         curveh.lead = None
+        curveh.in_leadveh = False
         curveh.leadmem.append([None, timeind+1])
     else:  # LeadVehicle
         curveh.lead = curveh.leadveh

@@ -345,11 +345,11 @@ def eql_inflow_free(curlane, inflow, *args, **kwargs):
 
 def eql_speed(curlane, *args, c=.8, minspeed=0, **kwargs):
     """Like eql_inflow, but get equilibrium headway from leader's speed instead of inverting flow."""
-    # also possible to get speed from the headway instead of using the leader's speed
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
     spd = lead.speed
-    spd = max(minspeed, spd)  # can safeguard speed
+    eqlspd = curlane.newveh.get_eql(hd, input_type='s')
+    spd = max(minspeed, max(spd, eqlspd))  # Try to add with largest speed possible
 
     se = curlane.newveh.get_eql(spd, input_type='v')
 
@@ -528,7 +528,7 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
             newveh.lead = lead
 
             # initialize state
-            newveh.initialize(pos, speed, hd, timeind+1)
+            newveh.initialize(pos+1e-6, speed, hd, timeind+1)
 
             # update leader/follower relationships######
             # leader relationships
@@ -620,6 +620,7 @@ class AnchorVehicle:
         self.pos = curlane.start
         self.speed = 0
         self.acc = 0
+        self.in_relax = False  # for mobil model
         self.hd = None
         self.len = 0
 

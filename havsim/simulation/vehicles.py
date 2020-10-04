@@ -179,8 +179,7 @@ def set_lc_helper(veh, lside, rside, timeind, chk_lc=True, chk_lc_prob=1, get_fo
 
     Returns:
         bool: True if we want to call the lane changing model.
-        tuple of floats: (lside, rside, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd). lside/rside
-            are bools which are True if we need to check that side in the LC model. rest are float headways,
+        tuple of floats: (newlfolhd, newlhd, newrfolhd, newrhd, newfolhd). float headways,
             giving the new headway for that vehicle. If get_fol = False, newfolhd is not present.
             If a vehicle would have no leader in the new configuration, None is returned as the headway. If
             a AnchorVehicle acts as a (l/r)fol, the headway is computed as normal.
@@ -213,9 +212,9 @@ def set_lc_helper(veh, lside, rside, timeind, chk_lc=True, chk_lc_prob=1, get_fo
         else:
             newfolhd = get_headway(veh.fol, veh.lead)
     else:
-        return True, (lside, rside, newlfolhd, newlhd, newrfolhd, newrhd)
+        return True, (newlfolhd, newlhd, newrfolhd, newrhd)
 
-    return True, (lside, rside, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd)
+    return True, (newlfolhd, newlhd, newrfolhd, newrhd, newfolhd)
 
 
 def get_new_hd(lcsidefol, veh, lcsidelane):
@@ -408,6 +407,7 @@ class Vehicle:
         self.coop_veh = None
         self.disc_cooldown = -math.inf
         self.disc_endtime = -math.inf
+        self.chk_lc = None
 
         # leader/follower relationships
         self.lead = lead
@@ -464,14 +464,14 @@ class Vehicle:
             self.r_lc = 'discretionary'
         else:
             self.r_lc = None
-        self.update_lc_state
+        self.update_lc_state(starttime)
 
         # set lane/route events - sets lane_events, route_events, cur_route attributes
         self.cur_route = update_lane_routes.make_cur_route(
             self.route_parameters, self.lane, self.route.pop(0))
         # self.route_events = self.cur_route[self.lane].copy()
         update_lane_routes.set_lane_events(self)
-        update_lane_routes.set_route_events(self)
+        update_lane_routes.set_route_events(self, starttime)
 
     def cf_model(self, p, state):
         """Defines car following model.
@@ -483,8 +483,6 @@ class Vehicle:
         Returns:
             float acceleration of the model.
         """
-        # if state[0] < 0:  # need bound on headway because IDM will not act correctly for negative headways
-            # state[0] = .1  # bound is in mobil
         return p[3]*(1-(state[1]/p[0])**4-((p[2]+state[1]*p[1]+(state[1]*(state[1]-state[2])) /
                                             (2*(p[3]*p[4])**(1/2)))/(state[0]))**2)
 
@@ -507,10 +505,10 @@ class Vehicle:
             acc = curlane.call_downstream(self, timeind, dt)
 
         else:
-            if self.in_relax:
+            if userelax:
                 # accident free formulation of relaxation
-                ttc = hd / (self.speed - lead.speed)
-                if ttc < 1.5 and ttc > 0:
+                ttc = hd / (self.speed - lead.speed + 1e-6)
+                if ttc < 1.2 and ttc > 0:
                 # if False:  # disable accident free
                     temp = (ttc/1.5)**2
                     currelax, currelax_v = self.relax[timeind-self.relax_start]  # hd + v relax

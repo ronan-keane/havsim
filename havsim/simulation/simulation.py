@@ -66,7 +66,7 @@ def update_net(vehicles, lc_actions, inflow_lanes, merge_lanes, vehid, timeind, 
 
         # update a vehicle's lane events and route events for the new lane
         update_lane_routes.set_lane_events(veh)
-        update_lane_routes.set_route_events(veh)
+        update_lane_routes.set_route_events(veh, timeind)
 
     for veh in set(relaxvehs):  # apply relaxation
         veh.set_relax(timeind, dt)

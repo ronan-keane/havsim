@@ -204,12 +204,18 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
 
     # calculate safeties and incentives for each side
     if veh.lside:
+        # safeguard for negative/zero headway (needed for IDM, not necessarily needed for other models)
+        use_newlfolhd = max(newlfolhd, 1e-6)
+        newlhd = max(newlhd, 1e-6) if newlhd is not None else None
         newlfola, newla, lincentive = mobil_helper(p[3], p[4], in_disc, veh.lfol, veh.lfol.lead, veh,
-                                                   veh.llane, newlfolhd, newlhd, veha, fola, newfola,
+                                                   veh.llane, use_newlfolhd, newlhd, veha, fola, newfola,
                                                    timeind, dt, userelax_cur, userelax_new)
     if veh.rside:
+        # safeguard for negative/zero headway (needed for IDM, not necessarily needed for other models)
+        use_newrfolhd = max(newrfolhd, 1e-6)
+        newrhd = max(newrhd, 1e-6) if newrhd is not None else None
         newrfola, newra, rincentive = mobil_helper(p[3], p[5], in_disc, veh.rfol, veh.rfol.lead, veh,
-                                                   veh.rlane, newrfolhd, newrhd, veha, fola, newfola,
+                                                   veh.rlane, use_newrfolhd, newrhd, veha, fola, newfola,
                                                    timeind, dt, userelax_cur, userelax_new)
 
     # determine which side we want to potentially intiate LC for
@@ -217,7 +223,6 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
         side = 'r'
         incentive = rincentive
 
-        newhd = newrhd
         newlcsidefolhd = newrfolhd
         vehsafe = newra
         lcsidefolsafe = newrfola
@@ -227,7 +232,6 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
         side = 'l'
         incentive = lincentive
 
-        newhd = newlhd
         newlcsidefolhd = newlfolhd
         vehsafe = newla
         lcsidefolsafe = newlfola
@@ -238,20 +242,14 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
     # safe = p[0] (or use the maximum safety, p[1])
 
     # safety changes with relative velocity (implemented in treiber, kesting' traffic-simulation.de) -
-    safe = veh.speed/veh.maxspeed
-    safe = safe*p[0] + (1-safe)*p[1]
+    # safe = veh.speed/veh.maxspeed
+    # safe = safe*p[0] + (1-safe)*p[1]
 
-    # if in_disc:  # different safeties for discretionary/mandatory
-    #     safe = p[0]
-    # else:
-    #     safe = p[1]  # or use the relative velocity safety
+    if in_disc:  # different safeties for discretionary/mandatory
+        safe = p[0]
+    else:
+        safe = p[1]  # or use the relative velocity safety
     # ####################################################
-
-    # safeguards for negative headway (necessary for IDM)
-    if newhd is not None and newhd < 0:
-        vehsafe = safe - 5
-    if newlcsidefolhd is not None and newlcsidefolhd < 0:
-        lcsidefolsafe = safe - 5
 
     # determine if LC can be completed, and if not, determine if we want to enter cooperative or
     # tactical states. update the internal lc state accordingly
@@ -277,7 +275,7 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
                             veh.lside = True
                     elif veh.r_lc is not None:
                         veh.rside = True
-                coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, side, lctype,
+                coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol, in_disc,
                                 use_coop=use_coop, use_tact=use_tact)
         # elif veh.chk_lc == True:  # incentive not met -> end always check discretionary state
         # # (redundant for version 2)
@@ -287,7 +285,7 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
         if vehsafe > safe and lcsidefolsafe > safe:
             lc_actions[veh] = side
         else:
-            coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, side, lctype,
+            coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol, in_disc,
                             use_coop=use_coop, use_tact=use_tact)
     return
 
@@ -360,10 +358,8 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol
     in the cooperative model, we try to identify a cooperating vehicle. A cooperating vehicle always gets a
     deceleration added so that it will give extra space to let the ego vehicle successfully change lanes.
     If the cooperation is applied without tactical, then the cooperating vehicle must be the lcside follower,
-    and the newlcsidefolhd must be > jam spacing. We cannot allow cooperation between veh and coop veh
-    when the headway is < jam spacing, because otherwise it is possible for the coop veh to have 0 speed,
-    and veh still cannot change lanes, leading to a gridlock situation where neither vehicle can move.
-    Jam spacing refers to the jam spacing of the vehicle which the condition is used for.
+    and the newlcsidefolhd must be > jam spacing. This prevents cooperation with vehicles that are right next
+    to you.
     if cooperation is applied with tactical, then in addition to the above, it's also possible the
     cooperating vehicle is the lcside follower's follower, where additionally the newlcsidefolhd is
     < jam spacing, but the headway between the lcside follower's follower and veh is > jam spacing.
@@ -396,8 +392,8 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol
         lcsidefolsafe: safety value for lcside follower; viable if > safe
         vehsafe: safety value for vehicle; viable if > safe
         safe: safe value for change
-        side: either 'l' or 'r', side vehicle wants to change
-        lctype:either 'discretionary' or 'mandatory'
+        lcsidefol: lane change side follower of veh
+        in_disc: True if change is discretionary
         use_coop: bool, whether to apply cooperation model. if use_coop and use_tact are both False,
             this function does nothing.
         use_tact: bool, whether to apply tactical model
@@ -493,6 +489,7 @@ def IDM_parameters(*args):
     # time headway parameter = 1 -> always unstable in congested regime.
     # time headway = 1.5 -> restabilizes at high density
     cf_parameters = [33.3, 1., 2, 1.1, 1.5]  # note speed is supposed to be in m/s
-    lc_parameters = [-4, -10, .4, .1, 0, .2, .5]
+    # note last 3 parameters have units in terms of timesteps, not seconds
+    lc_parameters = [-4, -20, .5, .1, 0, .2, .1, 20, 20]
 
     return cf_parameters, lc_parameters

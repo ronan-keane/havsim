@@ -127,6 +127,8 @@ def update_lane_events(veh, timeind, remove_vehicles):
     Returns:
         None. (Modifies Vehicle attributes in place, adds to remove_vehicles in place.)
     """
+    # TODO maybe combine lane events/route events into a single priority queue and keep the next event
+    # position in memory? maybe not worth to do.
     if not veh.lane_events:
         return
     curevent = veh.lane_events[0]
@@ -143,7 +145,7 @@ def update_lane_events(veh, timeind, remove_vehicles):
 
             # enter new road/lane -> need new lane/route events
             set_lane_events(veh)
-            set_route_events(veh)
+            set_route_events(veh, timeind)
 
         elif curevent['event'] == 'update lr':
             update_lane_lr(veh, veh.lane, curevent)
@@ -152,7 +154,7 @@ def update_lane_events(veh, timeind, remove_vehicles):
 
         elif curevent['event'] == 'exit':
             fol = veh.fol
-            # # need to check l/rlead for edge case when you overtake and exit in same timestep
+            # # need to check l/rlead for edge case when you overtake and exit in same timestep?
             # for i in veh.llead:
             #     i.rfol = fol
             #     fol.llead.append(i)
@@ -519,7 +521,7 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
     return cur_route
 
 
-def set_route_events(veh):
+def set_route_events(veh, timeind):
     """When a vehicle enters a new lane, this function generates all its route events for that lane.
 
     Every Lane has a list of 'route events' defined for it, which ensure that the Vehicle follows its
@@ -566,7 +568,7 @@ def set_route_events(veh):
     # for route events, past events need to be applied.
     curbool = True
     while curbool:
-        curbool = update_route_events(veh)
+        curbool = update_route_events(veh, timeind)
 
 
 def update_merge_anchors(curlane, lc_actions):

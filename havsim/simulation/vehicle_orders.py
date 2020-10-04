@@ -166,7 +166,7 @@ def update_lfol_recursive(veh, lfol, lovertaken):
             lovertaken[lfol].append(veh)
         else:
             lovertaken[lfol] = [veh]
-        update_lfol_recursive(veh, lfol.fol)
+        update_lfol_recursive(veh, lfol.fol, lovertaken)
 
 
 def update_rfol_recursive(veh, rfol, rovertaken):

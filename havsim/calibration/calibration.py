@@ -124,7 +124,10 @@ class CalibrationVehicle(hs.Vehicle):
         curr_posmem = self.posmem
         if self.downstream_index > -1:
             curr_posmem = self.posmem[:self.downstream_index]
-        return sum(np.square(np.array(curr_posmem[:len(self.y)]) - self.y))/len(self.y)
+        if len(self.posmem) < len(self.y):
+            return sum(np.square(np.array(curr_posmem) - self.y[:len(curr_posmem)]))/len(curr_posmem)
+        else:
+            return sum(np.square(np.array(curr_posmem[:len(self.y)]) - self.y))/len(self.y)
 
     def initialize(self, parameters):
         """Resets memory, applies initial conditions, and sets the parameters for the next simulation."""

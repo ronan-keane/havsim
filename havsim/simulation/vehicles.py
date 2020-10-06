@@ -721,7 +721,7 @@ class Vehicle:
         if self.in_relax:
             if timeind == self.relax_end:
                 self.in_relax = False
-                self.relaxmem.append((self.relax_start, self.relax))
+                self.relaxmem.append((self.relax, self.relax_start))
 
     def __hash__(self):
         """Vehicles need to be hashable. We hash them with a unique vehicle ID."""

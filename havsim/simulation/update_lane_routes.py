@@ -446,7 +446,17 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
     generates route events for all lanes in [curlaneind, laneind). If curlaneind < laneind, starts at
     laneind -1, moving to the left until routes on all lanes are defined. Similarly for curlaneind > laneind.
     Assumes we already have the route for laneind in cur_route.
-    Edge cases where routes have different lengths are handled.
+    Edge cases where lanes have different lengths are handled, but we assume that all lanes are connected
+    when they exist. E.g. for a road with 2 lanes, lane0 and lane1, you could have:
+    lane0.start = 0, lane0.end = 1000
+    lane1.start = 500, lane1.end = 1500,
+    lane0.connect_right = [(0, None), (lane1.start, lane1)]
+    lane1.connect_left = [(lane1.start, lane0)]
+    This configuration would work.
+    But if:
+    lane1.connect_left = [(lane1.start, None), (800, lane0)]
+    his case is not currently handled, because the current code does not look at the connect_left/right,
+    it just uses the .start, .end
 
     Args:
         p: parameters, length 2 list of floats, where p[0] is a safety buffer for merging and p[1]
@@ -461,6 +471,10 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
     Returns:
         cur_route: Updates cur_route in place
     """
+    # TODO decide if we want to handle the case explained in docstring, by checking the connect_left/right
+    # to get the positions of connection. These values could then be used instead of .start and .end
+    # Those connections could also be stored in road or lane, so they don't have to be recomputed
+    # during simulation.
     if curlaneind < laneind:
         curind = laneind - 1
         prevtemplane = curroad[curind+1]
@@ -582,6 +596,7 @@ def update_merge_anchors(curlane, lc_actions):
     and does not need to be updated. Otherwise, position is a float of the position on curlane,
     and the merge anchor is the vehicle on the same track as curlane which is closest to position without
     yet passing position.
+    Merge anchors have fixed index.
     position being None corresponds to the situation where a new lane starts.
     position being a float corresponds to the situation where two lanes initially meet.
     Unlike lfol/rfol, merge anchors do not need to be completely updated. They should be kept

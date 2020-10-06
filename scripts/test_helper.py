@@ -9,8 +9,6 @@ with open('/home/jiwonkim/github/havsim/data/recon-ngsim.pkl', 'rb') as f:
 
 txt = np.loadtxt('data/trajectories-0400-0415.txt')
 # res = pd.read_csv('data/RECONSTRUCTED trajectories-400-0415_NO MOTORCYCLES.csv')
-# meas, platooninfo, leaders, simcount, curlead, totfollist, followers, curleadlist \
-#         = helper.makeplatooninfo(txt)
-res, all_veh_dict = helper.extract_lc_data(txt)
+all_veh_dict = helper.extract_lc_data(txt)
 
 embed()

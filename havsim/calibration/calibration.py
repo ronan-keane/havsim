@@ -120,14 +120,18 @@ class CalibrationVehicle(hs.Vehicle):
 
     def loss(self):
         """Calculates loss."""
-        #why would posmem be less than y
-        curr_posmem = self.posmem
-        if self.downstream_index > -1:
-            curr_posmem = self.posmem[:self.downstream_index]
-        if len(self.posmem) < len(self.y):
-            return sum(np.square(np.array(curr_posmem) - self.y[:len(curr_posmem)]))/len(curr_posmem)
-        else:
-            return sum(np.square(np.array(curr_posmem[:len(self.y)]) - self.y))/len(self.y)
+        T = self.leadmem[-1][1]
+        endind = min(T-self.inittime, len(self.y))
+        return sum(np.square(self.posmem[:endind] - self.y[:endind]))/endind
+
+        # #why would posmem be less than y
+        # curr_posmem = self.posmem
+        # if self.downstream_index > -1:
+        #     curr_posmem = self.posmem[:self.downstream_index]
+        # if len(self.posmem) < len(self.y):
+        #     return sum(np.square(np.array(curr_posmem) - self.y[:len(curr_posmem)]))/len(curr_posmem)
+        # else:
+        #     return sum(np.square(np.array(curr_posmem[:len(self.y)]) - self.y))/len(self.y)
 
     def initialize(self, parameters):
         """Resets memory, applies initial conditions, and sets the parameters for the next simulation."""
@@ -150,7 +154,10 @@ class CalibrationVehicle(hs.Vehicle):
         self.relax_parameters = parameters[-1]
         #get rid of this?
         self.fol = None
-        self.downstream_index = -1
+        # self.downstream_index = -1
+
+    def __repr__(self):
+        return ' vehicle '+str(self.vehid)
 
 
 class LeadVehicle:
@@ -218,7 +225,7 @@ class Calibration:
             self.lc_event = lc_event_fun
 
 
-        self.starttime = add_events[-1][0]
+        self.starttime = min([add_events[i][0] for i in range(len(add_events))])
         self.endtime = endtime
         self.dt = dt
 
@@ -245,6 +252,7 @@ class Calibration:
         Returns:
             loss (float).
         """
+        # assign parameters
         if self.parameter_type == "non_uniform":
             curr_veh = 0
             curr_param_index = 0
@@ -273,11 +281,9 @@ class Calibration:
         self.addtime = update_add_event(self.vehicles, self.add_events, self.addtime, self.timeind-1, self.dt,
                                         self.lc_event)
         for veh in self.vehicles:
-            veh.starttime = self.starttime
             if veh.in_leadveh:
                 veh.leadveh.update(self.timeind)
             veh.hd = get_headway(veh, veh.lead)
-
 
         # do simulation by calling step repeatedly
         if self.run_type == "max_endtime":
@@ -325,15 +331,18 @@ def update_calibration(vehicles, add_events, lc_events, addtime, lctime, timeind
         veh.update(timeind, dt)
 
     #removing vecs that have an end position above 1475
-    # remove_list = remove_vehicles(vehicles, 1475, timeind)
-    # for remove_vec in remove_list:
-    #     vehicles.remove(remove_vec)
+    remove_list = remove_vehicles(vehicles, 1475, timeind)
+    for remove_vec in remove_list:
+        vehicles.remove(remove_vec)
 
     addtime = update_add_event(vehicles, add_events, addtime, timeind, dt, lc_event)
 
     for veh in vehicles:
         if veh.lead is not None:
-            veh.hd = get_headway(veh, veh.lead)
+            try:
+                veh.hd = get_headway(veh, veh.lead)
+            except:
+                print('hi')
 
     return addtime, lctime
 
@@ -346,7 +355,7 @@ def remove_vehicles(vehicles, endpos, timeind):
             remove_list.append(veh)
             if veh.fol is not None:
                 veh.fol.lead = None
-                veh.fol.downstream_index = timeind - veh.fol.starttime + 1
+                # veh.fol.downstream_index = timeind - veh.fol.starttime + 1
                 veh.fol.leadmem.append([None, timeind+1])
     # pop from vehicles
     return remove_list
@@ -400,7 +409,7 @@ def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibr
     and creates the add/lc event.
 
     Args:
-        vehicles: list/set of vehicles to add to the Calibration
+        vehicles: list of vehicles to add to the Calibration
         meas: from havsim.calibration.algs.makeplatoonlist
         platooninfo: from havsim.calibration.algs.makeplatoonlist
         dt: timestep
@@ -428,10 +437,10 @@ def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibr
     addevent_list = []
     lcevent_list = []
     id2obj = {}
-    if type(vehicles) == list:
-        # preserve order while setting elements
-        seen = set()
-        vehicles = [x for x in vehicles if x not in seen and not seen.add(x)]
+    # if type(vehicles) == list:
+    #     # preserve order while setting elements
+    #     seen = set()
+    #     vehicles = [x for x in vehicles if x not in seen and not seen.add(x)]
     max_endtime = 0
     for veh in vehicles:
         # make lead memory - a list of position/speed tuples for any leaders which are not simulated
@@ -547,6 +556,9 @@ def add_event(event, vehicles, timeind, dt, lc_event):
     unused, unused, curveh, lcevent = event
     vehicles.add(curveh)
     lc_event(lcevent, timeind, dt)
+    if curveh.in_leadveh:
+        curveh.leadveh.update(timeind+1)
+
 
 # TODO need to add new lane to event
 def lc_event(event, timeind, dt):
@@ -614,7 +626,7 @@ def update_lead(curveh, newlead, leadlen, timeind):
         curveh.in_leadveh = False
     elif newlead is None:
         curveh.lead = None
-        curveh.downstream_index = timeind - curveh.starttime + 1
+        # curveh.downstream_index = timeind - curveh.starttime + 1
         curveh.in_leadveh = False
         curveh.leadmem.append([None, timeind+1])
     else:  # LeadVehicle

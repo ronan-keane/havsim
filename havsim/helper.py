@@ -93,11 +93,6 @@ def extract_lc_data(dataset, dt=0.1, alpha=0.9):
     # sort values
     sort_tuple = (dataset[:, col_dict['global_y']], dataset[:, col_dict['lane']], \
             dataset[:, col_dict['frame_id']])
-    # dataset = dataset[np.lexsort(
-    #         (dataset[:, col_dict['global_y']],
-    #         dataset[:, col_dict['lane']], \
-    #         dataset[:, col_dict['frame_id']])
-    #     )]
     dataset = dataset[np.lexsort(sort_tuple)]
 
     # generate lfol/llead/rfol/rlead data
@@ -125,20 +120,39 @@ def extract_lc_data(dataset, dt=0.1, alpha=0.9):
         columns.append(col)
 
     def convert_to_mem(veh_np, veh_dict):
+        """
+        Generates compressed representation of lane/lead/lfol/rfol/llead/rlead
+        Args:
+            veh_np: np.ndarray. Subset of dataset that only includes a given veh_id
+                Note that the dataset should be sorted in terms of frame_id
+            veh_dict: dict, str -> list or float. Dictionary that includes all
+                information about the vehicle. Keys include: posmem, dt, speedmem, etc.
+                This is updated within the function with lanemem/leadmem/etc.
+        Returns:
+            None
+                
+        """
         colnames = ['lanemem', 'leadmem', 'lfolmem', 'rfolmem', 'lleadmem', 'rleadmem']
         curr_vals = {col: None for col in colnames}
         final_mems = [[] for col in colnames]
+
         for idx in range(veh_np.shape[0]):
             row = veh_np[idx, :]
             for idx, col in enumerate(colnames):
+                # preprocess val
                 val = row[col_dict[col.replace("mem", "")]]
                 if pd.isna(val) or val == 0:
                     val = None
+
+                # if we're just starting or the saved value is different
+                # than the current value, we update the mem
                 if len(final_mems[idx]) == 0 or curr_vals[col] != val:
                     curr_vals[col] = val
                     final_mems[idx].append((val, row[col_dict['frame_id']]))
+        # save to veh_dict
         for idx, col in enumerate(colnames):
             veh_dict[col] = final_mems[idx]
+
     def ema(np_vec, alpha=0.9):
         """
         Returns the exponential moving average of np_vec
@@ -157,27 +171,86 @@ def extract_lc_data(dataset, dt=0.1, alpha=0.9):
             res.append(curr_val)
         return res
 
-
+    # generate veh_dict with vehicledata objects
     all_veh_dict = {}
     for veh_id in tqdm(np.unique(dataset[:, col_dict['veh_id']]), desc = "generating veh dicts"):
         veh_dict = {}
         veh_np = dataset[dataset[:, col_dict['veh_id']] == veh_id, :]
         pos_mem = ema(veh_np[:, col_dict['local_y']], alpha)
-        veh_dict['pos_mem'] = list(pos_mem)
+        veh_dict['posmem'] = list(pos_mem)
 
         speed_mem = [(pos_mem[i + 1] - pos_mem[i]) / dt for i in range(len(pos_mem) - 1)]
         speed_mem.append(speed_mem[-1])
-        veh_dict['speed_mem'] = speed_mem
+        veh_dict['speedmem'] = speed_mem
 
-        veh_dict['start_time'] = veh_np[:, col_dict['frame_id']].min()
-        veh_dict['end_time'] = veh_np[:, col_dict['frame_id']].max()
-        veh_dict['len'] = veh_np[0, col_dict['veh_len']]
+        veh_dict['starttime'] = veh_np[:, col_dict['frame_id']].min()
+        veh_dict['endtime'] = veh_np[:, col_dict['frame_id']].max()
+        veh_dict['vehlen'] = veh_np[0, col_dict['veh_len']]
         veh_dict['dt'] = dt
         veh_dict['vehid'] = veh_id
 
         convert_to_mem(veh_np, veh_dict)
-        all_veh_dict[veh_id] = veh_dict
+        all_veh_dict[veh_id] = VehicleData(**veh_dict)
     return all_veh_dict
+
+class VehicleData:
+    def __init__(self, posmem=None, speedmem=None, vehid=None, starttime=None, dt=None, vehlen=None,
+                 lanemem=None, leadmem=None, folmem=None, endtime=None, lfolmem=None, rfolmem=None,
+                 rleadmem=None, lleadmem=None):
+        self.posmem = posmem
+        self.speedmem = speedmem
+        self.vehid = vehid
+        self.starttime = starttime
+        self.dt = dt
+        self.len = vehlen
+        self.lanemem = lanemem
+        self.leadmem = leadmem
+        self.folmem = folmem
+        self.endtime = endtime
+        self.lfolmem = lfolmem
+        self.rfolmem = rfolmem
+        self.rleadmem = rleadmem
+        self.lleadmem = lleadmem
+
+    def value_at(self, attribute, time):
+        """Gets value of sparse data representation (e.g. leadmem, lanemem) at specific time."""
+        raise NotImplementedError
+
+    def sparse_to_dense(self, attribute):
+        """convert sparse data representation (e.g. leadmem, lanemem) to it's dense representation."""
+        raise NotImplementedError
+
+    def lead_times(self):
+        """Find the longest time interval with leader is not None and return the starting/ending times."""
+        raise NotImplementedError
+
+    def __hash__(self):
+        """Vehicles/VehicleData are hashable by their unique vehicle ID."""
+        return hash(self.vehid)
+
+    def __eq__(self, other):
+        """Used for comparing two vehicles with ==."""
+        return self.vehid == other.vehid
+
+    def __ne__(self, other):
+        """Used for comparing two vehicles with !=."""
+        return not self.vehid == other.vehid
+
+    def __repr__(self):
+        """Display for vehicle in interactive console."""
+        return 'saved data for vehicle '+str(self.vehid)
+
+    def __str__(self):
+        """Convert to a str representation."""
+        return self.__repr__()
+
+
+def convert_to_data(vehicle):
+    """Converts a (subclassed) Vehicle to VehicleData."""
+    # should convert Vehicle objects to their vehid. Need to convert Lanes to some index?
+    raise NotImplementedError
+    return VehicleData(vehicle)
+
 
 def get_lead_data(veh, meas, platooninfo, rp=None, dt=.1):
     """Returns lead vehicle trajectory and possibly relaxation

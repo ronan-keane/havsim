@@ -309,11 +309,13 @@ def update_calibration(vehicles, add_events, lc_events, addtime, lctime, timeind
     At the beginning of the timestep, vehicles/states/events are assumed to be fully updated. Then, in order,
         -call each vehicle's cf model (done in Calibration.step).
         -check for lead change events in the next timestep, and apply them if applicable.
-        -update all vehicle's states, except headway, for the next timestep.
+        -update all vehicle's states and headway, for the next timestep.
+        -check if any vehicles reach the end of the network, and remove them if so.
         -check for add events, and add the vehicles if applicable.
-        -update all vehicle's headways.
     Then, when the timestep is incremented, all vehicles/states/events are fully updated, and the iteration
     can continue.
+    Note that this logic for the update order is the same in havsim.simulation, albeit the actual update
+    functions themselves are simplified.
 
     Args:
         vehicles: set of vehicles currently in simulation
@@ -329,6 +331,9 @@ def update_calibration(vehicles, add_events, lc_events, addtime, lctime, timeind
 
     for veh in vehicles:
         veh.update(timeind, dt)
+    for veh in vehicles:
+        if veh.lead is not None:
+            veh.hd = get_headway(veh, veh.lead)
 
     #removing vecs that have an end position above 1475
     remove_list = remove_vehicles(vehicles, 1475, timeind)
@@ -337,12 +342,7 @@ def update_calibration(vehicles, add_events, lc_events, addtime, lctime, timeind
 
     addtime = update_add_event(vehicles, add_events, addtime, timeind, dt, lc_event)
 
-    for veh in vehicles:
-        if veh.lead is not None:
-            try:
-                veh.hd = get_headway(veh, veh.lead)
-            except:
-                print('hi')
+
 
     return addtime, lctime
 
@@ -558,6 +558,8 @@ def add_event(event, vehicles, timeind, dt, lc_event):
     lc_event(lcevent, timeind, dt)
     if curveh.in_leadveh:
         curveh.leadveh.update(timeind+1)
+    if curveh.lead is not None:
+        curveh.hd = get_headway(curveh, curveh.lead)
 
 
 # TODO need to add new lane to event

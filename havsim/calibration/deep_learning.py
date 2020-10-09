@@ -90,6 +90,7 @@ class RNNCFModel(tf.keras.Model):
         # other constants
         self.dt = dt
         self.lstm_units = lstm_units
+        self.num_hidden_layers = 2
 
     def call(self, inputs, training=False):
         """Updates states for a batch of vehicles.
@@ -100,8 +101,8 @@ class RNNCFModel(tf.keras.Model):
                     each timestep.
                 cur_state -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
                     starting timestep.
-                hidden_states - list of the two hidden states, each hidden state is a tensor with shape
-                    of (nveh, lstm_units). Initialized as all zeros for the first timestep.
+                hidden_states - tensor of hidden states with shape (num_hidden_layers, 2, nveh, lstm_units) 
+                    Initialized as all zeros for the first timestep.
             training: Whether to run in training or inference mode. Need to pass training=True if training
                 with dropout.
 
@@ -116,7 +117,8 @@ class RNNCFModel(tf.keras.Model):
                 (number of vehicles, number of LSTM units)
         """
         # prepare data for call
-        lead_inputs, init_state, hidden_states, hidden_states2 = inputs
+        lead_inputs, init_state, hidden_states = inputs
+        hidden_states = tf.unstack(hidden_states)
         lead_inputs = tf.unstack(lead_inputs, axis=1)  # unpacked over time dimension
         cur_pos, cur_speed = tf.unstack(init_state, axis=1)
         outputs = []
@@ -132,8 +134,10 @@ class RNNCFModel(tf.keras.Model):
             # call to model
             self.lstm_cell.reset_dropout_mask()
             self.lstm_cell2.reset_dropout_mask()
-            x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
-            x, hidden_states2 = self.lstm_cell2(x, hidden_states2, training)
+            x, hidden_state1 = self.lstm_cell(cur_inputs, hidden_states[0], training)
+            x, hidden_state2 = self.lstm_cell2(x, hidden_states[1], training)
+            hidden_states[0] = hidden_state1 
+            hidden_states[1] = hidden_state2
             x = self.dense2(x)
             x = self.dense1(x)  # output of the model is current acceleration for the batch
 
@@ -145,7 +149,8 @@ class RNNCFModel(tf.keras.Model):
             outputs.append(cur_pos)
 
         outputs = tf.stack(outputs, 1)
-        return outputs, cur_speed, hidden_states, hidden_states2
+        hidden_states = tf.stack(hidden_states)
+        return outputs, cur_speed, hidden_states
 
 
 def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
@@ -228,17 +233,17 @@ def train_step(x, y_true, sample_weight, model, loss_fn, optimizer):
     Returns:
         y_pred: output from model
         cur_speeds: output from model
-        hidden_state: hidden_state for model
+        hidden_state: hidden_states for model
         loss:
     """
     with tf.GradientTape() as tape:
         # would using model.predict_on_batch instead of model.call be faster to evaluate?
         # the ..._on_batch methods use the model.distribute_strategy - see tf.keras source code
-        y_pred, cur_speeds, hidden_state, hidden_state2 = model(x, training=True)
+        y_pred, cur_speeds, hidden_states = model(x, training=True)
         loss = loss_fn(y_true, y_pred, sample_weight) + sum(model.losses)
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    return y_pred, cur_speeds, hidden_state, hidden_state2, loss
+    return y_pred, cur_speeds, hidden_states, loss
 
 
 def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100, n=20,
@@ -272,19 +277,17 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
     vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0]] for count, veh in enumerate(vehs)}
     # make inputs for network
     cur_state = [ds[veh]['IC'] for veh in vehs]
-    hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
-    hidden_states2 = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
-    hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
-    hidden_states2 = tf.convert_to_tensor(hidden_states2, dtype='float32')
+    hidden_state = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
+    hidden_states = tf.stack([hidden_state for i in range(model.num_hidden_layers)])
     lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
     prev_loss = math.inf
     early_stop_counter = 0
 
     for i in range(nbatches):
         # call train_step
-        veh_states, cur_speeds, hidden_states, hidden_states2, loss_value = \
-            train_step([lead_inputs, cur_state, hidden_states, hidden_states2], true_traj, loss_weights, model,
+        veh_states, cur_speeds, hidden_states, loss_value = \
+            train_step([lead_inputs, cur_state, hidden_states], true_traj, loss_weights, model,
                        loss, optimizer)
 
         # print out and early stopping
@@ -322,20 +325,18 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
                 vehs_counter[ind] = [0, ds[new_veh]['times'][1]-ds[new_veh]['times'][0]]
                 cur_state_updates.append(ds[new_veh]['IC'])
             cur_state_updates = tf.convert_to_tensor(cur_state_updates, dtype='float32')
-            # hidden_state_updates = [[0 for j in range(model.lstm_units)] for k in need_new_vehs]
-            # hidden_state_updates = tf.convert_to_tensor(hidden_state_updates, dtype='float32')
             hidden_state_updates = tf.zeros((len(need_new_vehs), model.lstm_units))
             inds_to_update = tf.convert_to_tensor([[j] for j in need_new_vehs], dtype='int32')
 
             cur_state = tf.tensor_scatter_nd_update(cur_state, inds_to_update, cur_state_updates)
-            h, c = hidden_states
-            h2, c2 = hidden_states2
-            h = tf.tensor_scatter_nd_update(h, inds_to_update, hidden_state_updates)
-            c = tf.tensor_scatter_nd_update(c, inds_to_update, hidden_state_updates)
-            h2 = tf.tensor_scatter_nd_update(h2, inds_to_update, hidden_state_updates)
-            c2 = tf.tensor_scatter_nd_update(c2, inds_to_update, hidden_state_updates)
-            hidden_states = [h, c]
-            hidden_states2 = [h2, c2]
+            tf.unstack(hidden_states)
+            new_hidden_states = []
+            for i in range(len(hidden_states)):
+                h, c = hidden_states[i]
+                h = tf.tensor_scatter_nd_update(h, inds_to_update, hidden_state_updates)
+                c = tf.tensor_scatter_nd_update(c, inds_to_update, hidden_state_updates)
+                new_hidden_states.append(tf.stack([h, c]))
+            hidden_states = tf.stack(new_hidden_states)
 
         lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
 
@@ -358,14 +359,12 @@ def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
     vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0]] for count, veh in enumerate(vehs)}
     nt = max([i[1] for i in vehs_counter.values()])
     cur_state = [ds[veh]['IC'] for veh in vehs]
-    hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
-    hidden_states2 = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
+    hidden_state = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
+    hidden_states = tf.stack([hidden_state for i in range(model.num_hidden_layers)])
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
-    hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
-    hidden_states2 = tf.convert_to_tensor(hidden_states2, dtype='float32')
     lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt, **kwargs)
 
-    y_pred, cur_speeds, hidden_state, hidden_state2 = model([lead_inputs, cur_state, hidden_states, hidden_states2])
+    y_pred, cur_speeds, hidden_states = model([lead_inputs, cur_state, hidden_states])
     if loss is not None:
         out_loss = loss(true_traj, y_pred, loss_weights)
         return y_pred, cur_speeds, out_loss

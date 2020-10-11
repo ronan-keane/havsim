@@ -135,8 +135,9 @@ def obj_and_grad(p):
     elif p > 2:
         grad = 0
     else:
-        ds = 1/(1-p**2/4)**.5
-        grad = 2*math.sin(star)*ds + -ds*(p-2*math.cos(star)*star) + (2*math.pi-star)*(2*math.sin(star)*star*ds+1-2*math.cos(star)*ds)
+        ds = 1/2/(1-p**2/4)**.5
+        grad = 2*math.sin(star)*ds + -ds*(p-2*math.cos(star)*star) + (2*math.pi-star)*(2*math.sin(star)*star*ds+1-2*math.cos(star)*ds) \
+            -math.sin(star)*ds*(4*math.pi**2-star**2)+math.cos(star)*2*star*ds
     return obj, grad
 
 gs = gridspec.GridSpec(2,2)
@@ -164,7 +165,7 @@ ax3.set_ylabel('gradient')
 ax.set_ylabel('x(t)')
 ax.set_xlabel('t')
 ax.set_ylim([-2,10])
-ax3.set_ylim([-20,200])
+ax3.set_ylim([-200,10])
 axp = plt.axes([.15, 0.1, 0.65, 0.03])
 
 def update(val):

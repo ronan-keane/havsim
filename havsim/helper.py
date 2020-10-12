@@ -5,26 +5,29 @@ helper functions
 import numpy as np
 import heapq
 import math
-import pandas as pd
 from collections import defaultdict
-from IPython import embed
-from tqdm import tqdm
 
 # TODO - fix code style and documentation
-# TODO - want to update format for meas/platooninfo - have a single consolidated data structure with
-# no redundant information
-def extract_lc_data(dataset, dt=0.1, alpha=0.9):
+def extract_lc_data(dataset, columns_ind={'veh_id':0, 'frame_id':1, 'lane':13, 'local_y':5, 'veh_len':8,
+                                      'lead':14, 'fol':15}, dt=0.1, alpha=0.1):
     """
     Returns dictionary with keys veh_id, and values as data object (TODO fill in after pull)
     Args:
-        dataset: the format of this data is laid out in data/loadngsim.py (raw data)
-            It includes vehicle ID, frame ID, position, etc. See loadngsim for more info.
-            Currently tested with trajectories-400-0415.txt
+        dataset: Consists of rows of observation, assumed to be sorted by vehicle IDs, times.
+            each observation has the values of
+            veh id - vehicle ID (unique float)
+            frame id - time index (integer)
+            lane - lane the vehicle is on
+            local y - position in direction of travel
+            veh len - vehicle length
+            lead - lead vehicle ID
+            fol - following vehicle ID
+        columns_ind: Gives the column indices for each value
         dt: float representing timestep in simulation
         alpha: float representing alpha in exponential moving average (which we
             utilize to smooth positions)
     Returns:
-        dictionary w/keys veh_id to data object. See (TODO) for more info
+        dictionary with keys of vehicle ids, values of VehicleData.
     """
 
     def _get_vehid(lane_np, global_y):
@@ -51,7 +54,7 @@ def extract_lc_data(dataset, dt=0.1, alpha=0.9):
         Returns lfol/llead/rfol/llead of a given row in the dataframe
         Args:
             row_np: np.ndarray, must be a vector. The row of the dataset, which represents
-                a vehicle at a given frame_id. 
+                a vehicle at a given frame_id.
         Returns:
             lfol: float, vehicle id of left follower of vehicle at given frame id
             llead: float, vehicle id of left leader of vehicle at given frame id
@@ -59,7 +62,7 @@ def extract_lc_data(dataset, dt=0.1, alpha=0.9):
             rlead: float, vehicle id of right leader of vehicle at given frame id
         """
         lane_id, global_y = row_np[col_dict['lane']], row_np[col_dict['global_y']]
-        lfol, llead, rfol, rlead = np.nan, np.nan, np.nan, np.nan
+        lfol, llead, rfol, rlead = None, None, None, None
 
         # lfol/llead
         if (lane_id >= 2 and lane_id <= 6) or \
@@ -83,9 +86,8 @@ def extract_lc_data(dataset, dt=0.1, alpha=0.9):
 
         return lfol, llead, rfol, rlead
 
-    columns = ['veh_id', 'frame_id', 'lane', 'global_x', 'global_y', \
-                'local_x', 'local_y', 'veh_len', 'veh_class', 'lead']
-    col_idx = [0, 1, 13, 6, 7, 4, 5, 8, 10, 14]
+    columns = list(columns_ind.keys())
+    col_idx = list(columns.ind.values())
 
     col_dict = {col: idx for idx, col in enumerate(columns)}
     dataset = dataset[:, col_idx]
@@ -130,9 +132,9 @@ def extract_lc_data(dataset, dt=0.1, alpha=0.9):
                 This is updated within the function with lanemem/leadmem/etc.
         Returns:
             None
-                
+
         """
-        colnames = ['lanemem', 'leadmem', 'lfolmem', 'rfolmem', 'lleadmem', 'rleadmem']
+        colnames = ['lanemem', 'leadmem', 'folmem', 'lfolmem', 'rfolmem', 'lleadmem', 'rleadmem']
         curr_vals = {col: None for col in colnames}
         final_mems = [[] for col in colnames]
 
@@ -141,7 +143,7 @@ def extract_lc_data(dataset, dt=0.1, alpha=0.9):
             for idx, col in enumerate(colnames):
                 # preprocess val
                 val = row[col_dict[col.replace("mem", "")]]
-                if pd.isna(val) or val == 0:
+                if val == 0:
                     val = None
 
                 # if we're just starting or the saved value is different

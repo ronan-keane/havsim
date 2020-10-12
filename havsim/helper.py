@@ -8,7 +8,7 @@ import math
 from collections import defaultdict
 
 # TODO - fix code style and documentation
-def extract_lc_data(dataset, columns_ind={'veh_id':0, 'frame_id':1, 'lane':13, 'local_y':5, 'veh_len':8,
+def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, 'pos':5, 'veh_len':8,
                                       'lead':14, 'fol':15}, dt=0.1, alpha=0.1):
     """
     Returns dictionary with keys veh_id, and values as data object (TODO fill in after pull)
@@ -18,11 +18,11 @@ def extract_lc_data(dataset, columns_ind={'veh_id':0, 'frame_id':1, 'lane':13, '
             veh id - vehicle ID (unique float)
             frame id - time index (integer)
             lane - lane the vehicle is on
-            local y - position in direction of travel
+            pos - position in direction of travel
             veh len - vehicle length
             lead - lead vehicle ID
             fol - following vehicle ID
-        columns_ind: Gives the column indices for each value
+        column_dict: Gives the column indices for each value
         dt: float representing timestep in simulation
         alpha: float representing alpha in exponential moving average (which we
             utilize to smooth positions)
@@ -30,20 +30,20 @@ def extract_lc_data(dataset, columns_ind={'veh_id':0, 'frame_id':1, 'lane':13, '
         dictionary with keys of vehicle ids, values of VehicleData.
     """
 
-    def _get_vehid(lane_np, global_y):
+    def _get_vehid(lane_np, pos):
         """
         Gets vehicle id of the follower/leader in the given lane (utilizing y_val of the curr veh)
         Args:
             lane_np: np.ndarray, a subset of dataset (only includes rows of a certain frame id,
-                and lane). This must be sorted via the global_y column or it produces incorrect
+                and lane). This must be sorted via the pos column or it produces incorrect
                 solutions
-            global_y: float, the global_y value of the vehicle we're searching up (the vehicle
+            pos: float, the pos value of the vehicle we're searching up (the vehicle
                 whose lfol/rfol/llead/rlead we are currently trying to triangulate)
         Returns:
             fol_id: float, the vehicle id of the follower in the given lane
             lead_id: float, the vehicle id of the leader in the given lane
         """
-        idx_of_fol = np.searchsorted(lane_np[:, col_dict['global_y']], global_y) - 1
+        idx_of_fol = np.searchsorted(lane_np[:, col_dict['pos']], pos) - 1
         if idx_of_fol != -1:
             return lane_np[idx_of_fol, col_dict['veh_id']], lane_np[idx_of_fol, col_dict['lead']]
         else:
@@ -61,46 +61,45 @@ def extract_lc_data(dataset, columns_ind={'veh_id':0, 'frame_id':1, 'lane':13, '
             rfol: float, vehicle id of right follower of vehicle at given frame id
             rlead: float, vehicle id of right leader of vehicle at given frame id
         """
-        lane_id, global_y = row_np[col_dict['lane']], row_np[col_dict['global_y']]
+        lane_id, pos = row_np[col_dict['lane']], row_np[col_dict['pos']]
         lfol, llead, rfol, rlead = None, None, None, None
 
         # lfol/llead
         if (lane_id >= 2 and lane_id <= 6) or \
-                (lane_id == 7 and global_y >= 400 and global_y <= 750):
+                (lane_id == 7 and pos >= 400 and pos <= 750):
             left_lane_id = lane_id - 1
 
             if left_lane_id in lane_id_to_indices:
                 min_idx, max_idx = lane_id_to_indices[left_lane_id]
                 left_lane_np = curr_frame[min_idx:max_idx]
-                lfol, llead = _get_vehid(left_lane_np, global_y)
+                lfol, llead = _get_vehid(left_lane_np, pos)
 
         # rfol/rlead
         if (lane_id >= 1 and lane_id <= 5) or \
-                (lane_id == 6 and global_y >= 400 and global_y <= 750):
+                (lane_id == 6 and pos >= 400 and pos <= 750):
             right_lane_id = lane_id + 1
 
             if right_lane_id in lane_id_to_indices:
                 min_idx, max_idx = lane_id_to_indices[right_lane_id]
                 right_lane_np = curr_frame[min_idx:max_idx]
-                rfol, rlead = _get_vehid(right_lane_np, global_y)
+                rfol, rlead = _get_vehid(right_lane_np, pos)
 
         return lfol, llead, rfol, rlead
 
-    columns = list(columns_ind.keys())
-    col_idx = list(columns.ind.values())
+    columns = list(column_dict.keys())
+    col_idx = list(column_dict.values())
 
-    col_dict = {col: idx for idx, col in enumerate(columns)}
     dataset = dataset[:, col_idx]
+    col_dict = {col: idx for idx, col in enumerate(columns)}
 
     # sort values
-    sort_tuple = (dataset[:, col_dict['global_y']], dataset[:, col_dict['lane']], \
+    sort_tuple = (dataset[:, col_dict['pos']], dataset[:, col_dict['lane']], \
             dataset[:, col_dict['frame_id']])
     dataset = dataset[np.lexsort(sort_tuple)]
 
     # generate lfol/llead/rfol/rlead data
     lc_data = [[], [], [], []]
-    tqdm_obj = tqdm(np.unique(dataset[:, col_dict['frame_id']]))
-    for frame_id in tqdm_obj:
+    for frame_id in np.unique(dataset[:, col_dict['frame_id']]):
         curr_frame = dataset[dataset[:, col_dict['frame_id']] == frame_id]
         # generate min/max index for each lane within this frame
         lane_id_to_indices = {}
@@ -175,10 +174,10 @@ def extract_lc_data(dataset, columns_ind={'veh_id':0, 'frame_id':1, 'lane':13, '
 
     # generate veh_dict with vehicledata objects
     all_veh_dict = {}
-    for veh_id in tqdm(np.unique(dataset[:, col_dict['veh_id']]), desc = "generating veh dicts"):
+    for veh_id in np.unique(dataset[:, col_dict['veh_id']]):
         veh_dict = {}
         veh_np = dataset[dataset[:, col_dict['veh_id']] == veh_id, :]
-        pos_mem = ema(veh_np[:, col_dict['local_y']], alpha)
+        pos_mem = ema(veh_np[:, col_dict['pos']], alpha)
         veh_dict['posmem'] = list(pos_mem)
 
         speed_mem = [(pos_mem[i + 1] - pos_mem[i]) / dt for i in range(len(pos_mem) - 1)]

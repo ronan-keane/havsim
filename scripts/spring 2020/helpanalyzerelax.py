@@ -1,10 +1,10 @@
 
 """
-@author: rlk268@cornell.edu
+script for trying to understand effects of relaxation on specific timesteps in simulation
 """
 #%% was for simulation code
 for veh in all_vehicles:
-    if veh.vehid == 366:
+    if veh.vehid == 1202:
         break
 vehtn = veh.starttime
 
@@ -18,7 +18,7 @@ lead = veh.leadmem[1][0]
 leadtn = lead.starttime
 
 # timeinds = list(range(11938, 11948))
-timeinds = [1505]
+timeinds = [4770]
 for timeind in timeinds:
     hd = lead.posmem[timeind - leadtn] - veh.posmem[timeind - vehtn] - lead.len
     leadspeed = lead.speedmem[timeind - leadtn]
@@ -26,13 +26,14 @@ for timeind in timeinds:
 
     print(veh.cf_model(veh.cf_parameters, [hd, vehspeed, leadspeed]))
 
-    ttc = hd / (vehspeed - leadspeed)
-    if ttc < 1.5 and ttc > 0:
+    ttc = hd / (vehspeed - leadspeed +1e-6)
+    if ttc < 1.2 and ttc > 0:
         temp = (ttc/1.5)**2
-        currelax, currelax_v = relax[timeind-relaxstart, :]*temp
+        currelax, currelax_v = relax[timeind-relaxstart]
+        currelax, currelax_v = temp*currelax, temp*currelax_v
         # currelax = relax[timeind-relaxstart]*temp
     else:
-        currelax, currelax_v = relax[timeind-relaxstart, :]
+        currelax, currelax_v = relax[timeind-relaxstart]
         # currelax = relax[timeind-relaxstart]
     print(veh.cf_model(veh.cf_parameters, [hd + currelax, vehspeed, leadspeed + currelax_v]))
     # print(veh.cf_model(veh.cf_parameters, [hd , vehspeed, leadspeed]) + currelax)

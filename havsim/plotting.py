@@ -813,7 +813,7 @@ def animatevhd(meas, sim, platooninfo, platoon, lentail=20, timerange=[None, Non
 
         return artists
 
-    ani = animation.FuncAnimation(fig, anifunc, init_func = init, frames = frames, blit = True, interval = interval)
+    ani = animation.FuncAnimation(fig, anifunc, init_func = init, frames = frames, blit = True, interval = interval, repeat=True)
 
     return ani
 

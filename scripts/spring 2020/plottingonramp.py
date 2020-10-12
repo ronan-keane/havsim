@@ -3,7 +3,7 @@
 Plotting some trajectories from merging vehicles from NGSIM
 """
 import havsim
-from havsim.plotting import animatevhd, animatetraj, plotvhd, plotColorLines, plotflows, platoonplot, plotspacetime
+from havsim.plotting as hp
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -34,11 +34,14 @@ plt.plot(meas[veh][0:t_n-t_nstar,3])
 
 #%%
 plt.figure()
-plotflows(meas,[[800,1200]],[0,10*60*14.5],30*10,type = 'FD',lane = 6, method = 'area')
+hp.plotflows(meas,[[800,1200]],[0,10*60*14.5],30*10,type = 'FD',lane = 6, method = 'area')
+plt.figure()
+hp.plotflows(meas,[[800,1200]],[0,10*60*14.5],30*10,type = 'FD',lane = 5, method = 'area')
 #%%
-platoonplot(meas, None, platooninfo, lane = 3, opacity = 0)
-platoonplot(meas, None, platooninfo, lane = 4, opacity = 0)
+hp.platoonplot(meas, None, platooninfo, lane = 5, opacity = 0)
+hp.platoonplot(meas, None, platooninfo, lane = 6, opacity = 0)
+hp.platoonplot(meas, None, platooninfo, lane = 7, opacity = 0)
 #%%
-plotspacetime(meas, platooninfo, lane = 3)
-plotspacetime(meas, platooninfo, lane = 6)
-plotspacetime(meas, platooninfo, lane = 7)
+hp.plotspacetime(meas, platooninfo, lane = 5)
+hp.plotspacetime(meas, platooninfo, lane = 6)
+hp.plotspacetime(meas, platooninfo, lane = 7)

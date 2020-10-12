@@ -32,7 +32,7 @@ import math
 from collections import deque
 import scipy.interpolate as sci
 import scipy.optimize as sc
-from . import models
+from havsim.old import models
 
 from havsim.helper import r_constant
 

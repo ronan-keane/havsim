@@ -20,10 +20,11 @@ import time
 # q,k = calculateflows(meas, [[200,600],[1000,1400]], [0, 9900], 30*10, lane = 6)
 
 #option 3 - can also just make boudnary conditions based on what the FD looks like
-# tempveh = Vehicle(-1, None, [30, 1.5, 2, 1.1, 1.5], None, maxspeed = 30-1e-6)
-# spds = np.arange(0,30,.01)
+# tempveh = hs.Vehicle(-1, None, [30, 1.1, 3, 1.1, 1.5], None, maxspeed = 30-1e-6)
+# spds = np.arange(0,33.3,.01)
 # flows = np.array([tempveh.get_flow(i) for i in spds])
 # density = np.divide(flows,spds)
+# plt.figure()
 # plt.plot(density,flows)
 
 #%%
@@ -31,24 +32,24 @@ import time
 #vehicle parameters
 def onramp_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':None,
-              'shift_parameters': [-1.5, 1]}
+    kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15,
+              'shift_parameters': [-1.5, 1.5]}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 
 def mainroad_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':None, 'shift_parameters': [-1.5, 1]}
+    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15, 'shift_parameters': [-1.5, 1.5]}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 #inflow amounts
 def onramp_inflow(timeind, *args):
     # return .06 + np.random.rand()/25
-    return .09
+    return .1
 def mainroad_inflow(*args):
     # return .43 + np.random.rand()*24/100
     return .48
 
 #outflow using speed series
-tempveh = hs.Vehicle(-1, None, [30, 1.5, 2, 1.1, 1.5], None, maxspeed = 30-1e-6)
+tempveh = hs.Vehicle(-1, None, [30, 1.1, 3, 1.1, 1.5], None, maxspeed = 30-1e-6)
 outspeed = tempveh.inv_flow(.48, congested = False)
 inspeed, inhd = tempveh.inv_flow(.48, output_type = 'both', congested = True)
 inspeedramp, inhd = tempveh.inv_flow(.07, output_type = 'both', congested = True)
@@ -65,18 +66,21 @@ def speed_inflow_ramp(*args):
 get_inflow1 = {'time_series':onramp_inflow}
 get_inflow2 = {'time_series':mainroad_inflow}
 # increment_inflow = {'method': 'ceql'}
-# increment_inflow = {'method': 'seql', 'c':.8}
+increment_inflow = {'method': 'seql', 'kwargs':{'c':.8}}
 # increment_inflow = {'method': 'shifted', 'accel_bound':-.3, 'shift':1.5}
-increment_inflow = {'method': 'speed', 'accel_bound':-.1, 'speed_series':speed_inflow}
-increment_inflow_ramp = {'method': 'speed', 'accel_bound':-.1, 'speed_series':speed_inflow_ramp}
-# increment_inflow_ramp=increment_inflow
+# increment_inflow = {'method': 'speed', 'accel_bound':-.1, 'speed_series':speed_inflow}
+# increment_inflow_ramp = {'method': 'speed', 'accel_bound':-.1, 'speed_series':speed_inflow_ramp}
+increment_inflow_ramp=increment_inflow
 downstream1 ={'method':'free', }
 # downstream1 = {'method': 'speed', 'time_series':mainroad_outflow}
 
 #make road network with boundary conditions - want to make an api for this in the future
-mainroadlen = 1100
-startmerge = 500
-endmerge = 700
+#main road has len mainroadlen, on ramp connects to right lane of main road on (startmerge, endmerge),
+#onramplen has onramplen before reaching the merge section
+mainroadlen = 2000
+startmerge = 1100
+endmerge = 1300
+onramplen = 200
 
 road = {'name': 'main road', 'len': mainroadlen, 'laneinds':2, 0: None, 1: None}
 road['connect to'] = {'exit': (mainroadlen, 'continue', (0,1), None, None)}

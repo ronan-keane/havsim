@@ -4,12 +4,12 @@ from havsim.calibration import calibration
 from havsim.simulation import road_networks
 import pickle
 import numpy as np
-import tensorflow as tf
 import math
 import time
 import havsim.helper as helper
 from havsim import simulation
 import scipy.optimize as sc
+#%%
 
 try:
     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim.pkl', 'rb') as f:
@@ -32,6 +32,7 @@ except:
 lanes = {}
 for i in range(1,7):
     unused, unused, exitspeeds, unused = helper.boundaryspeeds(meas, [], [i],.1,.1)
+    exitspeeds[0].extend((exitspeeds[0][-1],)*1000)
     exitspeeds = road_networks.timeseries_wrapper(exitspeeds[0])
     downstream = {'method': 'speed', 'time_series':exitspeeds}
     lane_i = simulation.Lane(None, None, {'name':'idk'}, 0, downstream=downstream)
@@ -42,13 +43,14 @@ for i in range(1,7):
 #%%
 # curplatoon = [3244.0, 3248.0, 3258.0, 3259.0, 3262.0]
 # curplatoon = [1013, 1023, 1030, 1037, 1045]
+# platoon_list = [[977.0, 3366.0, 774.0, 788.0]]
 for curplatoon in platoon_list:
-    average_end_position = 0
-    for i in curplatoon:
-        average_end_position += (meas[i][-1][2])
-    average_end_position = average_end_position/len(curplatoon)
-    print(average_end_position)
-    calibration_args = {"parameter_dict" : None, "ending_position" : average_end_position}
+    # average_end_position = 0
+    # for i in curplatoon:
+    #     average_end_position += (meas[i][-1][2])
+    # average_end_position = average_end_position/len(curplatoon)
+    # print(average_end_position)
+    calibration_args = {"parameter_dict" : None, "ending_position" : 1475}
     pguess =  [40,1,1,3,10,25]*len(curplatoon)
     mybounds = [(20,120),(.1,5),(.1,35),(.1,20),(.1,20),(.1,75)] * len(curplatoon)
     start = time.time()
@@ -57,7 +59,8 @@ for curplatoon in platoon_list:
     print('time to make calibrate is '+str(time.time()-start))
     start = time.time()
     cal.simulate(pguess)
-    print('time to simulate once is '+str(time.time()-start))
+    print('time to simulate once is '+'{:2.2f}'.format(time.time()-start)+' for '+'{:2.2f}'.format(sum([len(veh.posmem) for veh in cal.all_vehicles]))+\
+          ' timesteps = '+'{:2.2f}'.format(sum([len(veh.posmem) for veh in cal.all_vehicles])/(time.time()-start))+' updates per second')
     print("\n")
 
 

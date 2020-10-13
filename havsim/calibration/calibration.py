@@ -42,6 +42,7 @@ class CalibrationVehicle(hs.Vehicle):
             accepts a headway and returns a speed.
         lead: leading vehicle, can be either a (subclassed) Vehicle or LeadVehicle
         starttime: time index of the first simulated time
+        endtime: time index of the last simulated time (or None)
         initpos: position at starttime
         initspd: speed at starttime
         leadveh: If there is a LeadVehicle, leadveh is a reference to it. Otherwise None.
@@ -78,7 +79,6 @@ class CalibrationVehicle(hs.Vehicle):
             maxspeed: float of maximum speed.
             hdbounds: list of minimum/maximum headway. Defaults to [0, 10000].
             eql_type: 'v' If eqlfun takes in speed and outputs headway, 's' if vice versa. Defaults to 'v'.
-            ended: bool indicating if this veh is still active in our simulation
         """
         self.vehid = vehid
         self.len = length
@@ -89,8 +89,6 @@ class CalibrationVehicle(hs.Vehicle):
 
         self.road = None
         self.lane = lane
-
-        self.ended = False
 
         if accbounds is None:
             self.minacc, self.maxacc = -7, 3
@@ -121,7 +119,7 @@ class CalibrationVehicle(hs.Vehicle):
 
     def loss(self):
         """Calculates loss."""
-        T = self.leadmem[-1][1] if len(self.leadmem)>1 else len(self.posmem)+self.starttime
+        T = self.leadmem[-1][1] if self.leadmem[-1][0] is None else len(self.posmem)+self.starttime
         endind = min(T-self.starttime, len(self.y))
         return sum(np.square(self.posmem[:endind] - self.y[:endind]))/endind
 
@@ -137,6 +135,7 @@ class CalibrationVehicle(hs.Vehicle):
         self.relax = None
         self.relax_start = None
         # memory
+        self.endtime = None
         self.leadmem = []
         self.posmem = [self.pos]
         self.speedmem = [self.speed]
@@ -281,12 +280,13 @@ class Calibration:
         # do simulation by calling step repeatedly
         if self.run_type == "max_endtime":
             for i in range(self.endtime - self.starttime):
-                if len(self.vehicles) == 0:
+                # if len(self.add_events)==0 and len(self.vehicles) == 0:
+                if not self.add_events and not self.vehicles:
                     break
                 self.step()
 
         elif self.run_type == "all_vehicles":
-            while self.vehicles:
+            while self.vehicles and self.add_events:
                 self.step()
 
         # calculate and return loss
@@ -347,11 +347,11 @@ def remove_vehicles(vehicles, endpos, timeind):
     remove_list = []
     for veh in vehicles:
         if veh.pos > endpos:
-            veh.ended = True
+            veh.endtime = timeind+1
             remove_list.append(veh)
             if veh.fol is not None:
                 veh.fol.lead = None
-                if not veh.fol.ended:
+                if not veh.fol.endtime:  # handles edge case with collisions
                     veh.fol.leadmem.append([None, timeind+1])
     # pop from vehicles
     return remove_list
@@ -466,8 +466,8 @@ def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibr
         y = meas[veh][inittime-t_nstar:endtime+1-t_nstar,2]
         max_endtime = max(max_endtime, endtime)
         laneind = meas[veh][-1,7]
-        if laneind == 999.0:
-            print("is it here??")
+        if laneind not in lanes:
+            print("missing lane for downstream boundary")
             laneind = 6
         # create vehicle object
         newveh = vehicle_class(veh, y, initpos, initspd, inittime, leadstatemem, leadinittime,
@@ -604,7 +604,8 @@ def lc_event(event, timeind, dt):
         relaxamounts = (olds - news, oldv - newv)
         curveh.set_relax(relaxamounts, timeind, dt)
 
-    update_lead(curveh, newlead, leadlen, timeind)  # update leader
+    if not curveh.endtime:
+        update_lead(curveh, newlead, leadlen, timeind)  # update leader
 
 
 def update_lead(curveh, newlead, leadlen, timeind):
@@ -618,18 +619,17 @@ def update_lead(curveh, newlead, leadlen, timeind):
         leadlen: if newlead is a float, leadlen gives the length of the leader so LeadVehicle can be updated.
         timeind: time index of update (change happens at timeind+1)
     """
-    if not curveh.ended:
-        if leadlen is None:  # newlead is simulated
-            curveh.lead = newlead
-            newlead.fol = curveh
-            curveh.leadmem.append([newlead, timeind+1])
-            curveh.in_leadveh = False
-        elif newlead is None:
-            curveh.lead = None
-            curveh.in_leadveh = False
-            curveh.leadmem.append([None, timeind+1])
-        else:  # LeadVehicle
-            curveh.lead = curveh.leadveh
-            curveh.lead.set_len(leadlen)  # must set the length of LeadVehicle
-            curveh.leadmem.append([newlead, timeind+1])
-            curveh.in_leadveh = True
+    if leadlen is None:  # newlead is simulated
+        curveh.lead = newlead
+        newlead.fol = curveh
+        curveh.leadmem.append([newlead, timeind+1])
+        curveh.in_leadveh = False
+    elif newlead is None:
+        curveh.lead = None
+        curveh.in_leadveh = False
+        curveh.leadmem.append([None, timeind+1])
+    else:  # LeadVehicle
+        curveh.lead = curveh.leadveh
+        curveh.lead.set_len(leadlen)  # must set the length of LeadVehicle
+        curveh.leadmem.append([newlead, timeind+1])
+        curveh.in_leadveh = True

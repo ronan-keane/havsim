@@ -121,7 +121,7 @@ class CalibrationVehicle(hs.Vehicle):
 
     def loss(self):
         """Calculates loss."""
-        T = self.leadmem[-1][1] if len(self.leadmem)>1 else len(self.posmem)+self.inittime
+        T = self.leadmem[-1][1] if len(self.leadmem)>1 else len(self.posmem)+self.starttime
         endind = min(T-self.starttime, len(self.y))
         return sum(np.square(self.posmem[:endind] - self.y[:endind]))/endind
 

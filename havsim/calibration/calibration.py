@@ -12,9 +12,6 @@ from havsim.simulation.road_networks import get_headway
 from havsim import helper
 import math
 
-# TODO finish implementing calibration for platoons of vehicle
-    #handle assigning parameters for multiple vehicles
-    #removing vehicles and downstream boundary
 # TODO implement calibration for latitudinal models also
 
 class CalibrationVehicle(hs.Vehicle):
@@ -420,8 +417,7 @@ def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibr
             Used for downstream boundary.
         calibration_kwargs: keyword arguments passed to Calibration
     """
-    # TODO - to make this consistent with deep_learning, y should be over the times t_n+1 - min(T_nm1+1, T_n)
-    # and also this should use the helper function get_lead_data
+    # TODO - this should use the helper function get_lead_data
     if vehicle_class is None:
         vehicle_class = CalibrationVehicle
     if calibration_class is None:
@@ -564,7 +560,6 @@ def add_event(event, vehicles, timeind, dt, lc_event):
         curveh.hd = get_headway(curveh, curveh.lead)
 
 
-# TODO need to add new lane to event
 def lc_event(event, timeind, dt):
     """Applies lead change event, updating a CalibrationVehicle's leader.
 

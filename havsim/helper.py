@@ -47,11 +47,13 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
         if idx_of_fol != -1:
             return lane_np[idx_of_fol, col_dict['veh_id']], lane_np[idx_of_fol, col_dict['lead']]
         else:
-            return np.nan, lane_np[0, col_dict['veh_id']]
+            return None, lane_np[0, col_dict['veh_id']]
 
     def _get_fol_lead(row_np):
         """
-        Returns lfol/llead/rfol/llead of a given row in the dataframe
+        Returns lfol/llead/rfol/llead of a given row in the dataframe.
+        Note that we assume that the lanes have integer indices (e.g. 1,2,3, etc.) and that 
+        1 connects to 2, etc. So this is only designed to work for a road segment.
         Args:
             row_np: np.ndarray, must be a vector. The row of the dataset, which represents
                 a vehicle at a given frame_id.
@@ -91,30 +93,37 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
 
     dataset = dataset[:, col_idx]
     col_dict = {col: idx for idx, col in enumerate(columns)}
-
-    # sort values
+    
+    # generate lfol/llead/rfol/rlead data
+    # sort dataset in times, lanes, positions
+    dataset = np.hstack((dataset, np.expand_dims(np.array(range(len(dataset))), axis=1)))
     sort_tuple = (dataset[:, col_dict['pos']], dataset[:, col_dict['lane']], \
             dataset[:, col_dict['frame_id']])
-    dataset = dataset[np.lexsort(sort_tuple)]
+    dataset_sortframes = dataset[np.lexsort(sort_tuple)]
 
-    # generate lfol/llead/rfol/rlead data
+    # get lfol/llead/rfol/rlead for each vehicle in each time
     lc_data = [[], [], [], []]
-    for frame_id in np.unique(dataset[:, col_dict['frame_id']]):
-        curr_frame = dataset[dataset[:, col_dict['frame_id']] == frame_id]
+    frame_ids, indices, counts = \
+        np.unique(dataset_sortframes[:, col_dict['frame_id']], return_index=True, return_counts=True)
+    for count, frame_id in enumerate(frame_ids):
+        curr_frame = dataset_sortframes[indices[count]:indices[count]+counts[count], :]
+        
         # generate min/max index for each lane within this frame
         lane_id_to_indices = {}
-        for lane_id in np.unique(curr_frame[:, col_dict['lane']]):
-            res = curr_frame[:, col_dict['lane']] == lane_id
-            res = np.nonzero(res)[0]
-            lane_id_to_indices[lane_id] = res[0], res[-1] + 1
+        lane_ids, lane_indices, lane_counts = np.unique(curr_frame[:, col_dict['lane']], return_index=True,
+                                                        return_counts=True)
+        for countlane, lane_id in enumerate(lane_ids):
+            lane_id_to_indices[lane_id] = (lane_indices[countlane],
+                                           lane_indices[countlane]+lane_counts[countlane])
+            
         # calculate lc data
         for row_idx in range(curr_frame.shape[0]):
             for idx, lc_datum in enumerate(_get_fol_lead(curr_frame[row_idx, :])):
                 lc_data[idx].append(lc_datum)
-    lc_data = np.array(lc_data).T
-    dataset = np.hstack((dataset, lc_data))
+    lc_data = np.array(lc_data)[:, dataset_sortframes[:,-1].astype('int')]
+    dataset = np.hstack((dataset[:,:-1], lc_data.T))  # data appended to originally sorted dataset
 
-    # add some columns to col_dict
+    # record the new columns for lfol,llead,rfol,rlead
     lc_cols = ['lfol', 'llead', 'rfol', 'rlead']
     for col in lc_cols:
         col_dict[col] = len(columns)
@@ -174,18 +183,20 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
 
     # generate veh_dict with vehicledata objects
     all_veh_dict = {}
-    for veh_id in np.unique(dataset[:, col_dict['veh_id']]):
+    veh_ids, veh_inds, veh_counts = np.unique(dataset[:, col_dict['veh_id']],
+                                              return_index=True, return_counts=True)
+    for count, veh_id in enumerate(veh_ids):
         veh_dict = {}
-        veh_np = dataset[dataset[:, col_dict['veh_id']] == veh_id, :]
+        veh_np = dataset[veh_inds[count]:veh_inds[count]+veh_counts[count]]
         pos_mem = ema(veh_np[:, col_dict['pos']], alpha)
         veh_dict['posmem'] = list(pos_mem)
 
-        speed_mem = [(pos_mem[i + 1] - pos_mem[i]) / dt for i in range(len(pos_mem) - 1)]
+        speed_mem = [(pos_mem[i + 1] - pos_mem[i]) / dt for i in range(len(pos_mem) - 1)]  # re differentiate
         speed_mem.append(speed_mem[-1])
         veh_dict['speedmem'] = speed_mem
 
-        veh_dict['starttime'] = veh_np[:, col_dict['frame_id']].min()
-        veh_dict['endtime'] = veh_np[:, col_dict['frame_id']].max()
+        veh_dict['starttime'] = veh_np[0, col_dict['frame_id']]
+        veh_dict['endtime'] = veh_np[-1, col_dict['frame_id']]
         veh_dict['vehlen'] = veh_np[0, col_dict['veh_len']]
         veh_dict['dt'] = dt
         veh_dict['vehid'] = veh_id

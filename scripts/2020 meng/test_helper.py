@@ -13,7 +13,8 @@ import time
 # txt = np.loadtxt('data/trajectories-0400-0415.txt')
 
 # start = time.time()
-txt = np.loadtxt('C:/Users/rlk268/OneDrive - Cornell University/important misc/datasets/ngsim trajectory data/i 80/trajectories-0400-0415.txt')
+# txt = np.loadtxt('C:/Users/rlk268/OneDrive - Cornell University/important misc/datasets/ngsim trajectory data/i 80/trajectories-0400-0415.txt')
+txt = np.loadtxt('/home/rlk268/Downloads/trajectories-0400-0415.txt')
 # print(time.time()-start)
 
 all_veh_dict = helper.extract_lc_data(txt)

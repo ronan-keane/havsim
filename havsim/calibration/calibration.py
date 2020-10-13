@@ -12,9 +12,6 @@ from havsim.simulation.road_networks import get_headway
 from havsim import helper
 import math
 
-# TODO finish implementing calibration for platoons of vehicle
-    #handle assigning parameters for multiple vehicles
-    #removing vehicles and downstream boundary
 # TODO implement calibration for latitudinal models also
 
 class CalibrationVehicle(hs.Vehicle):
@@ -44,9 +41,9 @@ class CalibrationVehicle(hs.Vehicle):
         eql_type: If 'v', the vehicle's eqlfun accepts a speed and returns a headway. Otherwise it
             accepts a headway and returns a speed.
         lead: leading vehicle, can be either a (subclassed) Vehicle or LeadVehicle
-        inittime: time index of the first simulated time
-        initpos: position at inittime
-        initspd: speed at inittime
+        starttime: time index of the first simulated time
+        initpos: position at starttime
+        initspd: speed at starttime
         leadveh: If there is a LeadVehicle, leadveh is a reference to it. Otherwise None.
         in_leadveh: True if the LeadVehicle is the current leader.
         leadmem: list of tuples, where each tuple is (lead vehicle, time) giving the time the ego vehicle
@@ -62,7 +59,7 @@ class CalibrationVehicle(hs.Vehicle):
         acc: acceleration (float)
         y: target given to loss function (e.g. the position time series from data)
     """
-    def __init__(self, vehid, y, initpos, initspd, inittime, leadstatemem, leadinittime, length=3, lane=None,
+    def __init__(self, vehid, y, initpos, initspd, starttime, leadstatemem, leadinittime, length=3, lane=None,
                  accbounds=None, maxspeed=1e4, hdbounds=None, eql_type='v'):
         """Inits CalibrationVehicle. Cannot be used for simulation until initialize is called.
 
@@ -71,7 +68,7 @@ class CalibrationVehicle(hs.Vehicle):
             y: target for loss function, e.g. a 1d numpy array of np.float64
             initpos: initial position, float
             initspd: initial speed, float
-            inittime: first time of simulation, float
+            starttime: first time of simulation, float
             leadstatemem: list of tuples of floats. Gives the LeadVehicle state at the corresponding
                 time index.
             leadinittime: float of time index that 0 index of leadstatemem corresponds to
@@ -87,7 +84,7 @@ class CalibrationVehicle(hs.Vehicle):
         self.y = y
         self.initpos = initpos
         self.initspd = initspd
-        self.inittime = inittime
+        self.starttime = starttime
 
         self.road = None
         self.lane = lane
@@ -121,7 +118,7 @@ class CalibrationVehicle(hs.Vehicle):
     def loss(self):
         """Calculates loss."""
         T = self.leadmem[-1][1]
-        endind = min(T-self.inittime, len(self.y))
+        endind = min(T-self.starttime, len(self.y))
         return sum(np.square(self.posmem[:endind] - self.y[:endind]))/endind
 
         # #why would posmem be less than y
@@ -421,8 +418,7 @@ def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibr
             Used for downstream boundary.
         calibration_kwargs: keyword arguments passed to Calibration
     """
-    # TODO - to make this consistent with deep_learning, y should be over the times t_n+1 - min(T_nm1+1, T_n)
-    # and also this should use the helper function get_lead_data
+    # TODO - this should use the helper function get_lead_data
     if vehicle_class is None:
         vehicle_class = CalibrationVehicle
     if calibration_class is None:
@@ -562,7 +558,6 @@ def add_event(event, vehicles, timeind, dt, lc_event):
         curveh.hd = get_headway(curveh, curveh.lead)
 
 
-# TODO need to add new lane to event
 def lc_event(event, timeind, dt):
     """Applies lead change event, updating a CalibrationVehicle's leader.
 

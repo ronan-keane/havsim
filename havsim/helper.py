@@ -226,15 +226,59 @@ class VehicleData:
 
     def value_at(self, attribute, time):
         """Gets value of sparse data representation (e.g. leadmem, lanemem) at specific time."""
-        raise NotImplementedError
+        if attribute == self.posmem or attribute == self.speedmem:
+            return attribute[int(time) - int(self.starttime)]
+
+        return VehicleData.binary_search(attribute, int(time))
 
     def sparse_to_dense(self, attribute):
-        """convert sparse data representation (e.g. leadmem, lanemem) to it's dense representation."""
-        raise NotImplementedError
+        """convert sparse data representation (e.g. leadmem, lanemem) to its dense representation."""
+        dense = []
+        for idx, attribute_tuple in enumerate(attribute[:-1]):
+            val, time = attribute_tuple
+            dense.append(np.repeat(val, attribute[idx + 1][1] - time))
+        dense.append(np.repeat(attribute[-1][0], self.endtime + 1 - attribute[-1][1]))
+        return np.hstack(dense)
 
     def lead_times(self):
         """Find the longest time interval with leader is not None and return the starting/ending times."""
-        raise NotImplementedError
+        assert(self.has_leader())
+        longest = 0
+        longest_start = -1
+        longest_end = -1
+
+        curr_start = None
+        running_interval = 0
+        # to deal with last element case
+        self.leadmem.append((None, self.endtime))
+
+        for idx, lead_id_and_time in enumerate(self.leadmem):
+            lead, start_time = lead_id_and_time
+
+            if curr_start is None and lead is not None:
+                # setting up
+                curr_start = start_time
+                running_interval = 0
+            elif curr_start is not None:
+                # update the running interval
+                running_interval = start_time - curr_start
+
+            # no leader, so reset
+            if lead is None:
+                if running_interval > longest:
+                    longest = running_interval
+                    longest_start = curr_start
+                    longest_end = start_time
+                curr_start = None
+                running_interval = 0
+
+        self.leadmem = self.leadmem[:-1]
+        return int(longest_start), int(longest_end)
+
+
+    def has_leader(self):
+        """Returns whether or not the vehicle had a leader in its trajectory."""
+        return len(self.leadmem) > 1 or (len(self.leadmem) == 1 and self.leadmem[0][0] is not None)
 
     def __hash__(self):
         """Vehicles/VehicleData are hashable by their unique vehicle ID."""
@@ -255,6 +299,29 @@ class VehicleData:
     def __str__(self):
         """Convert to a str representation."""
         return self.__repr__()
+
+    def binary_search(arr, time):
+        """
+        Performs binary search on array, but assumes that the array is filled with tuples, where
+        the first element is the value and the second is the time. We're sorting utilizing the time field
+        and returning the value at the specific time. 
+        Args:
+            arr: sorted array with (val, start_time)
+            time: the time that we are looking for
+        Returns:
+            the value that took place at the given time
+        """
+        if len(arr) == 0 or time < arr[0][1]:
+            return None
+        start, end = 0, len(arr)
+        while (end > start + 1):
+            mid = (end + start) // 2
+            if time <= arr[mid][1]:
+                end = mid
+            elif time > arr[mid][1]:
+                start = mid
+        return arr[start][0]
+
 
 
 def convert_to_data(vehicle):

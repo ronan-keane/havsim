@@ -4,6 +4,64 @@ import numpy as np
 from havsim import helper
 import math
 
+def generate_lane_data(veh_data):
+    """
+    Generates Labels for Lane-Changing Model for a given vehicle
+    Args:
+        veh_data: (helper.VehicleData) represents vehicle we're analyzing
+    Returns:
+        lane_data: python list of 0/1/2, 0 is lane changing to the left, 1 is 
+            staying in the same lane, and 2 is lane changing to the right
+    """
+    lane = veh_data.sparse_to_dense(veh_data.lanemem)
+    lane_data = []
+    curr_lane = lane[0]
+    for lane_elem in lane[1:]:
+        if lane_elem < curr_lane:
+            lane_data.append(0)
+        elif lane_elem == curr_lane:
+            lane_data.append(1)
+        else:
+            lane_data.append(2)
+    lane_data.append(1) # last time step stay in same lane to make # points the same
+    return lane_data
+
+def make_dataset2(veh_dict, dt=.1):
+    # TODO: lead data + headway
+    ds = {}
+    for veh in veh_dict:
+        veh_data = veh_dict[veh]
+        # problem: what to do with vehicles that never have a leader?
+        if not veh_data.has_leader():
+            continue
+        t0, t3 = int(veh_data.starttime), int(veh_data.endtime)
+        t1, t2 = veh_data.lead_times()
+
+        vehpos = veh_data.posmem[t1-t0:]
+        vehspd = veh_data.speedmem[t1-t0:]
+        lanemem = generate_lane_data(veh_data)[t1-t0:]
+
+        # currently causes errors
+        # lfolmem = veh_data.sparse_to_dense(veh_data.lfolmem[t1-t0:])
+        # lfolspeed, lfolpos = [], []
+        # for idx, lfol_vehid in enumerate(lfolmem):
+        #     curr_time = t1 + idx
+        #     if lfol_vehid is None:
+        #         lfolspeed.append(None)
+        #         lfolpos.append(None)
+        #     else:
+        #         lfol_veh = veh_dict[lfol_vehid]
+        #         lfolspeed.append(lfol_veh.value_at(lfol_veh.speedmem, curr_time))
+        #         lfolpos.append(lfol_veh.value_at(lfol_veh.posmem, curr_time))
+
+        IC = [vehpos[0], vehspd[0]]
+
+        vehacc = [(vehpos[i+2] - 2*vehpos[i+1] + vehpos[i])/(dt**2) for i in range(len(vehpos)-2)]
+
+        # used to be int(t2 + 1), but I don't know if that's still relevant
+        ds[veh] = {'IC': IC, 'times': [t1, min(int(t2), t3)], 'posmem': vehpos, 'speedmem': vehspd, \
+                'lanemem': generate_lane_data(veh_data)}
+    return ds
 
 def make_dataset(meas, platooninfo, veh_list, dt=.1):
     """Makes dataset from meas and platooninfo.
@@ -36,10 +94,10 @@ def make_dataset(meas, platooninfo, veh_list, dt=.1):
     ds = {}
     maxheadway, maxspeed = 0, 0
     minacc, maxacc = 1e4, -1e4
-    for veh in veh_list:
+    for veh in veh_list: 
         # get data
-        t0, t1, t2, t3 = platooninfo[veh][:4]
-        leadpos, leadspeed = helper.get_lead_data(veh, meas, platooninfo, dt=dt)
+        t0, t1, t2, t3 = platooninfo[veh][:4] 
+        leadpos, leadspeed = helper.get_lead_data(veh, meas, platooninfo, dt=dt) 
         vehpos = meas[veh][t1-t0:, 2]
         vehspd = meas[veh][t1-t0:, 3]
         IC = [meas[veh][t1-t0, 2], meas[veh][t1-t0, 3]]

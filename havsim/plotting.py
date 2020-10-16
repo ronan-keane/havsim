@@ -357,7 +357,7 @@ def generate_changetimes(veh, col_index):
     return ind
 
 
-def plotflows(meas, spacea, timea, agg, type='FD', FDagg=None, lane = None, method = 'area', h = .1):
+def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane = None, method = 'area', h = .1):
     """
 	aggregates microscopic data into macroscopic quantities based on Edie's generalized definitions of traffic variables
 
@@ -420,7 +420,8 @@ def plotflows(meas, spacea, timea, agg, type='FD', FDagg=None, lane = None, meth
     # for i in k:
     #     unzipped_k += i
 
-    if type == 'FD':
+    if MFD:
+        plt.figure()
         marker_list = ['o', 'x']
         #different marker types
         for count, curq in enumerate(q):
@@ -433,10 +434,10 @@ def plotflows(meas, spacea, timea, agg, type='FD', FDagg=None, lane = None, meth
         plt.ylabel("flow")
         plt.show()
 
-    elif type == 'line':
+    if Flows:
+        plt.figure()
         for i in range(len(spacea)):
             plt.plot(time_sequence_for_line, q[i])
-        print(q)
         plt.xlabel("time")
         plt.ylabel("flow")
         plt.show()

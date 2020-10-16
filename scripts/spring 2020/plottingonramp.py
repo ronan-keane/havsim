@@ -3,7 +3,7 @@
 Plotting some trajectories from merging vehicles from NGSIM
 """
 import havsim
-from havsim.plotting as hp
+import havsim.plotting as hp
 import numpy as np
 import matplotlib.pyplot as plt
 

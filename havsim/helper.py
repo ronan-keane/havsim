@@ -1231,7 +1231,7 @@ def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .
                     if len(curspacedata) == 0:
                         continue
                     regions[j][i][0].append(curspacedata[-1,2] - curspacedata[0,2])
-                    regions[j][i][1].append((curspacedata[-1,1] - curspacedata[0,1])*h)
+                    regions[j][i][1].append((curspacedata[-1,1] - curspacedata[0,1]))
                     if method == 'flow':
                         firstpos, lastpos = curdata[0,2], curdata[-1,2]
                         if firstpos < spacea[j][0] and lastpos > spacea[j][0]:
@@ -1246,7 +1246,7 @@ def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .
     elif method == 'flow':
         for i in range(len(spacea)):
             for j in range(len(intervals)):
-                q[i].append(flows[i][j] / (h*(intervals[j][1] - intervals[j][0])))
+                q[i].append(flows[i][j] / (intervals[j][1] - intervals[j][0]))
                 try:
                     k[i].append(sum(regions[i][j][0]) / sum(regions[i][j][1]))
                 except:

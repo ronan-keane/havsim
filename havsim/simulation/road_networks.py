@@ -201,6 +201,8 @@ def get_inflow_wrapper(time_series=None, args=(None,), inflow_type='flow'):
         get_inflow method for a Lane. Takes in (timeind) and returns instantaneous flow, vehicle speed,
         at that time. If we return None for the speed, increment_inflow will obtain the speed.
     """
+    # TODO - refactor this to modify the inflow buffer directly and return the flow amount - this will allow
+    # the 'arrivals' type inflow to correctly interact with the methods such as eql_inflow_congested.
     # give flow series - simple
     if inflow_type == 'flow':
         def get_inflow(self, timeind):
@@ -300,6 +302,7 @@ def eql_inflow_congested(curlane, inflow, *args, c=.8, check_gap=True, **kwargs)
     Suggested by Treiber, Kesting in their traffic flow book for congested conditions. Requires to invert
     the inflow to obtain the equilibrium (speed, headway) for the flow. The actual headway on the road must
     be at least c times the equilibrium headway for the vehicle to be added, where c is a constant.
+    The speed the vehicle is added with corresponds to the equilibrium speed at that flow.
 
     Args:
         curlane: Lane with upstream boundary condition, which will possibly have a vehicle added.
@@ -343,21 +346,63 @@ def eql_inflow_free(curlane, inflow, *args, **kwargs):
     return curlane.start, spd, hd
 
 
-def eql_speed(curlane, *args, c=.8, minspeed=0, **kwargs):
-    """Like eql_inflow, but get equilibrium headway from leader's speed instead of inverting flow."""
+def eql_speed(curlane, *args, c=.8, minspeed=0, eql_speed=True, **kwargs):
+    """Add a vehicle with a speed determined from the vehicle's equilibrium solution.
+    
+    This is similar to the eql_inflow but uses microscopic quantities instead of flow. First, calculate the
+    speed to add the new vehicle. We use the maximum of the lead vehicle speed, and the equilibrium speed
+    based on the current gap. This allows the inflow speed to dynamically adjust between congested and
+    free flow conditions based on the current gap/speed on the road. We then calculate the equilium headway
+    based on the speed of the new vehicle; for the vehicle to be added, the gap must be at least c times
+    the equilibrium headway.
+    
+    Args:
+        curlane: Lane with upstream boundary condition
+        c: Constant. If less than 1, then vehicles can be added wtih deceleration in congested conditions.
+        If greater than or equal to one, vehicles must have 0 or positive acceleration when being added.
+        minspeed: if eql_speed is True, Vehicles must have at least minspeed when being added
+        eql_speed: If False, vehicles are added with the speed of their leader. If True, we take the max
+            of the lead.speed and equilibrium speed corresponding to the lead gap.
+        
+    """
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
     spd = lead.speed
-    eqlspd = curlane.newveh.get_eql(hd, input_type='s')
-    spd = max(minspeed, max(spd, eqlspd))  # Try to add with largest speed possible
+    
+    # use both lead.speed and equilibrium speed corresponding to the gap to lead
+    if eql_speed:
+        eqlspd = curlane.newveh.get_eql(hd, input_type='s')
+        spd = max(minspeed, max(spd, eqlspd))  # Try to add with largest speed possible
 
     se = curlane.newveh.get_eql(spd, input_type='v')
-
     if hd > c*se:
         return curlane.start, spd, hd
     else:
         return None
+    
 
+def eql_speed2(curlane, *args, c=.8, minspeed=0, eql_speed=True, transition=20, **kwargs):
+    """Allow transition back to uncongested state corresponding to inflow with speed transition."""
+    lead = curlane.anchor.lead
+    hd = get_headway(curlane.anchor, lead)
+    spd = lead.speed
+    
+    # use both lead.speed and equilibrium speed corresponding to the gap to lead
+    if eql_speed:
+        eqlspd = curlane.newveh.get_eql(hd, input_type='s')
+        spd = max(minspeed, max(spd, eqlspd))  # Try to add with largest speed possible
+        
+    se = curlane.newveh.get_eql(spd, input_type='v')
+    if spd > transition:
+        if hd > c*se:
+            return curlane.start, spd, hd
+        else:
+            return None
+    elif hd >= se:
+        return curlane.start, spd, hd
+    else:
+        return None
+        
 
 def shifted_speed_inflow(curlane, inflow, timeind, dt, shift=1, accel_bound=-.5, **kwargs):
     """Extra condition for upstream boundary based on Newell model and a vehicle's car following model.
@@ -376,6 +421,7 @@ def shifted_speed_inflow(curlane, inflow, timeind, dt, shift=1, accel_bound=-.5,
         If The vehicle is not to be added, we return None. Otherwise, we return the (pos, spd, hd) for the
         vehicle to be added with.
     """
+    # might make more sense to use the lead.lead if leader trajectory is not long enough.
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
     spd = shift_speed(lead.speedmem, shift, dt)
@@ -473,6 +519,9 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
             'shifted' (shifted_speed_inflow), 'newell', or 'speed' (speed_inflow) - refer to those functions.
             We suggest using 'seql' method as it seems to provide the most consistent results and works in
             both congested/uncongested conditions, including the transition between those.
+            The function should take in the inflow lane, inflow amount, timeind, and dt, as well as any
+            extra keyword options, and return the initial position, speed, and headway of the vehicle to be
+            added. If a vehicle cannot be added, it should return None.
         kwargs: dictionary of keyword arguments for the method chosen.
 
     Returns:
@@ -491,6 +540,8 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
         method_fun = eql_inflow_free
     elif method == 'seql':
         method_fun = eql_speed
+    elif method == 'seql2':
+        method_fun = eql_speed2
     elif method == 'shifted':
         method_fun = shifted_speed_inflow
     elif method == 'speed':

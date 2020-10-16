@@ -507,7 +507,7 @@ class Vehicle:
         else:
             if userelax:
                 # accident free formulation of relaxation
-                ttc = hd / (self.speed - lead.speed + 1e-6)
+                ttc = max(hd-2-.1*spd, .1) / (self.speed - lead.speed + 1e-6)
                 if ttc < 1.2 and ttc > 0:
                 # if False:  # disable accident free
                     temp = (ttc/1.5)**2

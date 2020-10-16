@@ -130,7 +130,7 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
         3 - politeness (taking other vehicles into account, 0 = ignore other vehicles, ~.1-.2 = realistic),
         4 - bias on left side (can add a bias to make vehicles default to a certain side of the road),
         5 - bias on right side,
-        6 - probability of checking LC while in discretionary state (not in original model. set to
+        6 - probability of checking LC while in discretionary state (not in original model. set to 1
             to always check discretionary. units are probability of checking per timestep)
         7 - number of timesteps in cooperative/tactical state after meeting incentive criteria for
             a discretionary change (not in original model)
@@ -489,7 +489,8 @@ def IDM_parameters(*args):
     # time headway parameter = 1 -> always unstable in congested regime.
     # time headway = 1.5 -> restabilizes at high density
     cf_parameters = [30, 1.1, 3, 1.1, 1.5]  # note speed is supposed to be in m/s
+    
     # note last 3 parameters have units in terms of timesteps, not seconds
-    lc_parameters = [-4, -20, .5, .1, 0, .2, .1, 20, 20]
+    lc_parameters = [-4, -20, .5, .1, 0, .2, .1, 10, 20]
 
     return cf_parameters, lc_parameters

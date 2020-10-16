@@ -1,7 +1,6 @@
 from havsim import helper
 from havsim import plotting
-from IPython import embed
-import numpy as np, pandas as pd
+import numpy as np
 import pickle
 
 with open('/home/jiwonkim/github/havsim/data/recon-ngsim.pkl', 'rb') as f:
@@ -18,10 +17,5 @@ print('pos of lane 1 in frame 6100', lane1_6100[lane1_6100[:, 7].argsort(), 7])
 print('vehid of lane 1 in frame 6100', lane1_6100[lane1_6100[:, 7].argsort(), 0])
 print('this implies that lfol of 2022 in frame 6100 is 1962')
 
-embed()
-1/0
-
 # res = pd.read_csv('data/RECONSTRUCTED trajectories-400-0415_NO MOTORCYCLES.csv')
 all_veh_dict = helper.extract_lc_data(txt)
-
-embed()

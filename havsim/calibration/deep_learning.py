@@ -3,7 +3,12 @@ import tensorflow as tf
 import numpy as np
 from havsim import helper
 import math
+import nni
 
+
+tuned_params = nni.get_next_parameter()
+if tuned_params is None:
+    tuned_params = nni.get_current_parameter()
 
 def make_dataset(meas, platooninfo, veh_list, dt=.1):
     """Makes dataset from meas and platooninfo.
@@ -71,7 +76,7 @@ class RNNCFModel(tf.keras.Model):
         """
         super().__init__()
         # architecture
-        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=.3,
+        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=tuned_params['dropout'],
                                                   kernel_regularizer=tf.keras.regularizers.l2(l=.02),
                                                   recurrent_regularizer=tf.keras.regularizers.l2(l=.02))
         self.lstm_cell2 = tf.keras.layers.LSTMCell(lstm_units, dropout=.2, 
@@ -305,6 +310,8 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
                     prev_loss = loss_value
                     early_stop_counter = 0
             print('loss for '+str(i)+'th batch is '+str(loss_value))
+            
+            nni.report_intermediate_result(loss_value.numpy())
 
         # update iteration
         cur_state = tf.stack([veh_states[:, -1], cur_speeds], axis=1)  # current state for vehicles in batch

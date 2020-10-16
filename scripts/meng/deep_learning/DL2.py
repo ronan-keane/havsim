@@ -34,14 +34,16 @@ for veh in meas.keys():
 # for veh in meas.keys():
 #     temp = nolc_list.append(veh) if len(platooninfo[veh][4]) > 0 else None
 np.random.shuffle(nolc_list)
-train_veh = nolc_list[:-300]
-test_veh = nolc_list[-300:]
+train_veh = nolc_list[:-100]
+test_veh = nolc_list[-100:]
 
 training, norm = deep_learning.make_dataset(meas, platooninfo, train_veh)
 maxhd, maxv, mina, maxa = norm
 testing, unused = deep_learning.make_dataset(meas, platooninfo, test_veh)
 
-tuned_params = nni.get_next_parameter()
+tuned_params = nni.get_current_parameter()
+if tuned_params is None:
+    tuned_params = nni.get_next_parameter()
 
 model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=tuned_params['lstm_units'])
 loss = deep_learning.masked_MSE_loss
@@ -65,16 +67,20 @@ if not early_stopping:
     test_losses = []
     for i in range(epochs):
         deep_learning.training_loop(model, loss, opt, training, nbatches=batches[i], nveh=veh, nt=timesteps[i])
-        train_losses.append(train_loss())
-        test_losses.append(test_loss())
-        nni.report_intermediate_result(test_losses[-1])
-    plt.figure(1)
-    plt.plot(list(range(epochs)), train_losses, 'b-', test_losses, 'r-')
-    plt.title('Training vs Validation loss')
-    plt.xlabel('epoch')
-    plt.ylabel('loss')
-    plt.legend(['training', 'validation'], loc='upper right')
-    plt.show()
+        test_loss_val = test_loss()
+        train_loss_val = train_loss()
+        train_losses.append(train_loss_val)
+        test_losses.append(test_loss_val)
+        # nni.report_intermediate_result(test_losses[-1])
+    # plt.figure(1)
+    # plt.plot(list(range(epochs)), train_losses, 'b-', test_losses, 'r-')
+    # plt.title('Training vs Validation loss')
+    # plt.xlabel('epoch')
+    # plt.ylabel('loss')
+    # plt.legend(['training', 'validation'], loc='upper right')
+    # plt.show()
+    print(*train_losses)
+    print(*test_losses)
     nni.report_final_result(test_losses[-1])
 # early stopping -
 if early_stopping:

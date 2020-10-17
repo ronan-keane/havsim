@@ -11,7 +11,7 @@ from collections import defaultdict
 def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, 'pos':5, 'veh_len':8,
                                       'lead':14, 'fol':15}, dt=0.1, alpha=0.1):
     """
-    Returns dictionary with keys veh_id, and values as data object (TODO fill in after pull)
+    Returns dictionary with keys veh_id, and values as data object
     Args:
         dataset: Consists of rows of observation, assumed to be sorted by vehicle IDs, times.
             each observation has the values of
@@ -52,7 +52,7 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
     def _get_fol_lead(row_np):
         """
         Returns lfol/llead/rfol/llead of a given row in the dataframe.
-        Note that we assume that the lanes have integer indices (e.g. 1,2,3, etc.) and that 
+        Note that we assume that the lanes have integer indices (e.g. 1,2,3, etc.) and that
         1 connects to 2, etc. So this is only designed to work for a road segment.
         Args:
             row_np: np.ndarray, must be a vector. The row of the dataset, which represents
@@ -93,7 +93,7 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
 
     dataset = dataset[:, col_idx]
     col_dict = {col: idx for idx, col in enumerate(columns)}
-    
+
     # generate lfol/llead/rfol/rlead data
     # sort dataset in times, lanes, positions
     dataset = np.hstack((dataset, np.expand_dims(np.array(range(len(dataset))), axis=1)))
@@ -107,7 +107,7 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
         np.unique(dataset_sortframes[:, col_dict['frame_id']], return_index=True, return_counts=True)
     for count, frame_id in enumerate(frame_ids):
         curr_frame = dataset_sortframes[indices[count]:indices[count]+counts[count], :]
-        
+
         # generate min/max index for each lane within this frame
         lane_id_to_indices = {}
         lane_ids, lane_indices, lane_counts = np.unique(curr_frame[:, col_dict['lane']], return_index=True,
@@ -115,7 +115,7 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
         for countlane, lane_id in enumerate(lane_ids):
             lane_id_to_indices[lane_id] = (lane_indices[countlane],
                                            lane_indices[countlane]+lane_counts[countlane])
-            
+
         # calculate lc data
         for row_idx in range(curr_frame.shape[0]):
             for idx, lc_datum in enumerate(_get_fol_lead(curr_frame[row_idx, :])):
@@ -151,7 +151,7 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
             for idx, col in enumerate(colnames):
                 # preprocess val
                 val = row[col_dict[col.replace("mem", "")]]
-                if val == 0:
+                if val == 0:  # means laneID cannot be 0
                     val = None
 
                 # if we're just starting or the saved value is different
@@ -205,10 +205,37 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
         all_veh_dict[veh_id] = VehicleData(**veh_dict)
     return all_veh_dict
 
+
 class VehicleData:
-    def __init__(self, posmem=None, speedmem=None, vehid=None, starttime=None, dt=None, vehlen=None,
-                 lanemem=None, leadmem=None, folmem=None, endtime=None, lfolmem=None, rfolmem=None,
-                 rleadmem=None, lleadmem=None):
+    """Holds trajectory data for a single vehicle.
+
+    Attributes:
+        posmem: list of floats giving the position, where the 0 index corresponds to the position at starttime
+        speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at starttime
+        vehid: unique vehicle ID (float) for hashing. Note that 0 is not a valid vehid.
+        starttime: first time index vehicle data is available
+        dt: time discretization used (discretization is assumed to be constant)
+        vehlen: physical length of vehicle
+        leadmem: list of tuples, where each tuple is (vehid, time) giving the time the ego vehicle
+            first begins to follow the vehicle with id vehid. Note vehid=None is also possible.
+        lanemem: list of tuples, where each tuple is (laneid, time) giving the time the ego vehicle
+            first enters the lane with laneid
+        folmem: list of tuples, where each tuple is (vehid, time) giving the time the ego vehicle
+            first begins to act as follower for the vehicle with id vehid. Note vehid=None is also possible.
+        endtime: the last time index vehicle data is available
+        lfolmem: Like folmem, but for left follower (follower if vehicle changed into left lane)
+        rfolmem: Like folmem, but for right follower (follower if vehicle changed into right lane)
+        rleadmem: like leadmem, but for left leader (leader if vehicle changed into left lane)
+        lleadmem: like leadmem, but for right leader (leader if vehicle changed into right lane)
+        longest_lead_times: tuple of starting, ending time index for the longest interval with
+            leader(s) not None.
+        leads: list of unique lead IDs (does not include None)
+
+
+    """
+    def __init__(self, posmem=[], speedmem=[], vehid=None, starttime=None, dt=None, vehlen=None,
+                 lanemem=[], leadmem=[], folmem=[], endtime=None, lfolmem=[], rfolmem=[],
+                 rleadmem=[], lleadmem=[]):
         self.posmem = posmem
         self.speedmem = speedmem
         self.vehid = vehid
@@ -224,25 +251,13 @@ class VehicleData:
         self.rleadmem = rleadmem
         self.lleadmem = lleadmem
 
-    def value_at(self, attribute, time):
-        """Gets value of sparse data representation (e.g. leadmem, lanemem) at specific time."""
-        if attribute == self.posmem or attribute == self.speedmem:
-            return attribute[int(time) - int(self.starttime)]
+        self.longest_lead_times = self.get_longest_lead_times()
+        self.leads = self.get_unique_mem(leadmem)
 
-        return VehicleData.binary_search(attribute, int(time))
-
-    def sparse_to_dense(self, attribute):
-        """convert sparse data representation (e.g. leadmem, lanemem) to its dense representation."""
-        dense = []
-        for idx, attribute_tuple in enumerate(attribute[:-1]):
-            val, time = attribute_tuple
-            dense.append(np.repeat(val, attribute[idx + 1][1] - time))
-        dense.append(np.repeat(attribute[-1][0], self.endtime + 1 - attribute[-1][1]))
-        return np.hstack(dense)
-
-    def lead_times(self):
+    def get_longest_lead_times(self):
         """Find the longest time interval with leader is not None and return the starting/ending times."""
-        assert(self.has_leader())
+        if len(self.leads) == 0:
+            return self.starttime, self.starttime
         longest = 0
         longest_start = -1
         longest_end = -1
@@ -250,7 +265,7 @@ class VehicleData:
         curr_start = None
         running_interval = 0
         # to deal with last element case
-        self.leadmem.append((None, self.endtime))
+        self.leadmem.append((None, self.endtime+1))
 
         for idx, lead_id_and_time in enumerate(self.leadmem):
             lead, start_time = lead_id_and_time
@@ -268,17 +283,19 @@ class VehicleData:
                 if running_interval > longest:
                     longest = running_interval
                     longest_start = curr_start
-                    longest_end = start_time
+                    longest_end = start_time-1
                 curr_start = None
                 running_interval = 0
 
         self.leadmem = self.leadmem[:-1]
         return int(longest_start), int(longest_end)
 
-
-    def has_leader(self):
-        """Returns whether or not the vehicle had a leader in its trajectory."""
-        return len(self.leadmem) > 1 or (len(self.leadmem) == 1 and self.leadmem[0][0] is not None)
+    def get_unique_mem(self, attr):
+        """Returns a list of unique ids in attribute (lfolmem, leadmem, etc), not including None."""
+        out = set([i[0] for i in attr])
+        if None in out:
+            out.remove(None)
+        return list(out)
 
     def __hash__(self):
         """Vehicles/VehicleData are hashable by their unique vehicle ID."""
@@ -300,35 +317,157 @@ class VehicleData:
         """Convert to a str representation."""
         return self.__repr__()
 
-    def binary_search(arr, time):
-        """
-        Performs binary search on array, but assumes that the array is filled with tuples, where
-        the first element is the value and the second is the time. We're sorting utilizing the time field
-        and returning the value at the specific time. 
-        Args:
-            arr: sorted array with (val, start_time)
-            time: the time that we are looking for
-        Returns:
-            the value that took place at the given time
-        """
-        if len(arr) == 0 or time < arr[0][1]:
-            return None
-        start, end = 0, len(arr)
-        while (end > start + 1):
-            mid = (end + start) // 2
-            if time <= arr[mid][1]:
-                end = mid
-            elif time > arr[mid][1]:
-                start = mid
-        return arr[start][0]
-
-
 
 def convert_to_data(vehicle):
     """Converts a (subclassed) Vehicle to VehicleData."""
     # should convert Vehicle objects to their vehid. Need to convert Lanes to some index?
     raise NotImplementedError
     return VehicleData(vehicle)
+
+class VehMem:
+    """Implements memory of lead, fol, rfol, lfol, rlead, llead."""
+    def __init__(self, vehmem, vehdict, starttime, endtime, is_len=False):
+        self.data = vehmem
+        self.starttime = starttime
+        self.endtime = endtime
+        # if not is_len:
+        #     self.pos = VehMemState()
+        #     self.speed = VehMemState()
+
+        #     lenmem = [[vehdict[i[0]].len, i[1]] for i in vehmem]
+        #     self.len = VehMem(lenmem, None, starttime, endtime, is_len=True)  # change? don't want to keep len in memory like this
+
+    def __getitem__(self, times):
+        """Index memory using times, as if it was in its dense representation. Accepts slice input."""
+        if type(times) == slice:
+            data = self.data
+            start, stop = times.start, times.stop
+            if not start:
+                start = self.starttime
+            elif start < self.starttime:
+                start = self.starttime
+            elif start > self.endtime:
+                return []
+            if not stop:
+                stop = self.endtime+1
+            elif stop > self.endtime+1:
+                stop = self.endtime+1
+            elif stop < self.starttime+1:
+                return []
+
+            startind, stopind = mem_binary_search(data, start, return_ind=True), \
+                mem_binary_search(data, stop, return_ind=True)
+            out = []
+
+            timeslist = (start, *(data[i][1] for i in range(startind+1, stopind+1)), stop)
+            for count, i in enumerate(range(startind, stopind+1)):
+                out.extend([data[i][0]]*(timeslist[count+1]-timeslist[count]))
+            return out
+        else:
+            if times < self.starttime or times > self.endtime:
+                raise IndexError
+            return mem_binary_search(self.data, times)
+
+    def dense(self):
+        """Return the dense representation of the sparse memory
+
+        e.g. self.data = [[1, 3], [2, 6]], self.endtime = 9
+        dense representation = [1, 1, 1, 2, 2, 2, 2]
+        """
+        dense, sparse = [], self.data
+        for idx, attribute_tuple in enumerate(sparse[:-1]):
+            val, time = attribute_tuple
+            time2 = sparse[idx+1][1]
+            dense.extend((val,)*(time2-time))
+        dense.extend((sparse[-1][0],)*(self.endtime+1-sparse[-1][1]))
+        return dense
+
+    def intervals(self):
+        """Return the intervals of the sparse representation (intervals include end times).
+
+        E.g. self.data = [[1,3], [2,6]], self.endtime = 9
+        intervals = [[1, 3, 6], [2, 6, 10]]
+        """
+        vehmem = self.data
+        timeslist = (self.starttime, *(vehmem[i][1] for i in range(1, len(vehmem))), self.endtime+1)
+        return [[vehmem[i][0], timeslist[i], timeslist[i+1]] for i in range(len(timeslist)-1)]
+
+    def __repr__(self):
+        return str(self.data)
+
+
+class VehMemState:
+    def __init__(self, vehmem, vehdict):
+        self.data = vehmem
+        self.vehdict = vehdict
+
+    def __getitem__(self, times):
+        """Index memory as if it was in its dense representation."""
+
+    def __repr__(self):
+        return str(self.data)
+
+
+def mem_binary_search(arr, time, return_ind=False):
+    """
+    Performs binary search on array, but assumes that the array is filled with tuples, where
+    the first element is the value and the second is the time. We're sorting utilizing the time field
+    and returning the value at the specific time.
+    Args:
+        arr: sorted array with (val, start_time)
+        time: the time that we are looking for
+        return_ind: If True, return the index corresponding to time in arr
+    Returns:
+        the value that took place at the given time
+    """
+    # if len(arr) == 0 or time < arr[0][1]:
+    #     return None
+    start, end = 0, len(arr)
+    while (end > start+1):
+        mid = (end + start) // 2
+        if time >= arr[mid][1]:
+            start = mid
+        else:
+            end = mid
+
+    if return_ind:
+        return start
+    else:
+        return arr[start][0]
+
+
+def interval_binary_search(X,time):
+    #finds index m such that the interval X[m], X[m+1] contains time.
+    #X = array
+    #time = float
+    lo = 0
+    hi = len(X)-2
+    m = (lo + hi) //  2
+    while (hi - lo) > 1:
+        if time < X[m]:
+            hi = m
+        else:
+            lo = m
+        m = (lo + hi) // 2
+    return lo
+
+
+def mem_to_interval(vehmem, start, stop):
+    """Converts memory between times start and stop to an interval representation.
+
+    E.g. vehmem = [[1,3], [2,6]], start = 4, stop = 8
+    interval representation = [[1,4,6], [2,6,9]]
+    The interval representation gives the start, end times so it is more convenient to use.
+    Note that if you gives start/end times outside of the memory, it will just use the closest memory.
+    E.g. vehmem = [[1,3], [2,6]], start = 2, stop = 1000
+    interval representation = [[1, 2, 6], [2, 6, 1001]]
+
+    """
+    startind, stopind = mem_binary_search(vehmem, start, return_ind=True), \
+        mem_binary_search(vehmem, stop, return_ind=True)
+
+    timeslist = (start, *(vehmem[i][1] for i in range(startind+1, stopind+1)), stop+1)
+    return [[vehmem[startind+i][0], timeslist[i], timeslist[i+1]] for i in range(len(timeslist)-1)]
 
 
 def get_lead_data(veh, meas, platooninfo, rp=None, dt=.1):
@@ -688,63 +827,6 @@ def indtopos(indjumps, data, dataind = 2):
         temp = (startpos, endpos)
         out.append(temp)
     return out
-
-def interp1ds(X,Y,times):
-    #??? this is the same as interpolate function?? Only difference is this one can have output start at a different time
-    #given time series data X, Y (such that each (X[i], Y[i]) tuple is an observation),
-    #and the array times, interpolates the data onto times.
-
-    #X, Y, and times all need to be sorted in terms of increasing time. X and times need to have a constant time discretization
-    #runtime is O(n+m) where X is len(n) and times is len(m)
-
-    #uses 1d interpolation. This is similar to the functionality of scipy.interp1d. Name is interp1ds because it does linear interpolation in 1d (interp1d) on sorted data (s)
-
-    #e.g. X = [1,2,3,4,5]
-    #Y = [2,3,4,5,6]
-    #times = [3.25,4,4.75]
-
-    #out = [4.25,5,5.75]
-
-    if times[0] < X[0] or times[-1] > X[-1]:
-        print('Error: requested times are outside measurements')
-        return None
-
-    Xdt = X[1] - X[0]
-    timesdt = times[1]-times[0]
-    change = timesdt/Xdt
-
-    m = binaryint(X,times[0])
-    out = np.zeros(len(times))
-    curind = m + (times[0]-X[m])/Xdt
-
-    leftover = curind % 1
-    out[0] = Y[m] + leftover*(Y[m+1]-Y[m])
-
-    for i in range(len(times)-1):
-        curind = curind + change #update index
-
-        leftover = curind % 1 #leftover needed for interpolation
-        ind = int(curind // 1) #cast to int because it is casted to float automatically
-
-        out[i+1] = Y[ind] + leftover*(Y[ind+1]-Y[ind])
-
-    return out
-
-
-def binaryint(X,time):
-    #finds index m such that the interval X[m], X[m+1] contains time.
-    #X = array
-    #time = float
-    lo = 0
-    hi = len(X)-2
-    m = (lo + hi) //  2
-    while (hi - lo) > 1:
-        if time < X[m]:
-            hi = m
-        else:
-            lo = m
-        m = (lo + hi) // 2
-    return lo
 
 
 def makeleadinfo(platoon, platooninfo, sim, *args):
@@ -1434,6 +1516,47 @@ def interpolate(data, interval=1.0):
     speed += remained * data[-1, 1]
     speeds.append(speed / interval)
     return speeds, (data[0, 0], data[0, 0] + (len(speeds) - 1) * interval)
+
+
+def interp1ds(X,Y,times):
+    #given time series data X, Y (such that each (X[i], Y[i]) tuple is an observation),
+    #and the array times, interpolates the data onto times.
+
+    #X, Y, and times all need to be sorted in terms of increasing time. X and times need to have a constant time discretization
+    #runtime is O(n+m) where X is len(n) and times is len(m)
+
+    #uses 1d interpolation. This is similar to the functionality of scipy.interp1d. Name is interp1ds because it does linear interpolation in 1d (interp1d) on sorted data (s)
+
+    #e.g. X = [1,2,3,4,5]
+    #Y = [2,3,4,5,6]
+    #times = [3.25,4,4.75]
+
+    #out = [4.25,5,5.75]
+
+    if times[0] < X[0] or times[-1] > X[-1]:
+        print('Error: requested times are outside measurements')
+        return None
+
+    Xdt = X[1] - X[0]
+    timesdt = times[1]-times[0]
+    change = timesdt/Xdt
+
+    m = interval_binary_search(X,times[0])
+    out = np.zeros(len(times))
+    curind = m + (times[0]-X[m])/Xdt
+
+    leftover = curind % 1
+    out[0] = Y[m] + leftover*(Y[m+1]-Y[m])
+
+    for i in range(len(times)-1):
+        curind = curind + change #update index
+
+        leftover = curind % 1 #leftover needed for interpolation
+        ind = int(curind // 1) #cast to int because it is casted to float automatically
+
+        out[i+1] = Y[ind] + leftover*(Y[ind+1]-Y[ind])
+
+    return out
 
 
 def getentryflows(meas, entrylanes,  timeind, outtimeind):

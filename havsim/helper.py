@@ -338,7 +338,23 @@ class VehMem:
         #     self.len = VehMem(lenmem, None, starttime, endtime, is_len=True)  # change? don't want to keep len in memory like this
 
     def __getitem__(self, times):
-        """Index memory using times, as if it was in its dense representation. Accepts slice input."""
+        """Index memory using times, as if it was in its dense representation. Accepts slice input.
+
+        Behaves as if the memory was in a dense representation, and accepted times instead of indices.
+        Note that to change times into indices, you would subtract the times by starttime. Similarly to
+        change indices into times, you would add starttime to the indices.
+
+        E.g. self.data = [[0,5], [2, 8], [6, 12]], self.starttime = 5, self.endtime = 17
+        self[5] = 0, self[8] = 2, self[17] = 6
+        self[4], self[18], self[0], self[-1] all throw index errors.
+        self[5:10] = self[:10] = [0, 0, 0, 2, 2]  (return dense representation between times 5 and 9)
+        self[10:] = self[10:18] = [2, 2, 6, 6, 6, 6, 6, 6]
+        self[:] = [0, 0, 0, 2, 2, 2, 2, 6, 6, 6, 6, 6, 6]  (return entire dense representation)
+        self[18:] = self[:4] = []  (behaves as slicing a regular list would)
+        self[17:] = self[17:18] = [6]
+        self[11:10] = []   (no steps for slices - must always advance by 1 time index)
+        self[5:10:2] = self[5:10]   (no steps for slices - must always advance by 1 time index)
+        """
         if type(times) == slice:
             data = self.data
             start, stop = times.start, times.stop
@@ -368,32 +384,59 @@ class VehMem:
                 raise IndexError
             return mem_binary_search(self.data, times)
 
-    def dense(self):
-        """Return the dense representation of the sparse memory
+    def intervals(self, start=None, stop=None):
+        """Converts sparse representation into an interval representation.
 
-        e.g. self.data = [[1, 3], [2, 6]], self.endtime = 9
-        dense representation = [1, 1, 1, 2, 2, 2, 2]
+        See mem_to_interval - the difference is that this will behave as slicing does for
+        times outside of [self.starttime, self.endtime].
+        E.g. self.data = [[1,3], [2,6]], self.starttime = 3, self.endtime = 10
+        self.intervals() = self.intervals(3, 10) = [[1, 3, 6], [2, 6, 11]]
+        self.intervals(4, 8) = [[1, 4, 6], [2, 6, 9]]
+        self.intervals(2, 11) = self.intervals(3, 10) = [[1, 3, 6], [2, 6, 11]]
         """
-        dense, sparse = [], self.data
-        for idx, attribute_tuple in enumerate(sparse[:-1]):
-            val, time = attribute_tuple
-            time2 = sparse[idx+1][1]
-            dense.extend((val,)*(time2-time))
-        dense.extend((sparse[-1][0],)*(self.endtime+1-sparse[-1][1]))
-        return dense
-
-    def intervals(self):
-        """Return the intervals of the sparse representation (intervals include end times).
-
-        E.g. self.data = [[1,3], [2,6]], self.endtime = 9
-        intervals = [[1, 3, 6], [2, 6, 10]]
-        """
-        vehmem = self.data
-        timeslist = (self.starttime, *(vehmem[i][1] for i in range(1, len(vehmem))), self.endtime+1)
-        return [[vehmem[i][0], timeslist[i], timeslist[i+1]] for i in range(len(timeslist)-1)]
+        if not start:
+            start = self.starttime
+        elif start < self.starttime:
+            start = self.starttime
+        elif start > self.endtime:
+            return []
+        if not stop:
+            stop = self.endtime
+        elif stop > self.endtime:
+            stop = self.endtime
+        elif stop < self.starttime:
+            return []
+        return mem_to_interval(self.data, start, stop)
 
     def __repr__(self):
         return str(self.data)
+
+    # When would you ever use this over __getitem__?
+    # def dense(self):
+    #     """Return the dense representation of the sparse memory
+
+    #     e.g. self.data = [[1, 3], [2, 6]], self.endtime = 9
+    #     dense representation = [1, 1, 1, 2, 2, 2, 2]
+    #     """
+    #     dense, sparse = [], self.data
+    #     for idx, attribute_tuple in enumerate(sparse[:-1]):
+    #         val, time = attribute_tuple
+    #         time2 = sparse[idx+1][1]
+    #         dense.extend((val,)*(time2-time))
+    #     dense.extend((sparse[-1][0],)*(self.endtime+1-sparse[-1][1]))
+    #     return dense
+
+    # Let user specify the start/end times.
+    # def intervals(self):
+    #     """Return the intervals of the sparse representation (intervals include end times).
+
+    #     E.g. self.data = [[1,3], [2,6]], self.endtime = 9
+    #     intervals = [[1, 3, 6], [2, 6, 10]]
+    #     Vehmem.intervals() is equivalent to mem_to_interval(Vehmem.data, VehMem.starttime, VehMem.endtime)
+    #     """
+    #     vehmem = self.data
+    #     timeslist = (self.starttime, *(vehmem[i][1] for i in range(1, len(vehmem))), self.endtime+1)
+    #     return [[vehmem[i][0], timeslist[i], timeslist[i+1]] for i in range(len(timeslist)-1)]
 
 
 class VehMemState:
@@ -403,6 +446,34 @@ class VehMemState:
 
     def __getitem__(self, times):
         """Index memory as if it was in its dense representation."""
+        if type(times) == slice:
+            data = self.data
+            start, stop = times.start, times.stop
+            if not start:
+                start = self.starttime
+            elif start < self.starttime:
+                start = self.starttime
+            elif start > self.endtime:
+                return []
+            if not stop:
+                stop = self.endtime+1
+            elif stop > self.endtime+1:
+                stop = self.endtime+1
+            elif stop < self.starttime+1:
+                return []
+
+            startind, stopind = mem_binary_search(data, start, return_ind=True), \
+                mem_binary_search(data, stop, return_ind=True)
+            out = []
+
+            timeslist = (start, *(data[i][1] for i in range(startind+1, stopind+1)), stop)
+            for count, i in enumerate(range(startind, stopind+1)):
+                out.extend([data[i][0]]*(timeslist[count+1]-timeslist[count]))
+            return out
+        else:
+            if times < self.starttime or times > self.endtime:
+                raise IndexError
+            return mem_binary_search(self.data, times)
 
     def __repr__(self):
         return str(self.data)
@@ -461,7 +532,6 @@ def mem_to_interval(vehmem, start, stop):
     Note that if you gives start/end times outside of the memory, it will just use the closest memory.
     E.g. vehmem = [[1,3], [2,6]], start = 2, stop = 1000
     interval representation = [[1, 2, 6], [2, 6, 1001]]
-
     """
     startind, stopind = mem_binary_search(vehmem, start, return_ind=True), \
         mem_binary_search(vehmem, stop, return_ind=True)

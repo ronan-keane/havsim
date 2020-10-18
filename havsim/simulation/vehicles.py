@@ -299,14 +299,14 @@ class Vehicle:
         rfol: right follower (Vehicle)
         llead: list of all vehicles which have the ego vehicle as a right follower
         rlead: list of all vehicles which have the ego vehicle as a left follower
-        starttime: first time index a vehicle is simulated.
-        endtime: the last time index a vehicle is simulated. (or None)
+        start: first time index a vehicle is simulated.
+        end: the last time index a vehicle is simulated. (or None)
         leadmem: list of tuples, where each tuple is (lead vehicle, time) giving the time the ego vehicle
             first begins to follow the lead vehicle.
         lanemem: list of tuples, where each tuple is (Lane, time) giving the time the ego vehicle
             first enters the Lane.
-        posmem: list of floats giving the position, where the 0 index corresponds to the position at starttime
-        speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at starttime
+        posmem: list of floats giving the position, where the 0 index corresponds to the position at start
+        speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at start
         relaxmem: list of tuples where each tuple is (first time, last time, relaxation) where relaxation
             gives the relaxation values for between first time and last time
         pos: position (float)
@@ -418,21 +418,21 @@ class Vehicle:
         self.rlead = rlead
 
         # memory
-        self.endtime = None
+        self.end = None
         self.leadmem = []
         self.lanemem = []
         self.posmem = []
         self.speedmem = []
         self.relaxmem = []
 
-    def initialize(self, pos, spd, hd, starttime):
+    def initialize(self, pos, spd, hd, start):
         """Sets the remaining attributes of the vehicle, making it able to be simulated.
 
         Args:
-            pos: position at starttime
-            spd: speed at starttime
-            hd: headway at starttime
-            starttime: first time index vehicle is simulated
+            pos: position at start
+            spd: speed at start
+            hd: headway at start
+            start: first time index vehicle is simulated
 
         Returns:
             None.
@@ -443,9 +443,9 @@ class Vehicle:
         self.hd = hd
 
         # memory
-        self.starttime = starttime
-        self.leadmem.append((self.lead, starttime))
-        self.lanemem.append((self.lane, starttime))
+        self.start = start
+        self.leadmem.append((self.lead, start))
+        self.lanemem.append((self.lane, start))
         self.posmem.append(pos)
         self.speedmem.append(spd)
 
@@ -464,14 +464,14 @@ class Vehicle:
             self.r_lc = 'discretionary'
         else:
             self.r_lc = None
-        self.update_lc_state(starttime)
+        self.update_lc_state(start)
 
         # set lane/route events - sets lane_events, route_events, cur_route attributes
         self.cur_route = update_lane_routes.make_cur_route(
             self.route_parameters, self.lane, self.route.pop(0))
         # self.route_events = self.cur_route[self.lane].copy()
         update_lane_routes.set_lane_events(self)
-        update_lane_routes.set_route_events(self, starttime)
+        update_lane_routes.set_route_events(self, start)
 
     def cf_model(self, p, state):
         """Defines car following model.
@@ -737,7 +737,7 @@ class Vehicle:
 
     def __repr__(self):
         """Display for vehicle in interactive console."""
-        if not self.endtime:
+        if not self.end:
             return 'vehicle '+str(self.vehid)+' on lane '+str(self.lane)+' at position '+str(self.pos)
         else:
             return 'vehicle '+str(self.vehid)

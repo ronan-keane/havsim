@@ -605,7 +605,7 @@ class AnchorVehicle:
         leadmem: same format as Vehicle
     """
 
-    def __init__(self, curlane, starttime, lead=None, rlead=None, llead=None):
+    def __init__(self, curlane, start, lead=None, rlead=None, llead=None):
         """Inits for Anchor."""
         self.cf_parameters = None
         self.lane = curlane
@@ -624,7 +624,7 @@ class AnchorVehicle:
         self.hd = None
         self.len = 0
 
-        self.leadmem = [[lead, starttime]]
+        self.leadmem = [[lead, start]]
 
     def get_cf(self, *args):
         """Dummy method returns 0 for cf model."""

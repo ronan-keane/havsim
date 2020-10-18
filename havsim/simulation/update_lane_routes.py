@@ -170,8 +170,8 @@ def update_lane_events(veh, timeind, remove_vehicles):
             if veh.rfol is not None:
                 veh.rfol.llead.remove(veh)
 
-            # to remove the vehicle set its endtime and put it in the remove_vehicles
-            veh.endtime = timeind+1
+            # to remove the vehicle set its end and put it in the remove_vehicles
+            veh.end = timeind+1
             remove_vehicles.append(veh)
     return
 

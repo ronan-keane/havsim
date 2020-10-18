@@ -16,7 +16,7 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
         in_relax: bool of whether or not vehicle is experiencing relaxation currently
         relax: list of floats which stores the relaxation values
         relax_start: time index (timeind) of the 0 index of relax
-        relaxmem: memory of past relaxation, list of tuples of (starttime, endtime, relax)
+        relaxmem: memory of past relaxation, list of tuples of (start, end, relax)
 
     Args:
         veh: Vehicle to add relaxation to

@@ -1,15 +1,609 @@
-
-"""
-helper functions
-"""
+"""Helper functions and utilities for loading/manipulating data."""
 import numpy as np
 import heapq
 import math
 from collections import defaultdict
-
 # TODO - fix code style and documentation
-# TODO - want to update format for meas/platooninfo - have a single consolidated data structure with
-# no redundant information
+
+
+def load_dataset(dataset, column_dict={'veh_id': 0, 'frame_id': 1, 'lane': 13, 'pos': 5, 'veh_len': 8,
+                                       'lead': 14, 'fol': 15}, dt=0.1, alpha=0.1, None_val=0):
+    """Returns dictionary with keys veh_id, and values as data object.
+
+    Args:
+        dataset: Consists of rows of observation, assumed to be sorted by vehicle IDs, times.
+            each observation has the values of
+            veh id - vehicle ID (unique float)
+            frame id - time index (integer)
+            lane - lane the vehicle is on
+            pos - position in direction of travel
+            veh len - vehicle length
+            lead - lead vehicle ID
+            fol - following vehicle ID
+        column_dict: Gives the column indices for each value
+        dt: float representing timestep in simulation
+        alpha: float representing alpha in exponential moving average (which we
+            utilize to smooth positions). lower = less smoothing.
+
+    Returns:
+        dictionary with keys of vehicle ids, values of VehicleData.
+    """
+
+    def _get_vehid(lane_np, pos):
+        """Gets vehicle id of the follower/leader in the given lane (utilizing y_val of the curr veh).
+
+        Args:
+            lane_np: np.ndarray, a subset of dataset (only includes rows of a certain frame id,
+                and lane). This must be sorted via the pos column or it produces incorrect
+                solutions
+            pos: float, the pos value of the vehicle we're searching up (the vehicle
+                whose lfol/rfol/llead/rlead we are currently trying to triangulate)
+
+        Returns:
+            fol_id: float, the vehicle id of the follower in the given lane
+            lead_id: float, the vehicle id of the leader in the given lane
+        """
+        idx_of_fol = np.searchsorted(lane_np[:, col_dict['pos']], pos) - 1
+        if idx_of_fol != -1:
+            return lane_np[idx_of_fol, col_dict['veh_id']], lane_np[idx_of_fol, col_dict['lead']]
+        else:
+            return None, lane_np[0, col_dict['veh_id']]
+
+    def _get_fol_lead(row_np):
+        """Returns lfol/llead/rfol/llead of a given row in the dataframe.
+
+        Note that we assume that the lanes have integer indices (e.g. 1,2,3, etc.) and that
+        1 connects to 2, etc. So this is only designed to work for a road segment.
+
+        Args:
+            row_np: np.ndarray, must be a vector. The row of the dataset, which represents
+                a vehicle at a given frame_id.
+
+        Returns:
+            lfol: float, vehicle id of left follower of vehicle at given frame id
+            llead: float, vehicle id of left leader of vehicle at given frame id
+            rfol: float, vehicle id of right follower of vehicle at given frame id
+            rlead: float, vehicle id of right leader of vehicle at given frame id
+        """
+        # lane_id_to_indices must accept lane index, return all observations in that lane, at the same
+        # time index as row_np
+        lane_id, pos = row_np[col_dict['lane']], row_np[col_dict['pos']]
+        lfol, llead, rfol, rlead = None, None, None, None
+
+        # lfol/llead
+        if (lane_id >= 2 and lane_id <= 6) or \
+                (lane_id == 7 and pos >= 400 and pos <= 750):
+            left_lane_id = lane_id - 1
+
+            if left_lane_id in lane_id_to_indices:
+                min_idx, max_idx = lane_id_to_indices[left_lane_id]
+                left_lane_np = curr_frame[min_idx:max_idx]
+                lfol, llead = _get_vehid(left_lane_np, pos)
+
+        # rfol/rlead
+        if (lane_id >= 1 and lane_id <= 5) or \
+                (lane_id == 6 and pos >= 400 and pos <= 750):
+            right_lane_id = lane_id + 1
+
+            if right_lane_id in lane_id_to_indices:
+                min_idx, max_idx = lane_id_to_indices[right_lane_id]
+                right_lane_np = curr_frame[min_idx:max_idx]
+                rfol, rlead = _get_vehid(right_lane_np, pos)
+
+        return lfol, llead, rfol, rlead
+
+    columns = list(column_dict.keys())
+    col_idx = list(column_dict.values())
+
+    dataset = dataset[:, col_idx]
+    col_dict = {col: idx for idx, col in enumerate(columns)}
+
+    # generate lfol/llead/rfol/rlead data
+    # sort dataset in times, lanes, positions
+    dataset = np.hstack((dataset, np.expand_dims(np.array(range(len(dataset))), axis=1)))
+    sort_tuple = (dataset[:, col_dict['pos']], dataset[:, col_dict['lane']],
+                  dataset[:, col_dict['frame_id']])
+    dataset_sortframes = dataset[np.lexsort(sort_tuple)]
+
+    # get lfol/llead/rfol/rlead for each vehicle in each time
+    lc_data = [[], [], [], []]  # shape of (4, number of observations), where the 4 is lfol,llead,rfol,rlead
+    frame_ids, indices, counts = \
+        np.unique(dataset_sortframes[:, col_dict['frame_id']], return_index=True, return_counts=True)
+    for count, frame_id in enumerate(frame_ids):
+        curr_frame = dataset_sortframes[indices[count]:indices[count]+counts[count], :]
+
+        # generate min/max index for each lane within this frame
+        lane_id_to_indices = {}
+        lane_ids, lane_indices, lane_counts = np.unique(curr_frame[:, col_dict['lane']], return_index=True,
+                                                        return_counts=True)
+        for countlane, lane_id in enumerate(lane_ids):
+            lane_id_to_indices[lane_id] = (lane_indices[countlane],
+                                           lane_indices[countlane]+lane_counts[countlane])
+
+        # calculate lc data
+        for row_idx in range(curr_frame.shape[0]):
+            for idx, lc_datum in enumerate(_get_fol_lead(curr_frame[row_idx, :])):
+                lc_data[idx].append(lc_datum)
+    lc_data = np.array(lc_data).T
+    dataset = np.hstack((dataset[:, :-1], lc_data[np.argsort(dataset_sortframes[:, -1])]))
+
+    # record the new columns for lfol,llead,rfol,rlead
+    lc_cols = ['lfol', 'llead', 'rfol', 'rlead']
+    for col in lc_cols:
+        col_dict[col] = len(columns)
+        columns.append(col)
+
+    def convert_to_mem(veh_np, veh_dict):
+        """Generates compressed representation of lane/lead/lfol/rfol/llead/rlead.
+
+        Args:
+            veh_np: np.ndarray. Subset of dataset that only includes a given veh_id
+                Note that the dataset should be sorted in terms of frame_id
+            veh_dict: dict, str -> list or float. Dictionary that includes all
+                information about the vehicle. Keys include: posmem, dt, speedmem, etc.
+                This is updated within the function with lanemem/leadmem/etc.
+
+        Returns:
+            None
+
+        """
+        colnames = ['lanemem', 'leadmem', 'folmem', 'lfolmem', 'rfolmem', 'lleadmem', 'rleadmem']
+        curr_vals = {col: None for col in colnames}
+        final_mems = [[] for col in colnames]
+
+        for idx in range(veh_np.shape[0]):
+            row = veh_np[idx, :]
+            for idx, col in enumerate(colnames):
+                # preprocess val
+                val = row[col_dict[col.replace("mem", "")]]
+                if val == None_val:
+                    val = None
+
+                # if we're just starting or the saved value is different
+                # than the current value, we update the mem
+                if len(final_mems[idx]) == 0 or curr_vals[col] != val:
+                    curr_vals[col] = val
+                    final_mems[idx].append((val, int(row[col_dict['frame_id']])))
+        # save to veh_dict
+        for idx, col in enumerate(colnames):
+            veh_dict[col] = final_mems[idx]
+
+    def ema(np_vec, alpha=0.9):
+        """Returns the exponential moving average of np_vec.
+
+        Args:
+            np_vec: np.ndarray, must be vector. The vector that we want to smooth
+            alpha: float. The alpha parameter in exponential moving average
+                x[i] = alpha * x[i-1] + (1 - alpha) * np_vec[i]
+        Returns:
+            res: list w/same len as np_vec, with exponentially smoothed values
+        """
+        assert(len(np_vec.shape) == 1)
+        res = [np_vec[0]]
+        curr_val = np_vec[0]
+        for i in range(1, np_vec.shape[0]):
+            curr_val = curr_val * alpha + (1 - alpha) * np_vec[i]
+            res.append(curr_val)
+        return res
+
+    # generate veh_dict with vehicledata objects
+    all_veh_dict = {}
+    veh_ids, veh_inds, veh_counts = np.unique(dataset[:, col_dict['veh_id']],
+                                              return_index=True, return_counts=True)
+    for count, veh_id in enumerate(veh_ids):
+        veh_dict = {}
+        veh_np = dataset[veh_inds[count]:veh_inds[count]+veh_counts[count]]
+        pos_mem = ema(veh_np[:, col_dict['pos']], alpha)
+        veh_dict['posmem'] = list(pos_mem)
+
+        speed_mem = [(pos_mem[i + 1] - pos_mem[i]) / dt for i in range(len(pos_mem) - 1)]  # re differentiate
+        speed_mem.append(speed_mem[-1])
+        veh_dict['speedmem'] = speed_mem
+
+        veh_dict['start'] = int(veh_np[0, col_dict['frame_id']])
+        veh_dict['end'] = int(veh_np[-1, col_dict['frame_id']])
+        veh_dict['vehlen'] = veh_np[0, col_dict['veh_len']]
+        veh_dict['dt'] = dt
+        veh_dict['vehid'] = veh_id
+
+        convert_to_mem(veh_np, veh_dict)
+        all_veh_dict[veh_id] = VehicleData(vehdict=all_veh_dict, **veh_dict)
+    return all_veh_dict
+
+
+class VehicleData:
+    """Holds trajectory data for a single vehicle.
+
+    Attributes:
+        posmem: list of floats giving the position, where the 0 index corresponds to time = start
+        speedmem: list of floats giving the speed, where the 0 index corresponds to time = start
+        vehid: unique vehicle ID (float) for hashing. Note that 0 is not a valid vehid.
+        start: first time index vehicle data is available
+        end: the last time index vehicle data is available
+        dt: time discretization used (discretization is assumed to be constant)
+        vehlen: physical length of vehicle
+        leadmem: VehMem object for the leader, leader.pos,  leader.speed, leader.len information.
+            VehMem objects are indexed by start, not 0. See VehMem.
+        lanemem: VehMem object for the lane. See VehMem.
+        folmem: VehMem object for the follower, follower.pos,  follower.speed, follower.len information.
+            See VehMem
+        lfolmem: Like folmem, but for left follower (follower if vehicle changed into left lane)
+        rfolmem: Like folmem, but for right follower (follower if vehicle changed into right lane)
+        rleadmem: like leadmem, but for left leader (leader if vehicle changed into left lane)
+        lleadmem: like leadmem, but for right leader (leader if vehicle changed into right lane)
+        longest_lead_times: tuple of starting, ending time index for the longest interval with
+            leader(s) not None.
+        leads: list of unique lead IDs (does not include None)
+    """
+
+    def __init__(self, posmem=[], speedmem=[], vehid=None, start=None, dt=None, vehlen=None,
+                 lanemem=[], leadmem=[], folmem=[], end=None, lfolmem=[], rfolmem=[],
+                 rleadmem=[], lleadmem=[], vehdict=None):
+        """Inits VehicleData and also makes the Vehmem objects used for the 'mem' data.
+
+        Args:
+            posmem: list of floats giving the position, where the 0 index corresponds to the position at
+                start
+            speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at start
+            vehid: unique vehicle ID (float) for hashing. Note that 0 is not a valid vehid.
+            start: first time index vehicle data is available
+            dt: time discretization used (discretization is assumed to be constant)
+            vehlen: physical length of vehicle
+            leadmem: list of tuples, where each tuple is (vehid, time) giving the time the ego vehicle
+                first begins to follow the vehicle with id vehid. Note vehid=None is also possible.
+            lanemem: list of tuples, where each tuple is (laneid, time) giving the time the ego vehicle
+                first enters the lane with laneid
+            folmem: list of tuples, where each tuple is (vehid, time) giving the time the ego vehicle first
+                begins to act as follower for the vehicle with id vehid. Note vehid=None is also possible.
+            end: the last time index vehicle data is available
+            lfolmem: Like folmem, but for left follower (follower if vehicle changed into left lane)
+            rfolmem: Like folmem, but for right follower (follower if vehicle changed into right lane)
+            rleadmem: like leadmem, but for left leader (leader if vehicle changed into left lane)
+            lleadmem: like leadmem, but for right leader (leader if vehicle changed into right lane)
+            vehdict: dictionary containing all VehicleData, where keys are the vehid
+        """
+        self.posmem = posmem
+        self.speedmem = speedmem
+        self.vehid = vehid
+        self.start = start
+        self.end = end
+        self.dt = dt
+        self.len = vehlen
+        self.lanemem = VehMem(lanemem, vehdict, start, end, is_lane=True)
+        self.leadmem = VehMem(leadmem, vehdict, start, end)
+        self.folmem = VehMem(folmem, vehdict, start, end)
+        self.lfolmem = VehMem(lfolmem, vehdict, start, end)
+        self.rfolmem = VehMem(rfolmem, vehdict, start, end)
+        self.rleadmem = VehMem(rleadmem, vehdict, start, end)
+        self.lleadmem = VehMem(lleadmem, vehdict, start, end)
+
+        self.leads = self.get_unique_mem(leadmem)
+        self.longest_lead_times = self.get_longest_lead_times()
+
+    def get_longest_lead_times(self):
+        """Find the longest time interval with leader is not None and return the starting/ending times."""
+        # similar code could be used to list all intervals with leader not None - would we ever need that?
+        if len(self.leads) == 0:
+            return self.start, self.start
+        longest = 0
+        longest_start = -1
+        longest_end = -1
+
+        curr_start = None
+        running_interval = 0
+        # to deal with last element case
+        temp = self.leadmem.data.copy()
+        temp.append((None, self.end+1))
+
+        for idx, lead_id_and_time in enumerate(temp):
+            lead, start_time = lead_id_and_time
+
+            if curr_start is None and lead is not None:
+                # setting up
+                curr_start = start_time
+                running_interval = 0
+            elif curr_start is not None:
+                # update the running interval
+                running_interval = start_time - curr_start
+
+            # no leader, so reset
+            if lead is None:
+                if running_interval > longest:
+                    longest = running_interval
+                    longest_start = curr_start
+                    longest_end = start_time-1
+                curr_start = None
+                running_interval = 0
+
+        return int(longest_start), int(longest_end)
+
+    def get_unique_mem(self, mem):
+        """Returns a list of unique values in sparse 'mem' representation, not including None."""
+        out = set([i[0] for i in mem])
+        if None in out:
+            out.remove(None)
+        return list(out)
+
+    def __hash__(self):
+        """Vehicles/VehicleData are hashable by their unique vehicle ID."""
+        return hash(self.vehid)
+
+    def __eq__(self, other):
+        """Used for comparing two vehicles with ==."""
+        return self.vehid == other.vehid
+
+    def __ne__(self, other):
+        """Used for comparing two vehicles with !=."""
+        return not self.vehid == other.vehid
+
+    def __repr__(self):
+        """Display for vehicle in interactive console."""
+        return 'saved data for vehicle '+str(self.vehid)
+
+    def __str__(self):
+        """Convert to a str representation."""
+        return self.__repr__()
+
+
+def convert_to_data(vehicle):
+    """Converts a (subclassed) Vehicle to VehicleData."""
+    # should convert Vehicle objects to their vehid. Need to convert Lanes to some index?
+    raise NotImplementedError
+    return VehicleData(vehicle)
+
+
+class VehMem:
+    """Implements memory of lane, lead, fol, rfol, lfol, rlead, llead.
+
+    Attributes:
+        data: sparse representation of memory
+        start: start time of VehicleData
+        end: end of VehicleData
+        pos: VehMemPosition, positions of the VehMem which can be directly indexed/sliced using times
+            (pos, speed, len are not for lanemem)
+        speed: VehMemPosition, speeds of the VehMem which can be directly indexed/sliced using times
+        len: VehMemPosition, len of the VehMem which can be directly indexed/sliced using times
+    """
+
+    def __init__(self, vehmem, vehdict, start, end, is_lane=False):
+        """Inits VehMem and also makes the corresponding pos, speed, len objects if is_lane is False.
+
+        Args:
+            vehmem: sparse representation of one of the  lanemem, leadmem, folmem, rfolmem, lfolmem, rleadmem,
+                lleadmem
+            vehdict: dictionary containing all VehicleData
+            start: start time of the VehicleData which has vehmem
+            end: end time of the VehicleData which has vehmem
+            is_lane: True if vehmem gives lanemem, otherwise False. If True, we will make the pos, speed, len
+        """
+        self.data = vehmem
+        self.start = start
+        self.end = end
+        if not is_lane:
+            self.pos = VehMemPosition(vehmem, vehdict, start, end)
+            self.speed = VehMemSpeed(vehmem, vehdict, start, end)
+            self.len = VehMemLen(vehmem, vehdict, start, end)
+
+    def __getitem__(self, times):
+        """Index memory using times, as if it was in its dense representation. Also accepts slice input.
+
+        Behaves as if the memory was in a dense representation, and accepted times instead of indices.
+        Note that to change times into indices, you would subtract the times by start. Similarly to
+        change indices into times, you would add start to the indices.
+
+        E.g. self.data = [[0,5], [2, 8], [6, 12]], self.start = 5, self.end = 17
+        self[5] = 0, self[8] = 2, self[17] = 6
+        self[4], self[18], self[0], self[-1] all throw index errors.
+        self[5:10] = self[:10] = [0, 0, 0, 2, 2]  (return dense representation between times 5 and 9)
+        self[10:] = self[10:18] = [2, 2, 6, 6, 6, 6, 6, 6]
+        self[:] = [0, 0, 0, 2, 2, 2, 2, 6, 6, 6, 6, 6, 6]  (return entire dense representation)
+        self[18:] = self[:4] = []  (behaves as slicing a regular list would)
+        self[17:] = self[17:18] = [6]
+        self[11:10] = []   (no steps for slices - must always advance by 1 time index)
+        self[5:10:2] = self[5:10]   (no steps for slices - must always advance by 1 time index)
+        """
+        if type(times) == slice:
+            data = self.data
+            start, stop = times.start, times.stop
+            if not start:
+                start = self.start
+            elif start < self.start:
+                start = self.start
+            elif start > self.end:
+                return []
+            if not stop:
+                stop = self.end+1
+            elif stop > self.end+1:
+                stop = self.end+1
+            elif stop < self.start+1:
+                return []
+
+            startind, stopind = mem_binary_search(data, start, return_ind=True), \
+                mem_binary_search(data, stop, return_ind=True)
+            out = []
+
+            timeslist = (start, *(data[i][1] for i in range(startind+1, stopind+1)), stop)
+            for count, i in enumerate(range(startind, stopind+1)):
+                out.extend([data[i][0]]*(timeslist[count+1]-timeslist[count]))
+            return out
+        else:
+            if times < self.start or times > self.end:
+                raise IndexError
+            return mem_binary_search(self.data, times)
+
+    def intervals(self, start=None, stop=None):
+        """Converts sparse representation into an interval representation.
+
+        See mem_to_interval - the difference is that this will behave as slicing does for
+        times outside of [self.start, self.end].
+        E.g. self.data = [[1,3], [2,6]], self.start = 3, self.end = 10
+        self.intervals() = self.intervals(3, 10) = [[1, 3, 6], [2, 6, 11]]
+        self.intervals(4, 8) = [[1, 4, 6], [2, 6, 9]]
+        self.intervals(2, 11) = self.intervals(3, 10) = [[1, 3, 6], [2, 6, 11]]
+        """
+        if not start:
+            start = self.start
+        elif start < self.start:
+            start = self.start
+        elif start > self.end:
+            return []
+        if not stop:
+            stop = self.end
+        elif stop > self.end:
+            stop = self.end
+        elif stop < self.start:
+            return []
+        return mem_to_interval(self.data, start, stop)
+
+    def __repr__(self):
+        """Ipython Console represention."""
+        return 'VehMem: '+str(self.data)
+
+
+class VehMemPosition:
+    """Implements slicing/indexing for the position of a (l/r)-(lead/fol)-mem
+
+    Attributes:
+        data: the sparse representation of the (l/r)-(lead/fol)-mem
+        vehdict: dictionary of all VehicleData - this is what the position data is read from
+        start: start of the vehicle which has the mem
+        end: end of the vehicle which has the mem
+    """
+    def __init__(self, vehmem, vehdict, start, end):
+        """Inits VehMemPosition - note vehdict must contain VehicleData for any vehicles in vehmem."""
+        self.data = vehmem
+        self.vehdict = vehdict
+        self.start = start
+        self.end = end
+
+    def __getitem__(self, times):
+        """Index or slice memory as if it was in its dense representation."""
+        if type(times) == slice:
+            data = self.data
+            vehdict = self.vehdict
+            start, stop = times.start, times.stop
+            if not start:
+                start = self.start
+            elif start < self.start:
+                start = self.start
+            elif start > self.end:
+                return []
+            if not stop:
+                stop = self.end+1
+            elif stop > self.end+1:
+                stop = self.end+1
+            elif stop < self.start+1:
+                return []
+
+            startind, stopind = mem_binary_search(data, start, return_ind=True), \
+                mem_binary_search(data, stop, return_ind=True)
+            out = []
+
+            timeslist = (start, *(data[i][1] for i in range(startind+1, stopind+1)), stop)
+            for count, i in enumerate(range(startind, stopind+1)):
+                curveh = data[i][0]
+                if curveh is not None:
+                    vehdata = vehdict[curveh]
+                    out.extend(self.myslice(vehdata, timeslist[count], timeslist[count+1]))
+                else:
+                    out.extend([None]*(timeslist[count+1]-timeslist[count]))
+            return out
+        else:
+            if times < self.start or times > self.end:
+                raise IndexError
+            vehdata = self.vehdict[mem_binary_search(self.data, times)]
+            return self.index(vehdata, times)
+
+    def myslice(self, vehdata, start, stop):
+        curstart = vehdata.start
+        return vehdata.posmem[start-curstart:stop-curstart]
+
+    def index(self, vehdata, time):
+        return vehdata.posmem[time - vehdata.start]
+
+    def __repr__(self):
+        return str(self.__getitem__(slice(self.start, self.end+1)))
+
+
+class VehMemSpeed(VehMemPosition):
+    """Returns speed data instead of position data."""
+    def myslice(self, vehdata, start, stop):
+        curstart = vehdata.start
+        return vehdata.speedmem[start-curstart:stop-curstart]
+
+    def index(self, vehdata, time):
+        return vehdata.speedmem[time - vehdata.start]
+
+
+class VehMemLen(VehMemPosition):
+    """Returns lengths instead of position data."""
+    def myslice(self, vehdata, start, stop):
+        return (vehdata.len,)*(stop-start)
+
+    def index(self, vehdata, time):
+        return vehdata.len
+
+
+def mem_binary_search(arr, time, return_ind=False):
+    """
+    Performs binary search on array, but assumes that the array is filled with tuples, where
+    the first element is the value and the second is the time. We're sorting utilizing the time field
+    and returning the value at the specific time.
+    Args:
+        arr: sorted array with (val, start_time)
+        time: the time that we are looking for
+        return_ind: If True, return the index corresponding to time in arr
+    Returns:
+        the value that took place at the given time
+    """
+    # if len(arr) == 0 or time < arr[0][1]:
+    #     return None
+    start, end = 0, len(arr)
+    while (end > start+1):
+        mid = (end + start) // 2
+        if time >= arr[mid][1]:
+            start = mid
+        else:
+            end = mid
+
+    if return_ind:
+        return start
+    else:
+        return arr[start][0]
+
+
+def interval_binary_search(X,time):
+    #finds index m such that the interval X[m], X[m+1] contains time.
+    #X = array
+    #time = float
+    lo = 0
+    hi = len(X)-2
+    m = (lo + hi) //  2
+    while (hi - lo) > 1:
+        if time < X[m]:
+            hi = m
+        else:
+            lo = m
+        m = (lo + hi) // 2
+    return lo
+
+
+def mem_to_interval(vehmem, start, stop):
+    """Converts memory between times start and stop to an interval representation.
+
+    E.g. vehmem = [[1,3], [2,6]], start = 4, stop = 8
+    interval representation = [[1,4,6], [2,6,9]]
+    The interval representation gives the start, end times so it is more convenient to use.
+    Note that if you gives start/end times outside of the memory, it will just use the closest memory.
+    E.g. vehmem = [[1,3], [2,6]], start = 2, stop = 1000
+    interval representation = [[1, 2, 6], [2, 6, 1001]]
+    """
+    startind, stopind = mem_binary_search(vehmem, start, return_ind=True), \
+        mem_binary_search(vehmem, stop, return_ind=True)
+
+    timeslist = (start, *(vehmem[i][1] for i in range(startind+1, stopind+1)), stop+1)
+    return [[vehmem[startind+i][0], timeslist[i], timeslist[i+1]] for i in range(len(timeslist)-1)]
+
 
 def get_lead_data(veh, meas, platooninfo, rp=None, dt=.1):
     """Returns lead vehicle trajectory and possibly relaxation
@@ -368,63 +962,6 @@ def indtopos(indjumps, data, dataind = 2):
         temp = (startpos, endpos)
         out.append(temp)
     return out
-
-def interp1ds(X,Y,times):
-    #??? this is the same as interpolate function?? Only difference is this one can have output start at a different time
-    #given time series data X, Y (such that each (X[i], Y[i]) tuple is an observation),
-    #and the array times, interpolates the data onto times.
-
-    #X, Y, and times all need to be sorted in terms of increasing time. X and times need to have a constant time discretization
-    #runtime is O(n+m) where X is len(n) and times is len(m)
-
-    #uses 1d interpolation. This is similar to the functionality of scipy.interp1d. Name is interp1ds because it does linear interpolation in 1d (interp1d) on sorted data (s)
-
-    #e.g. X = [1,2,3,4,5]
-    #Y = [2,3,4,5,6]
-    #times = [3.25,4,4.75]
-
-    #out = [4.25,5,5.75]
-
-    if times[0] < X[0] or times[-1] > X[-1]:
-        print('Error: requested times are outside measurements')
-        return None
-
-    Xdt = X[1] - X[0]
-    timesdt = times[1]-times[0]
-    change = timesdt/Xdt
-
-    m = binaryint(X,times[0])
-    out = np.zeros(len(times))
-    curind = m + (times[0]-X[m])/Xdt
-
-    leftover = curind % 1
-    out[0] = Y[m] + leftover*(Y[m+1]-Y[m])
-
-    for i in range(len(times)-1):
-        curind = curind + change #update index
-
-        leftover = curind % 1 #leftover needed for interpolation
-        ind = int(curind // 1) #cast to int because it is casted to float automatically
-
-        out[i+1] = Y[ind] + leftover*(Y[ind+1]-Y[ind])
-
-    return out
-
-
-def binaryint(X,time):
-    #finds index m such that the interval X[m], X[m+1] contains time.
-    #X = array
-    #time = float
-    lo = 0
-    hi = len(X)-2
-    m = (lo + hi) //  2
-    while (hi - lo) > 1:
-        if time < X[m]:
-            hi = m
-        else:
-            lo = m
-        m = (lo + hi) // 2
-    return lo
 
 
 def makeleadinfo(platoon, platooninfo, sim, *args):
@@ -1114,6 +1651,47 @@ def interpolate(data, interval=1.0):
     speed += remained * data[-1, 1]
     speeds.append(speed / interval)
     return speeds, (data[0, 0], data[0, 0] + (len(speeds) - 1) * interval)
+
+
+def interp1ds(X,Y,times):
+    #given time series data X, Y (such that each (X[i], Y[i]) tuple is an observation),
+    #and the array times, interpolates the data onto times.
+
+    #X, Y, and times all need to be sorted in terms of increasing time. X and times need to have a constant time discretization
+    #runtime is O(n+m) where X is len(n) and times is len(m)
+
+    #uses 1d interpolation. This is similar to the functionality of scipy.interp1d. Name is interp1ds because it does linear interpolation in 1d (interp1d) on sorted data (s)
+
+    #e.g. X = [1,2,3,4,5]
+    #Y = [2,3,4,5,6]
+    #times = [3.25,4,4.75]
+
+    #out = [4.25,5,5.75]
+
+    if times[0] < X[0] or times[-1] > X[-1]:
+        print('Error: requested times are outside measurements')
+        return None
+
+    Xdt = X[1] - X[0]
+    timesdt = times[1]-times[0]
+    change = timesdt/Xdt
+
+    m = interval_binary_search(X,times[0])
+    out = np.zeros(len(times))
+    curind = m + (times[0]-X[m])/Xdt
+
+    leftover = curind % 1
+    out[0] = Y[m] + leftover*(Y[m+1]-Y[m])
+
+    for i in range(len(times)-1):
+        curind = curind + change #update index
+
+        leftover = curind % 1 #leftover needed for interpolation
+        ind = int(curind // 1) #cast to int because it is casted to float automatically
+
+        out[i+1] = Y[ind] + leftover*(Y[ind+1]-Y[ind])
+
+    return out
 
 
 def getentryflows(meas, entrylanes,  timeind, outtimeind):

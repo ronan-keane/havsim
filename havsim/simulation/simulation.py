@@ -66,7 +66,7 @@ def update_net(vehicles, lc_actions, inflow_lanes, merge_lanes, vehid, timeind, 
 
         # update a vehicle's lane events and route events for the new lane
         update_lane_routes.set_lane_events(veh)
-        update_lane_routes.set_route_events(veh)
+        update_lane_routes.set_route_events(veh, timeind)
 
     for veh in set(relaxvehs):  # apply relaxation
         veh.set_relax(timeind, dt)
@@ -80,6 +80,10 @@ def update_net(vehicles, lc_actions, inflow_lanes, merge_lanes, vehid, timeind, 
         # else:  # for robustness only, should not be needed
         #     veh.hd = None
 
+    # update left and right followers
+    # vehicle_orders.update_all_lrfol(vehicles)
+    vehicle_orders.update_all_lrfol_multiple(vehicles)
+
     # update merge_anchors
     for curlane in merge_lanes:
         update_lane_routes.update_merge_anchors(curlane, lc_actions)
@@ -89,14 +93,10 @@ def update_net(vehicles, lc_actions, inflow_lanes, merge_lanes, vehid, timeind, 
     for veh in vehicles:
         # check vehicle's lane events and route events, acting if necessary
         update_lane_routes.update_lane_events(veh, timeind, remove_vehicles)
-        update_lane_routes.update_route_events(veh)
+        update_lane_routes.update_route_events(veh, timeind)
     # remove vehicles which leave
     for veh in remove_vehicles:
         vehicles.remove(veh)
-
-    # update left and right followers
-    vehicle_orders.update_all_lrfol(vehicles)
-    # update_all_lrfol_multiple(vehicles)
 
     # for veh in vehicles:  # debugging
     #     if not veh._chk_leadfol(verbose = False):

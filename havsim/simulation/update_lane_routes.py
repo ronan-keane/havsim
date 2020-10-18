@@ -9,7 +9,7 @@ def update_veh_after_lc(lc_actions, veh, timeind):
     """When a vehicle changes lanes, this function does all the necessary updates.
 
     When a vehicle changes lanes, we need to update it's lane, road, llane/rlane, r/l_lc, lanemem,
-    lc_side, coop_veh, lc_urgency attributes.
+    and the lane changing model internal state.
     More importantly, we need to update all the leader/follower relationships.
     ***Naming conventions***
     Every vehicle has its leader (lead) and follower (fol). Putting l or r in front of lead/fol indicates
@@ -38,13 +38,14 @@ def update_veh_after_lc(lc_actions, veh, timeind):
     """
     # TODO no check for vehicles moving into same gap (store the lcside fol/lead in lc_actions,
     # check if they are the same?)
-    
-    # updates to lanes, road
-    lcsidelane, newlcsidelane, lc = update_lane_after_lc(veh, lc_actions[veh], timeind+1)
 
-    veh.reset_lc_state()  # must reset state of the lc model after completing a lc
+    lc = lc_actions[veh]
+    # updates to lanes, road
+    lcsidelane, newlcsidelane, lc = update_lane_after_lc(veh, lc, timeind+1)
+    veh.update_lc_state(timeind, lc=lc)
+
     # updates to vehicle orders
-    vehicle_orders.update_leadfol_after_lc(veh, lcsidelane, newlcsidelane, lc_actions[veh], timeind)
+    vehicle_orders.update_leadfol_after_lc(veh, lcsidelane, newlcsidelane, lc, timeind)
 
     return
 
@@ -78,7 +79,7 @@ def update_lane_after_lc(veh, lc, timeind):
             veh.l_lc = 'discretionary'
         else:
             veh.l_lc = None
-    else: 
+    else:
         veh.llane = veh.lane
         lcsidelane = veh.rlane
         newroadname = lcsidelane.roadname
@@ -96,7 +97,7 @@ def update_lane_after_lc(veh, lc, timeind):
             veh.r_lc = 'discretionary'
         else:
             veh.r_lc = None
-    
+
     return lcsidelane, newlcsidelane, lc
 
 
@@ -126,6 +127,8 @@ def update_lane_events(veh, timeind, remove_vehicles):
     Returns:
         None. (Modifies Vehicle attributes in place, adds to remove_vehicles in place.)
     """
+    # TODO maybe combine lane events/route events into a single priority queue and keep the next event
+    # position in memory? maybe not worth to do.
     if not veh.lane_events:
         return
     curevent = veh.lane_events[0]
@@ -138,18 +141,20 @@ def update_lane_events(veh, timeind, remove_vehicles):
 
             # updates left and right connections
             update_lane_lr(veh, newlane, curevent)
+            veh.update_lc_state(timeind)
 
             # enter new road/lane -> need new lane/route events
             set_lane_events(veh)
-            set_route_events(veh)
+            set_route_events(veh, timeind)
 
         elif curevent['event'] == 'update lr':
             update_lane_lr(veh, veh.lane, curevent)
+            veh.update_lc_state(timeind)
             veh.lane_events.pop(0)  # event is over, so we shouldn't check it in the future
 
         elif curevent['event'] == 'exit':
             fol = veh.fol
-            # need to check l/rlead for edge case when you overtake and exit in same timestep
+            # need to check l/rlead for edge case when you overtake and exit in same timestep?
             for i in veh.llead:
                 i.rfol = fol
                 fol.llead.append(i)
@@ -165,8 +170,8 @@ def update_lane_events(veh, timeind, remove_vehicles):
             if veh.rfol is not None:
                 veh.rfol.llead.remove(veh)
 
-            # to remove the vehicle set its endtime and put it in the remove_vehicles
-            veh.endtime = timeind+1
+            # to remove the vehicle set its end and put it in the remove_vehicles
+            veh.end = timeind+1
             remove_vehicles.append(veh)
     return
 
@@ -189,21 +194,20 @@ def update_lane_lr(veh, curlane, curevent):
         None (Modifies veh attributes in place.)
     """
     if curevent['left'] == 'remove':
-        # handle edge case where veh overtakes lfol in same timestep the left lane ends
-        vehicle_orders.update_lrfol(veh.lfol)
+        # # handle edge case where veh overtakes lfol in same timestep the left lane ends
+        # vehicle_orders.update_lrfol(veh.lfol)
         # update lead/fol order
         veh.lfol.rlead.remove(veh)
         veh.lfol = None
         veh.l_lc = None
         veh.llane = None
-        if veh.lc_side == 'l':  # end tactical/coop if necessary
-            veh.reset_lc_state()
+
     elif curevent['left'] == 'add':
         newllane = curlane.get_connect_left(curevent['pos'])
         merge_anchor = newllane.merge_anchors[curevent['left anchor']][0]
         unused, newfol = curlane.leadfol_find(veh, merge_anchor, 'l')
 
-        veh.lfol = newfol
+        veh.lfol = newfol  # assumes that veh.lfol is None
         newfol.rlead.append(veh)
         if newllane.roadname == curlane.roadname:
             veh.l_lc = 'discretionary'
@@ -214,14 +218,13 @@ def update_lane_lr(veh, curlane, curevent):
     # same thing for right
     if curevent['right'] == 'remove':
 
-        vehicle_orders.update_lrfol(veh.rfol)
+        # vehicle_orders.update_lrfol(veh.rfol)
 
         veh.rfol.llead.remove(veh)
         veh.rfol = None
         veh.r_lc = None
         veh.rlane = None
-        if veh.lc_side == 'r':  # end tactical/coop if necessary
-            veh.reset_lc_state()
+
     elif curevent['right'] == 'add':
         newrlane = curlane.get_connect_right(curevent['pos'])
         merge_anchor = newrlane.merge_anchors[curevent['right anchor']][0]
@@ -274,7 +277,7 @@ def set_lane_events(veh):
             veh.lane_events.append(i)
 
 
-def update_route_events(veh):
+def update_route_events(veh, timeind):
     """Check if the next event from a vehicle's route_events should be applied, and apply it if so.
 
     route_events are a list of events which handles any lane changing behavior related to
@@ -300,12 +303,13 @@ def update_route_events(veh):
         if curevent['event'] == 'end discretionary':
             side = curevent['side']
             setattr(veh, side, None)
-            if veh.lc_side == side[0]:  # end tactical/coop if necessary
-                veh.coop_veh = veh.lc_side = None
+            veh.update_lc_state(timeind)
 
         elif curevent['event'] == 'mandatory':
             setattr(veh, curevent['side'], 'mandatory')
             veh.lc_urgency = curevent['lc_urgency']  # must always set urgency for mandatory changes
+            veh.update_lc_state(timeind)
+
         veh.route_events.pop(0)
         return True
     return False
@@ -369,6 +373,9 @@ def make_cur_route(p, curlane, nextroadname):
     # (e.g. slow down) if needed. in this function, would need to add events if you miss the change,
     # and in that case you would need to be given a new route.
     # another option other simulators use is they simply remove a vehicle if it fails to follow its route.
+
+    # TODO suggest that we also have some code which can generate routes given the entry and exit point of the
+    # network
 
     curroad = curlane.road
     curlaneind = curlane.laneind
@@ -439,7 +446,17 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
     generates route events for all lanes in [curlaneind, laneind). If curlaneind < laneind, starts at
     laneind -1, moving to the left until routes on all lanes are defined. Similarly for curlaneind > laneind.
     Assumes we already have the route for laneind in cur_route.
-    Edge cases where routes have different lengths are handled.
+    Edge cases where lanes have different lengths are handled, but we assume that all lanes are connected
+    when they exist. E.g. for a road with 2 lanes, lane0 and lane1, you could have:
+    lane0.start = 0, lane0.end = 1000
+    lane1.start = 500, lane1.end = 1500,
+    lane0.connect_right = [(0, None), (lane1.start, lane1)]
+    lane1.connect_left = [(lane1.start, lane0)]
+    This configuration would work.
+    But if:
+    lane1.connect_left = [(lane1.start, None), (800, lane0)]
+    his case is not currently handled, because the current code does not look at the connect_left/right,
+    it just uses the .start, .end
 
     Args:
         p: parameters, length 2 list of floats, where p[0] is a safety buffer for merging and p[1]
@@ -454,6 +471,10 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
     Returns:
         cur_route: Updates cur_route in place
     """
+    # TODO decide if we want to handle the case explained in docstring, by checking the connect_left/right
+    # to get the positions of connection. These values could then be used instead of .start and .end
+    # Those connections could also be stored in road or lane, so they don't have to be recomputed
+    # during simulation.
     if curlaneind < laneind:
         curind = laneind - 1
         prevtemplane = curroad[curind+1]
@@ -466,17 +487,6 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
                 curpos = templane.end
             curpos += -p[0] - p[1]
             curpos = max(prevtemplane.start, curpos)  # in case the lane doesn't exist at curpos
-            # TODO but what about the case where you can actually change before the lane starts?
-            # i.e. the case where you have a 3 lane road (indexes, 0, 1, 3) that splits into 2 roads
-            # with 2 lanes each, (0,1) and (2,3) indexed, where lane 1 splits into 1 and 2. So in this case,
-            # you can only change into 2 once it starts, but really if you change before 2 starts, it's OK
-            # because you will just go to 3 which is also fine.
-            # maybe should just do something special in the case prevtemplane.start > curpos. In this case,
-            # is the end discretionary going to be correct for 1/3? Assume that the indexes do give
-            # a correct order but lanes may start/end at their own times.
-            # Note the connect_to attribute for lanes only points to a single Lane, but I think the
-            # interpretation of this is that it points to the 'default' choice in the split, and if you
-            # want the other choice, you have to manually change.
 
             # determine enddiscpos = where the discretionary ends
             # only necessary if there is something to end the discretionary into
@@ -525,7 +535,7 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
     return cur_route
 
 
-def set_route_events(veh):
+def set_route_events(veh, timeind):
     """When a vehicle enters a new lane, this function generates all its route events for that lane.
 
     Every Lane has a list of 'route events' defined for it, which ensure that the Vehicle follows its
@@ -572,7 +582,7 @@ def set_route_events(veh):
     # for route events, past events need to be applied.
     curbool = True
     while curbool:
-        curbool = update_route_events(veh)
+        curbool = update_route_events(veh, timeind)
 
 
 def update_merge_anchors(curlane, lc_actions):
@@ -586,6 +596,7 @@ def update_merge_anchors(curlane, lc_actions):
     and does not need to be updated. Otherwise, position is a float of the position on curlane,
     and the merge anchor is the vehicle on the same track as curlane which is closest to position without
     yet passing position.
+    Merge anchors have fixed index.
     position being None corresponds to the situation where a new lane starts.
     position being a float corresponds to the situation where two lanes initially meet.
     Unlike lfol/rfol, merge anchors do not need to be completely updated. They should be kept

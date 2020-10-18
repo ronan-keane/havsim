@@ -43,6 +43,6 @@ txt = np.loadtxt('C:/Users/rlk268/OneDrive - Cornell University/important misc/d
 all_veh_dict = helper.load_dataset(txt, column_dict={'veh_id':0, 'frame_id':1, 'lane':2, 'pos':3, 'veh_len':6,
                                       'lead':9, 'fol':8}, alpha=0, None_val=-1)
 
-plotting.animatetraj(meas, platooninfo, usetime=[2801, 2801])
+# plotting.animatetraj(meas, platooninfo, usetime=[2801, 2801])
 
 

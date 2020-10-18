@@ -200,8 +200,8 @@ def load_dataset(dataset, column_dict={'veh_id': 0, 'frame_id': 1, 'lane': 13, '
         speed_mem.append(speed_mem[-1])
         veh_dict['speedmem'] = speed_mem
 
-        veh_dict['starttime'] = int(veh_np[0, col_dict['frame_id']])
-        veh_dict['endtime'] = int(veh_np[-1, col_dict['frame_id']])
+        veh_dict['start'] = int(veh_np[0, col_dict['frame_id']])
+        veh_dict['end'] = int(veh_np[-1, col_dict['frame_id']])
         veh_dict['vehlen'] = veh_np[0, col_dict['veh_len']]
         veh_dict['dt'] = dt
         veh_dict['vehid'] = veh_id
@@ -215,14 +215,15 @@ class VehicleData:
     """Holds trajectory data for a single vehicle.
 
     Attributes:
-        posmem: list of floats giving the position, where the 0 index corresponds to the position at starttime
-        speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at starttime
+        posmem: list of floats giving the position, where the 0 index corresponds to time = start
+        speedmem: list of floats giving the speed, where the 0 index corresponds to time = start
         vehid: unique vehicle ID (float) for hashing. Note that 0 is not a valid vehid.
-        starttime: first time index vehicle data is available
-        endtime: the last time index vehicle data is available
+        start: first time index vehicle data is available
+        end: the last time index vehicle data is available
         dt: time discretization used (discretization is assumed to be constant)
         vehlen: physical length of vehicle
-        leadmem: VehMem object for the leader, leader.pos,  leader.speed, leader.len information. See VehMem
+        leadmem: VehMem object for the leader, leader.pos,  leader.speed, leader.len information.
+            VehMem objects are indexed by start, not 0. See VehMem.
         lanemem: VehMem object for the lane. See VehMem.
         folmem: VehMem object for the follower, follower.pos,  follower.speed, follower.len information.
             See VehMem
@@ -235,17 +236,17 @@ class VehicleData:
         leads: list of unique lead IDs (does not include None)
     """
 
-    def __init__(self, posmem=[], speedmem=[], vehid=None, starttime=None, dt=None, vehlen=None,
-                 lanemem=[], leadmem=[], folmem=[], endtime=None, lfolmem=[], rfolmem=[],
+    def __init__(self, posmem=[], speedmem=[], vehid=None, start=None, dt=None, vehlen=None,
+                 lanemem=[], leadmem=[], folmem=[], end=None, lfolmem=[], rfolmem=[],
                  rleadmem=[], lleadmem=[], vehdict=None):
         """Inits VehicleData and also makes the Vehmem objects used for the 'mem' data.
 
         Args:
             posmem: list of floats giving the position, where the 0 index corresponds to the position at
-                starttime
-            speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at starttime
+                start
+            speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at start
             vehid: unique vehicle ID (float) for hashing. Note that 0 is not a valid vehid.
-            starttime: first time index vehicle data is available
+            start: first time index vehicle data is available
             dt: time discretization used (discretization is assumed to be constant)
             vehlen: physical length of vehicle
             leadmem: list of tuples, where each tuple is (vehid, time) giving the time the ego vehicle
@@ -254,7 +255,7 @@ class VehicleData:
                 first enters the lane with laneid
             folmem: list of tuples, where each tuple is (vehid, time) giving the time the ego vehicle first
                 begins to act as follower for the vehicle with id vehid. Note vehid=None is also possible.
-            endtime: the last time index vehicle data is available
+            end: the last time index vehicle data is available
             lfolmem: Like folmem, but for left follower (follower if vehicle changed into left lane)
             rfolmem: Like folmem, but for right follower (follower if vehicle changed into right lane)
             rleadmem: like leadmem, but for left leader (leader if vehicle changed into left lane)
@@ -264,17 +265,17 @@ class VehicleData:
         self.posmem = posmem
         self.speedmem = speedmem
         self.vehid = vehid
-        self.starttime = starttime
-        self.endtime = endtime
+        self.start = start
+        self.end = end
         self.dt = dt
         self.len = vehlen
-        self.lanemem = VehMem(lanemem, vehdict, starttime, endtime, is_lane=True)
-        self.leadmem = VehMem(leadmem, vehdict, starttime, endtime)
-        self.folmem = VehMem(folmem, vehdict, starttime, endtime)
-        self.lfolmem = VehMem(lfolmem, vehdict, starttime, endtime)
-        self.rfolmem = VehMem(rfolmem, vehdict, starttime, endtime)
-        self.rleadmem = VehMem(rleadmem, vehdict, starttime, endtime)
-        self.lleadmem = VehMem(lleadmem, vehdict, starttime, endtime)
+        self.lanemem = VehMem(lanemem, vehdict, start, end, is_lane=True)
+        self.leadmem = VehMem(leadmem, vehdict, start, end)
+        self.folmem = VehMem(folmem, vehdict, start, end)
+        self.lfolmem = VehMem(lfolmem, vehdict, start, end)
+        self.rfolmem = VehMem(rfolmem, vehdict, start, end)
+        self.rleadmem = VehMem(rleadmem, vehdict, start, end)
+        self.lleadmem = VehMem(lleadmem, vehdict, start, end)
 
         self.leads = self.get_unique_mem(leadmem)
         self.longest_lead_times = self.get_longest_lead_times()
@@ -283,7 +284,7 @@ class VehicleData:
         """Find the longest time interval with leader is not None and return the starting/ending times."""
         # similar code could be used to list all intervals with leader not None - would we ever need that?
         if len(self.leads) == 0:
-            return self.starttime, self.starttime
+            return self.start, self.start
         longest = 0
         longest_start = -1
         longest_end = -1
@@ -292,7 +293,7 @@ class VehicleData:
         running_interval = 0
         # to deal with last element case
         temp = self.leadmem.data.copy()
-        temp.append((None, self.endtime+1))
+        temp.append((None, self.end+1))
 
         for idx, lead_id_and_time in enumerate(temp):
             lead, start_time = lead_id_and_time
@@ -356,41 +357,41 @@ class VehMem:
 
     Attributes:
         data: sparse representation of memory
-        starttime: starttime of VehicleData
-        endtime: endtime of VehicleData
+        start: start time of VehicleData
+        end: end of VehicleData
         pos: VehMemPosition, positions of the VehMem which can be directly indexed/sliced using times
             (pos, speed, len are not for lanemem)
         speed: VehMemPosition, speeds of the VehMem which can be directly indexed/sliced using times
         len: VehMemPosition, len of the VehMem which can be directly indexed/sliced using times
     """
 
-    def __init__(self, vehmem, vehdict, starttime, endtime, is_lane=False):
+    def __init__(self, vehmem, vehdict, start, end, is_lane=False):
         """Inits VehMem and also makes the corresponding pos, speed, len objects if is_lane is False.
 
         Args:
             vehmem: sparse representation of one of the  lanemem, leadmem, folmem, rfolmem, lfolmem, rleadmem,
                 lleadmem
             vehdict: dictionary containing all VehicleData
-            starttime: start time of the VehicleData which has vehmem
-            endtime: end time of the VehicleData which has vehmem
+            start: start time of the VehicleData which has vehmem
+            end: end time of the VehicleData which has vehmem
             is_lane: True if vehmem gives lanemem, otherwise False. If True, we will make the pos, speed, len
         """
         self.data = vehmem
-        self.starttime = starttime
-        self.endtime = endtime
+        self.start = start
+        self.end = end
         if not is_lane:
-            self.pos = VehMemPosition(vehmem, vehdict, starttime, endtime)
-            self.speed = VehMemSpeed(vehmem, vehdict, starttime, endtime)
-            self.len = VehMemLen(vehmem, vehdict, starttime, endtime)
+            self.pos = VehMemPosition(vehmem, vehdict, start, end)
+            self.speed = VehMemSpeed(vehmem, vehdict, start, end)
+            self.len = VehMemLen(vehmem, vehdict, start, end)
 
     def __getitem__(self, times):
         """Index memory using times, as if it was in its dense representation. Also accepts slice input.
 
         Behaves as if the memory was in a dense representation, and accepted times instead of indices.
-        Note that to change times into indices, you would subtract the times by starttime. Similarly to
-        change indices into times, you would add starttime to the indices.
+        Note that to change times into indices, you would subtract the times by start. Similarly to
+        change indices into times, you would add start to the indices.
 
-        E.g. self.data = [[0,5], [2, 8], [6, 12]], self.starttime = 5, self.endtime = 17
+        E.g. self.data = [[0,5], [2, 8], [6, 12]], self.start = 5, self.end = 17
         self[5] = 0, self[8] = 2, self[17] = 6
         self[4], self[18], self[0], self[-1] all throw index errors.
         self[5:10] = self[:10] = [0, 0, 0, 2, 2]  (return dense representation between times 5 and 9)
@@ -405,16 +406,16 @@ class VehMem:
             data = self.data
             start, stop = times.start, times.stop
             if not start:
-                start = self.starttime
-            elif start < self.starttime:
-                start = self.starttime
-            elif start > self.endtime:
+                start = self.start
+            elif start < self.start:
+                start = self.start
+            elif start > self.end:
                 return []
             if not stop:
-                stop = self.endtime+1
-            elif stop > self.endtime+1:
-                stop = self.endtime+1
-            elif stop < self.starttime+1:
+                stop = self.end+1
+            elif stop > self.end+1:
+                stop = self.end+1
+            elif stop < self.start+1:
                 return []
 
             startind, stopind = mem_binary_search(data, start, return_ind=True), \
@@ -426,7 +427,7 @@ class VehMem:
                 out.extend([data[i][0]]*(timeslist[count+1]-timeslist[count]))
             return out
         else:
-            if times < self.starttime or times > self.endtime:
+            if times < self.start or times > self.end:
                 raise IndexError
             return mem_binary_search(self.data, times)
 
@@ -434,23 +435,23 @@ class VehMem:
         """Converts sparse representation into an interval representation.
 
         See mem_to_interval - the difference is that this will behave as slicing does for
-        times outside of [self.starttime, self.endtime].
-        E.g. self.data = [[1,3], [2,6]], self.starttime = 3, self.endtime = 10
+        times outside of [self.start, self.end].
+        E.g. self.data = [[1,3], [2,6]], self.start = 3, self.end = 10
         self.intervals() = self.intervals(3, 10) = [[1, 3, 6], [2, 6, 11]]
         self.intervals(4, 8) = [[1, 4, 6], [2, 6, 9]]
         self.intervals(2, 11) = self.intervals(3, 10) = [[1, 3, 6], [2, 6, 11]]
         """
         if not start:
-            start = self.starttime
-        elif start < self.starttime:
-            start = self.starttime
-        elif start > self.endtime:
+            start = self.start
+        elif start < self.start:
+            start = self.start
+        elif start > self.end:
             return []
         if not stop:
-            stop = self.endtime
-        elif stop > self.endtime:
-            stop = self.endtime
-        elif stop < self.starttime:
+            stop = self.end
+        elif stop > self.end:
+            stop = self.end
+        elif stop < self.start:
             return []
         return mem_to_interval(self.data, start, stop)
 
@@ -465,15 +466,15 @@ class VehMemPosition:
     Attributes:
         data: the sparse representation of the (l/r)-(lead/fol)-mem
         vehdict: dictionary of all VehicleData - this is what the position data is read from
-        starttime: starttime of the vehicle which has the mem
-        endtime: endtime of the vehicle which has the mem
+        start: start of the vehicle which has the mem
+        end: end of the vehicle which has the mem
     """
-    def __init__(self, vehmem, vehdict, starttime, endtime):
+    def __init__(self, vehmem, vehdict, start, end):
         """Inits VehMemPosition - note vehdict must contain VehicleData for any vehicles in vehmem."""
         self.data = vehmem
         self.vehdict = vehdict
-        self.starttime = starttime
-        self.endtime = endtime
+        self.start = start
+        self.end = end
 
     def __getitem__(self, times):
         """Index or slice memory as if it was in its dense representation."""
@@ -482,16 +483,16 @@ class VehMemPosition:
             vehdict = self.vehdict
             start, stop = times.start, times.stop
             if not start:
-                start = self.starttime
-            elif start < self.starttime:
-                start = self.starttime
-            elif start > self.endtime:
+                start = self.start
+            elif start < self.start:
+                start = self.start
+            elif start > self.end:
                 return []
             if not stop:
-                stop = self.endtime+1
-            elif stop > self.endtime+1:
-                stop = self.endtime+1
-            elif stop < self.starttime+1:
+                stop = self.end+1
+            elif stop > self.end+1:
+                stop = self.end+1
+            elif stop < self.start+1:
                 return []
 
             startind, stopind = mem_binary_search(data, start, return_ind=True), \
@@ -508,30 +509,30 @@ class VehMemPosition:
                     out.extend([None]*(timeslist[count+1]-timeslist[count]))
             return out
         else:
-            if times < self.starttime or times > self.endtime:
+            if times < self.start or times > self.end:
                 raise IndexError
             vehdata = self.vehdict[mem_binary_search(self.data, times)]
             return self.index(vehdata, times)
 
     def myslice(self, vehdata, start, stop):
-        curstart = vehdata.starttime
+        curstart = vehdata.start
         return vehdata.posmem[start-curstart:stop-curstart]
 
     def index(self, vehdata, time):
-        return vehdata.posmem[time - vehdata.starttime]
+        return vehdata.posmem[time - vehdata.start]
 
     def __repr__(self):
-        return str(self.__getitem__(slice(self.starttime, self.endtime+1)))
+        return str(self.__getitem__(slice(self.start, self.end+1)))
 
 
 class VehMemSpeed(VehMemPosition):
     """Returns speed data instead of position data."""
     def myslice(self, vehdata, start, stop):
-        curstart = vehdata.starttime
+        curstart = vehdata.start
         return vehdata.speedmem[start-curstart:stop-curstart]
 
     def index(self, vehdata, time):
-        return vehdata.speedmem[time - vehdata.starttime]
+        return vehdata.speedmem[time - vehdata.start]
 
 
 class VehMemLen(VehMemPosition):

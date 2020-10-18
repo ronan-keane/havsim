@@ -1,17 +1,15 @@
-
-"""
-helper functions
-"""
+"""Helper functions and utilities for loading/manipulating data."""
 import numpy as np
 import heapq
 import math
 from collections import defaultdict
-
 # TODO - fix code style and documentation
-def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, 'pos':5, 'veh_len':8,
-                                      'lead':14, 'fol':15}, dt=0.1, alpha=0.1):
-    """
-    Returns dictionary with keys veh_id, and values as data object
+
+
+def load_dataset(dataset, column_dict={'veh_id': 0, 'frame_id': 1, 'lane': 13, 'pos': 5, 'veh_len': 8,
+                                       'lead': 14, 'fol': 15}, dt=0.1, alpha=0.1, None_val=0):
+    """Returns dictionary with keys veh_id, and values as data object.
+
     Args:
         dataset: Consists of rows of observation, assumed to be sorted by vehicle IDs, times.
             each observation has the values of
@@ -25,20 +23,22 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
         column_dict: Gives the column indices for each value
         dt: float representing timestep in simulation
         alpha: float representing alpha in exponential moving average (which we
-            utilize to smooth positions)
+            utilize to smooth positions). lower = less smoothing.
+
     Returns:
         dictionary with keys of vehicle ids, values of VehicleData.
     """
 
     def _get_vehid(lane_np, pos):
-        """
-        Gets vehicle id of the follower/leader in the given lane (utilizing y_val of the curr veh)
+        """Gets vehicle id of the follower/leader in the given lane (utilizing y_val of the curr veh).
+
         Args:
             lane_np: np.ndarray, a subset of dataset (only includes rows of a certain frame id,
                 and lane). This must be sorted via the pos column or it produces incorrect
                 solutions
             pos: float, the pos value of the vehicle we're searching up (the vehicle
                 whose lfol/rfol/llead/rlead we are currently trying to triangulate)
+
         Returns:
             fol_id: float, the vehicle id of the follower in the given lane
             lead_id: float, the vehicle id of the leader in the given lane
@@ -50,19 +50,23 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
             return None, lane_np[0, col_dict['veh_id']]
 
     def _get_fol_lead(row_np):
-        """
-        Returns lfol/llead/rfol/llead of a given row in the dataframe.
+        """Returns lfol/llead/rfol/llead of a given row in the dataframe.
+
         Note that we assume that the lanes have integer indices (e.g. 1,2,3, etc.) and that
         1 connects to 2, etc. So this is only designed to work for a road segment.
+
         Args:
             row_np: np.ndarray, must be a vector. The row of the dataset, which represents
                 a vehicle at a given frame_id.
+
         Returns:
             lfol: float, vehicle id of left follower of vehicle at given frame id
             llead: float, vehicle id of left leader of vehicle at given frame id
             rfol: float, vehicle id of right follower of vehicle at given frame id
             rlead: float, vehicle id of right leader of vehicle at given frame id
         """
+        # lane_id_to_indices must accept lane index, return all observations in that lane, at the same
+        # time index as row_np
         lane_id, pos = row_np[col_dict['lane']], row_np[col_dict['pos']]
         lfol, llead, rfol, rlead = None, None, None, None
 
@@ -97,12 +101,12 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
     # generate lfol/llead/rfol/rlead data
     # sort dataset in times, lanes, positions
     dataset = np.hstack((dataset, np.expand_dims(np.array(range(len(dataset))), axis=1)))
-    sort_tuple = (dataset[:, col_dict['pos']], dataset[:, col_dict['lane']], \
-            dataset[:, col_dict['frame_id']])
+    sort_tuple = (dataset[:, col_dict['pos']], dataset[:, col_dict['lane']],
+                  dataset[:, col_dict['frame_id']])
     dataset_sortframes = dataset[np.lexsort(sort_tuple)]
 
     # get lfol/llead/rfol/rlead for each vehicle in each time
-    lc_data = [[], [], [], []]
+    lc_data = [[], [], [], []]  # shape of (4, number of observations), where the 4 is lfol,llead,rfol,rlead
     frame_ids, indices, counts = \
         np.unique(dataset_sortframes[:, col_dict['frame_id']], return_index=True, return_counts=True)
     for count, frame_id in enumerate(frame_ids):
@@ -120,8 +124,8 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
         for row_idx in range(curr_frame.shape[0]):
             for idx, lc_datum in enumerate(_get_fol_lead(curr_frame[row_idx, :])):
                 lc_data[idx].append(lc_datum)
-    lc_data = np.array(lc_data)[:, dataset_sortframes[:,-1].astype('int')]
-    dataset = np.hstack((dataset[:,:-1], lc_data.T))  # data appended to originally sorted dataset
+    lc_data = np.array(lc_data).T
+    dataset = np.hstack((dataset[:, :-1], lc_data[np.argsort(dataset_sortframes[:, -1])]))
 
     # record the new columns for lfol,llead,rfol,rlead
     lc_cols = ['lfol', 'llead', 'rfol', 'rlead']
@@ -130,14 +134,15 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
         columns.append(col)
 
     def convert_to_mem(veh_np, veh_dict):
-        """
-        Generates compressed representation of lane/lead/lfol/rfol/llead/rlead
+        """Generates compressed representation of lane/lead/lfol/rfol/llead/rlead.
+
         Args:
             veh_np: np.ndarray. Subset of dataset that only includes a given veh_id
                 Note that the dataset should be sorted in terms of frame_id
             veh_dict: dict, str -> list or float. Dictionary that includes all
                 information about the vehicle. Keys include: posmem, dt, speedmem, etc.
                 This is updated within the function with lanemem/leadmem/etc.
+
         Returns:
             None
 
@@ -151,21 +156,21 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
             for idx, col in enumerate(colnames):
                 # preprocess val
                 val = row[col_dict[col.replace("mem", "")]]
-                if val == 0:  # means laneID cannot be 0
+                if val == None_val:
                     val = None
 
                 # if we're just starting or the saved value is different
                 # than the current value, we update the mem
                 if len(final_mems[idx]) == 0 or curr_vals[col] != val:
                     curr_vals[col] = val
-                    final_mems[idx].append((val, row[col_dict['frame_id']]))
+                    final_mems[idx].append((val, int(row[col_dict['frame_id']])))
         # save to veh_dict
         for idx, col in enumerate(colnames):
             veh_dict[col] = final_mems[idx]
 
     def ema(np_vec, alpha=0.9):
-        """
-        Returns the exponential moving average of np_vec
+        """Returns the exponential moving average of np_vec.
+
         Args:
             np_vec: np.ndarray, must be vector. The vector that we want to smooth
             alpha: float. The alpha parameter in exponential moving average
@@ -195,14 +200,14 @@ def extract_lc_data(dataset, column_dict={'veh_id':0, 'frame_id':1, 'lane':13, '
         speed_mem.append(speed_mem[-1])
         veh_dict['speedmem'] = speed_mem
 
-        veh_dict['starttime'] = veh_np[0, col_dict['frame_id']]
-        veh_dict['endtime'] = veh_np[-1, col_dict['frame_id']]
+        veh_dict['starttime'] = int(veh_np[0, col_dict['frame_id']])
+        veh_dict['endtime'] = int(veh_np[-1, col_dict['frame_id']])
         veh_dict['vehlen'] = veh_np[0, col_dict['veh_len']]
         veh_dict['dt'] = dt
         veh_dict['vehid'] = veh_id
 
         convert_to_mem(veh_np, veh_dict)
-        all_veh_dict[veh_id] = VehicleData(**veh_dict)
+        all_veh_dict[veh_id] = VehicleData(vehdict=all_veh_dict, **veh_dict)
     return all_veh_dict
 
 
@@ -228,13 +233,13 @@ class VehicleData:
         longest_lead_times: tuple of starting, ending time index for the longest interval with
             leader(s) not None.
         leads: list of unique lead IDs (does not include None)
-
-
     """
+
     def __init__(self, posmem=[], speedmem=[], vehid=None, starttime=None, dt=None, vehlen=None,
                  lanemem=[], leadmem=[], folmem=[], endtime=None, lfolmem=[], rfolmem=[],
                  rleadmem=[], lleadmem=[], vehdict=None):
-        """
+        """Inits VehicleData and also makes the Vehmem objects used for the 'mem' data.
+
         Args:
             posmem: list of floats giving the position, where the 0 index corresponds to the position at
                 starttime
@@ -271,8 +276,8 @@ class VehicleData:
         self.rleadmem = VehMem(rleadmem, vehdict, starttime, endtime)
         self.lleadmem = VehMem(lleadmem, vehdict, starttime, endtime)
 
-        self.longest_lead_times = self.get_longest_lead_times()
         self.leads = self.get_unique_mem(leadmem)
+        self.longest_lead_times = self.get_longest_lead_times()
 
     def get_longest_lead_times(self):
         """Find the longest time interval with leader is not None and return the starting/ending times."""
@@ -286,9 +291,10 @@ class VehicleData:
         curr_start = None
         running_interval = 0
         # to deal with last element case
-        self.leadmem.append((None, self.endtime+1))
+        temp = self.leadmem.data.copy()
+        temp.append((None, self.endtime+1))
 
-        for idx, lead_id_and_time in enumerate(self.leadmem):
+        for idx, lead_id_and_time in enumerate(temp):
             lead, start_time = lead_id_and_time
 
             if curr_start is None and lead is not None:
@@ -308,12 +314,11 @@ class VehicleData:
                 curr_start = None
                 running_interval = 0
 
-        self.leadmem = self.leadmem[:-1]
         return int(longest_start), int(longest_end)
 
-    def get_unique_mem(self, attr):
-        """Returns a list of unique ids in attribute (lfolmem, leadmem, etc), not including None."""
-        out = set([i[0] for i in attr])
+    def get_unique_mem(self, mem):
+        """Returns a list of unique values in sparse 'mem' representation, not including None."""
+        out = set([i[0] for i in mem])
         if None in out:
             out.remove(None)
         return list(out)
@@ -345,10 +350,31 @@ def convert_to_data(vehicle):
     raise NotImplementedError
     return VehicleData(vehicle)
 
-# TODO documentation for VehMem etc.
+
 class VehMem:
-    """Implements memory of lane, lead, fol, rfol, lfol, rlead, llead."""
+    """Implements memory of lane, lead, fol, rfol, lfol, rlead, llead.
+
+    Attributes:
+        data: sparse representation of memory
+        starttime: starttime of VehicleData
+        endtime: endtime of VehicleData
+        pos: VehMemPosition, positions of the VehMem which can be directly indexed/sliced using times
+            (pos, speed, len are not for lanemem)
+        speed: VehMemPosition, speeds of the VehMem which can be directly indexed/sliced using times
+        len: VehMemPosition, len of the VehMem which can be directly indexed/sliced using times
+    """
+
     def __init__(self, vehmem, vehdict, starttime, endtime, is_lane=False):
+        """Inits VehMem and also makes the corresponding pos, speed, len objects if is_lane is False.
+
+        Args:
+            vehmem: sparse representation of one of the  lanemem, leadmem, folmem, rfolmem, lfolmem, rleadmem,
+                lleadmem
+            vehdict: dictionary containing all VehicleData
+            starttime: start time of the VehicleData which has vehmem
+            endtime: end time of the VehicleData which has vehmem
+            is_lane: True if vehmem gives lanemem, otherwise False. If True, we will make the pos, speed, len
+        """
         self.data = vehmem
         self.starttime = starttime
         self.endtime = endtime
@@ -358,7 +384,7 @@ class VehMem:
             self.len = VehMemLen(vehmem, vehdict, starttime, endtime)
 
     def __getitem__(self, times):
-        """Index memory using times, as if it was in its dense representation. Accepts slice input.
+        """Index memory using times, as if it was in its dense representation. Also accepts slice input.
 
         Behaves as if the memory was in a dense representation, and accepted times instead of indices.
         Note that to change times into indices, you would subtract the times by starttime. Similarly to
@@ -429,18 +455,28 @@ class VehMem:
         return mem_to_interval(self.data, start, stop)
 
     def __repr__(self):
+        """Ipython Console represention."""
         return 'VehMem: '+str(self.data)
 
 
 class VehMemPosition:
+    """Implements slicing/indexing for the position of a (l/r)-(lead/fol)-mem
+
+    Attributes:
+        data: the sparse representation of the (l/r)-(lead/fol)-mem
+        vehdict: dictionary of all VehicleData - this is what the position data is read from
+        starttime: starttime of the vehicle which has the mem
+        endtime: endtime of the vehicle which has the mem
+    """
     def __init__(self, vehmem, vehdict, starttime, endtime):
+        """Inits VehMemPosition - note vehdict must contain VehicleData for any vehicles in vehmem."""
         self.data = vehmem
         self.vehdict = vehdict
         self.starttime = starttime
         self.endtime = endtime
 
     def __getitem__(self, times):
-        """Index memory as if it was in its dense representation."""
+        """Index or slice memory as if it was in its dense representation."""
         if type(times) == slice:
             data = self.data
             vehdict = self.vehdict
@@ -489,6 +525,7 @@ class VehMemPosition:
 
 
 class VehMemSpeed(VehMemPosition):
+    """Returns speed data instead of position data."""
     def myslice(self, vehdata, start, stop):
         curstart = vehdata.starttime
         return vehdata.speedmem[start-curstart:stop-curstart]
@@ -498,8 +535,9 @@ class VehMemSpeed(VehMemPosition):
 
 
 class VehMemLen(VehMemPosition):
+    """Returns lengths instead of position data."""
     def myslice(self, vehdata, start, stop):
-        return vehdata.len*(stop-start)
+        return (vehdata.len,)*(stop-start)
 
     def index(self, vehdata, time):
         return vehdata.len

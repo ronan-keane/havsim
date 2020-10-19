@@ -643,7 +643,17 @@ class Vehicle:
         Cases when this is called -
             -after a route event ends a discretionary state or begins a mandatory state
             -after the network topology changes (e.g. a new left lane, or right lane ends)
-            -after a lane changing is completed
+            -after a lane changing is completed (pass lc=lc_actions[veh] if veh completes the lane change)
+
+        The complete lane changing interal state consists of the attributes lside, rside, in_disc, chk_lc,
+        disc_cooldown, disc_endtime, coop_veh, and lc_urgency. Some of these (disc_endtime, coop_veh) are
+        set by set_lc method (i.e. set by mobil, tact_coop_model in simulation.models). lc_urgency is set
+        by the route model. Therefore this updates the lside, rside, in_disc, chk_lc, and disc_cooldown.
+        (See attributes of Vehicle for explanation on each attribute).
+
+        The attributes llane, rlane, l_lc, and r_lc are also relevant for understanding the lane changing
+        model state. However, these attributes are intrinsic properties of the road network and route,
+        as opposed to special states of the lane changing model.
         """
         # do not allow multiple discretionary within short time period
         if lc and self.in_disc:

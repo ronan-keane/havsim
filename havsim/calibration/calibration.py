@@ -161,18 +161,18 @@ class LeadVehicle:
     which holds the trajectory of the leader. LeadVehicles act as if they were a Vehicle, but have no models
     or parameters, and instead have their state updated from predefined memory.
     """
-    def __init__(self, leadstatemem, inittime):
+    def __init__(self, leadstatemem, start):
         """
         leadstatemem - list of tuples, each tuple is a pair of (position, speed)
-        inittime - leadstatemem[0] corresponds to time inittime
+        start - leadstatemem[0] corresponds to time start
         """
         self.leadstatemem = leadstatemem
-        self.inittime = inittime
+        self.start = start
         self.road = None
 
     def update(self, timeind, *args):
         """Update position/speed."""
-        self.pos, self.speed = self.leadstatemem[timeind - self.inittime]
+        self.pos, self.speed = self.leadstatemem[timeind - self.start]
 
     def set_len(self, length):
         """Set len so headway can be computed correctly."""
@@ -437,15 +437,16 @@ def make_calibration(vehicles, vehdict, dt, vehicle_class=None, calibration_clas
     for veh in vehicles:
         # make vehicle objects
         vehdata = vehdict[veh]
-        t0, t1 = vehdata.longest_lead_times()
-        y = vehdata[t0-vehdata.start:t1-vehdata.start+1]
+        t0, t1 = vehdata.longest_lead_times
+        y = np.array(vehdata.posmem[t0-vehdata.start:t1-vehdata.start+1])
         initpos, initspd = vehdata.posmem[t0-vehdata.start], vehdata.speedmem[t0-vehdata.start]
         length, lane = vehdata.len, vehdata.lanemem[t1]
 
         needleads = set(vehdata.leads).difference(vehicles)
         # build the leadstatemem in all times [t0, t1], even if it is only needed for a portion of the times.
         if len(needleads)>0:
-            leadstatemem, leadstart = zip(vehdata.leadmem.pos[t0:t1+1], vehdata.leadmem.speed[t0:t1+1]), t0
+            leadstatemem = list(zip(vehdata.leadmem.pos[t0:t1+1], vehdata.leadmem.speed[t0:t1+1]))
+            leadstart = t0
         else:
             leadstatemem = leadstart = 0
 
@@ -507,7 +508,7 @@ def make_lc_event(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list):
                 lcevent_list.append(curevent)
 
             if count+1 == len(leadinfo) and not curlead_in_vehicles:  # set leader to None after leader exits
-                curevent = (end+1, 'lc', curveh, None, 0, False, None)
+                curevent = (end, 'lc', curveh, None, 0, False, None)
                 lcevent_list.append(curevent)
 
     return addevent_list, lcevent_list

@@ -10,22 +10,25 @@ import havsim.helper as helper
 from havsim import simulation
 import scipy.optimize as sc
 #%%
+# please put pickle loading stuff in a seperate file not on github. Also note that recon-ngsim-old is
+# what holds meas/platooninfo (still needed as not everything is converted)
+#recon-ngsim now holds the same data in the updated format.
+#also, recon-ngsim is in units of meters now instead of feet.
+# try:
+#     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim.pkl', 'rb') as f:
+#         meas, platooninfo = pickle.load(f) #load data
+# except:
+#     with open('/home/rlk268/havsim/data/recon-ngsim.pkl', 'rb') as f:
+#         meas, platooninfo = pickle.load(f) #load data
 
-try:
-    with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim.pkl', 'rb') as f:
-        meas, platooninfo = pickle.load(f) #load data
-except:
-    with open('/home/rlk268/havsim/data/recon-ngsim.pkl', 'rb') as f:
-        meas, platooninfo = pickle.load(f) #load data
+# try:
+#     with open('/Users/nathanbala/Downloads/platoonlist.pkl', 'rb') as f:
+#         platoon_list = pickle.load(f) #load data
+# except:
+#     with open('/home/rlk268/havsim/data/recon-ngsim.pkl', 'rb') as f:
+#         meas, platooninfo = pickle.load(f) #load data
 
-try:
-    with open('/Users/nathanbala/Downloads/platoonlist.pkl', 'rb') as f:
-        platoon_list = pickle.load(f) #load data
-except:
-    with open('/home/rlk268/havsim/data/recon-ngsim.pkl', 'rb') as f:
-        meas, platooninfo = pickle.load(f) #load data
-
-# print(meas)
+# # print(meas)
 
 #%%
 # make downstream boundaries
@@ -37,6 +40,8 @@ for i in range(1,7):
     downstream = {'method': 'speed', 'time_series':exitspeeds}
     lane_i = simulation.Lane(None, None, {'name':'idk'}, 0, downstream=downstream)
     lanes[i] = lane_i
+lanes[999] = lanes[6]
+lanes[7] = lanes[6]
 
 
 
@@ -50,11 +55,11 @@ for curplatoon in platoon_list:
     #     average_end_position += (meas[i][-1][2])
     # average_end_position = average_end_position/len(curplatoon)
     # print(average_end_position)
-    calibration_args = {"parameter_dict" : None, "ending_position" : 1475}
-    pguess =  [40,1,1,3,10,25]*len(curplatoon)
-    mybounds = [(20,120),(.1,5),(.1,35),(.1,20),(.1,20),(.1,75)] * len(curplatoon)
+    calibration_args = {"parameter_dict" : None, "ending_position" : 1475/3.28084}
+    pguess =  [40/3.28084, 1, 1, 3/3.28084, 10/3.28084, 25]*len(curplatoon)
+    mybounds = [(20,120), (.1,5), (.1,35), (.1,20), (.1,20), (.1,75)]*len(curplatoon)
     start = time.time()
-    cal = calibration.make_calibration(curplatoon, meas, platooninfo, .1, calibration.CalibrationVehicle, lanes=lanes, calibration_kwargs=calibration_args)
+    cal = calibration.make_calibration(curplatoon, vehdict, .1, calibration.CalibrationVehicle, lanes=lanes, calibration_kwargs=calibration_args)
     print(curplatoon)
     print('time to make calibrate is '+str(time.time()-start))
     start = time.time()

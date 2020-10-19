@@ -459,6 +459,8 @@ class NewellLL(NewellTT):
 
 def make_ll_lc_event(vehicles, id2obj, meas, platooninfo, dt, addevent_list, lcevent_list):
     """Makes the lc_events for NewellLL model."""
+    raise NotImplementedError('This has not been converted to the new VehicleData format,\
+                              please use an earlier commit or convert this code')
     for veh in vehicles:
         curveh = id2obj[veh]
         leadinfo = helper.makeleadinfo([veh],platooninfo,meas)[0]
@@ -565,4 +567,4 @@ class NoRelaxNewell(NewellCalibrationVehicle):
     def initialize(self, parameters):
         super().initialize(parameters)
         self.cf_parameters = parameters
-        
+

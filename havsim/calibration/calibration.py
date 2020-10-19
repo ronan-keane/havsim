@@ -13,6 +13,8 @@ from havsim import helper
 import math
 
 # TODO implement calibration for latitudinal models also
+# TODO maybe should refactor Calibration to be more modular - e.g. update_calibration could be a method,
+# add a method for initializing parameters/vehicles. Move add/lc events to a seperate file.
 
 class CalibrationVehicle(hs.Vehicle):
     """Base CalibrationVehicle class for a second order ODE model.
@@ -41,16 +43,16 @@ class CalibrationVehicle(hs.Vehicle):
         eql_type: If 'v', the vehicle's eqlfun accepts a speed and returns a headway. Otherwise it
             accepts a headway and returns a speed.
         lead: leading vehicle, can be either a (subclassed) Vehicle or LeadVehicle
-        starttime: time index of the first simulated time
-        endtime: time index of the last simulated time (or None)
-        initpos: position at starttime
-        initspd: speed at starttime
+        start: time index of the first simulated time
+        end: time index of the last simulated time (or None)
+        initpos: position at start
+        initspd: speed at start
         leadveh: If there is a LeadVehicle, leadveh is a reference to it. Otherwise None.
         in_leadveh: True if the LeadVehicle is the current leader.
         leadmem: list of tuples, where each tuple is (lead vehicle, time) giving the time the ego vehicle
             first begins to follow the lead vehicle.
-        posmem: list of floats giving the position, where the 0 index corresponds to the position at starttime
-        speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at starttime
+        posmem: list of floats giving the position, where the 0 index corresponds to the position at start
+        speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at start
         relaxmem: list of tuples where each tuple is (first time, last time, relaxation) where relaxation
             gives the relaxation values for between first time and last time
         pos: position (float)
@@ -60,7 +62,7 @@ class CalibrationVehicle(hs.Vehicle):
         acc: acceleration (float)
         y: target given to loss function (e.g. the position time series from data)
     """
-    def __init__(self, vehid, y, initpos, initspd, starttime, leadstatemem, leadinittime, length=3, lane=None,
+    def __init__(self, vehid, y, initpos, initspd, start, leadstatemem, leadinittime, length=3, lane=None,
                  accbounds=None, maxspeed=1e4, hdbounds=None, eql_type='v'):
         """Inits CalibrationVehicle. Cannot be used for simulation until initialize is called.
 
@@ -69,7 +71,7 @@ class CalibrationVehicle(hs.Vehicle):
             y: target for loss function, e.g. a 1d numpy array of np.float64
             initpos: initial position, float
             initspd: initial speed, float
-            starttime: first time of simulation, float
+            start: first time of simulation, float
             leadstatemem: list of tuples of floats. Gives the LeadVehicle state at the corresponding
                 time index.
             leadinittime: float of time index that 0 index of leadstatemem corresponds to
@@ -85,7 +87,7 @@ class CalibrationVehicle(hs.Vehicle):
         self.y = y
         self.initpos = initpos
         self.initspd = initspd
-        self.starttime = starttime
+        self.start = start
 
         self.road = None
         self.lane = lane
@@ -119,8 +121,8 @@ class CalibrationVehicle(hs.Vehicle):
 
     def loss(self):
         """Calculates loss."""
-        T = self.leadmem[-1][1] if self.leadmem[-1][0] is None else len(self.posmem)+self.starttime
-        endind = min(T-self.starttime, len(self.y))
+        T = self.leadmem[-1][1] if self.leadmem[-1][0] is None else len(self.posmem)+self.start
+        endind = min(T-self.start, len(self.y))
         return sum(np.square(self.posmem[:endind] - self.y[:endind]))/endind
 
 
@@ -135,7 +137,7 @@ class CalibrationVehicle(hs.Vehicle):
         self.relax = None
         self.relax_start = None
         # memory
-        self.endtime = None
+        self.end = None
         self.leadmem = []
         self.posmem = [self.pos]
         self.speedmem = [self.speed]
@@ -184,8 +186,8 @@ class Calibration:
         all_vehicles: list of all vehicles in the simulation
         all_add_events: list of all add events in the simulation
         all_lc_events: list of all lead change events in the simulation
-        starttime: first time index
-        endtime: last time index
+        start: first time index
+        end: last time index
         dt: timestep
         addtime: the next time index when an add event occurs
         lctime: the next time index when a lead change event occurs
@@ -195,7 +197,7 @@ class Calibration:
         lc_events: sorted list of remaining lead change events
         lc_event: function that can apply a lc_events
     """
-    def __init__(self, vehicles, add_events, lc_events, dt, lc_event_fun = None, endtime = None, calibration_kwargs = {}):
+    def __init__(self, vehicles, add_events, lc_events, dt, lc_event_fun = None, end = None, calibration_kwargs = {}):
         """Inits Calibration.
 
         Args:
@@ -204,8 +206,8 @@ class Calibration:
             lc_events: list of lead change (lc) events, sorted in time
             dt: timestep, float
             lc_event_fun: can give a custom function for handling lc_events, otherwise we use the default
-            endtime: last time index which is simulated. The starttime is inferred from add_events.
-            run_type: type of calibration we are running. max_endtime simulates to the last endtime while
+            end: last time index which is simulated. The start is inferred from add_events.
+            run_type: type of calibration we are running. max_endtime simulates to the last end while
             all_vehicles simulates until all vehs have left the simulation
             parameter_dict: dictionary representing the start/end index for a vehs parameters in the parameter list
             ending_position: ending position used as position to begin removing vehs from simulation
@@ -222,8 +224,8 @@ class Calibration:
             self.lc_event = lc_event_fun
 
 
-        self.starttime = min([add_events[i][0] for i in range(len(add_events))])
-        self.endtime = endtime
+        self.start = min([add_events[i][0] for i in range(len(add_events))])
+        self.end = end
         self.dt = dt
 
 
@@ -269,7 +271,7 @@ class Calibration:
         self.lc_events = self.all_lc_events.copy()
         self.addtime = self.add_events[-1][0]
         self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
-        self.timeind = self.starttime
+        self.timeind = self.start
         self.addtime = update_add_event(self.vehicles, self.add_events, self.addtime, self.timeind-1, self.dt,
                                         self.lc_event)
         for veh in self.vehicles:
@@ -279,7 +281,7 @@ class Calibration:
 
         # do simulation by calling step repeatedly
         if self.run_type == "max_endtime":
-            for i in range(self.endtime - self.starttime):
+            for i in range(self.end - self.start):
                 # if len(self.add_events)==0 and len(self.vehicles) == 0:
                 if not self.add_events and not self.vehicles:
                     break
@@ -347,11 +349,11 @@ def remove_vehicles(vehicles, endpos, timeind):
     remove_list = []
     for veh in vehicles:
         if veh.pos > endpos:
-            veh.endtime = timeind+1
+            veh.end = timeind+1
             remove_list.append(veh)
             if veh.fol is not None:
                 veh.fol.lead = None
-                if not veh.fol.endtime:  # handles edge case with collisions
+                if not veh.fol.end:  # handles edge case with collisions
                     veh.fol.leadmem.append([None, timeind+1])
     # pop from vehicles
     return remove_list
@@ -397,7 +399,7 @@ def update_add_event(vehicles, add_events, addtime, timeind, dt, lc_event):
     return addtime
 
 
-def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibration_class=None,
+def make_calibration(vehicles, vehdict, dt, vehicle_class=None, calibration_class=None,
                      event_maker=None, lc_event_fun=None, lanes={}, calibration_kwargs={}):
     """Sets up a Calibration object.
 
@@ -406,8 +408,7 @@ def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibr
 
     Args:
         vehicles: list of vehicles to add to the Calibration
-        meas: from havsim.calibration.algs.makeplatoonlist
-        platooninfo: from havsim.calibration.algs.makeplatoonlist
+        vehdict: dictionary of all VehicleData
         dt: timestep
         vehicle_class: subclassed Vehicle to use - if None defaults to CalibrationVehicle
         calibration_class: subclassed Calibration to use - if None defaults to Calibration
@@ -417,7 +418,6 @@ def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibr
             Used for downstream boundary.
         calibration_kwargs: keyword arguments passed to Calibration
     """
-    # TODO - this should use the helper function get_lead_data
     if vehicle_class is None:
         vehicle_class = CalibrationVehicle
     if calibration_class is None:
@@ -431,95 +431,73 @@ def make_calibration(vehicles, meas, platooninfo, dt, vehicle_class=None, calibr
     vehicle_list = []
     addevent_list = []
     lcevent_list = []
-    id2obj = {}
-    # if type(vehicles) == list:
-    #     # preserve order while setting elements
-    #     seen = set()
-    #     vehicles = [x for x in vehicles if x not in seen and not seen.add(x)]
-    max_endtime = 0
-    for veh in vehicles:
-        # make lead memory - a list of position/speed tuples for any leaders which are not simulated
-        leads = set(platooninfo[veh][4])
-        needleads = leads.difference(vehicles)
-        if len(needleads) > 0:
-            leadstatemem = []
-            leadinittime = None  # initial time lead is used
-            leadinfo = helper.makeleadinfo([veh],platooninfo,meas)
-            for j in leadinfo[0]:
-                curlead, start, end = j
-                if curlead in needleads:
-                    if not leadinittime:
-                        leadinittime = start
-                    leadt_n = platooninfo[curlead][0]
-                    poslist = list(meas[curlead][start-leadt_n:end-leadt_n+1,2])
-                    spdlist = list(meas[curlead][start-leadt_n:end-leadt_n+1,3])
-                    leadstatemem.extend(zip(poslist,spdlist))
-                elif leadinittime is not None:
-                    temp = [0]*(end-start+1)
-                    leadstatemem.extend(temp)
-        else:
-            leadstatemem, leadinittime = None, None
+    id2obj = {}  # holds references to the CalibrationVehicle objects we create
+    max_end = 0  # maximum possible time loss function can be calculated
 
-        # get initial values, y for veh
-        t_nstar, inittime, endtime = platooninfo[veh][0:3]
-        initlead, initpos, initspd, length = meas[veh][inittime-t_nstar,[4,2,3,6]]
-        y = meas[veh][inittime-t_nstar:endtime+1-t_nstar,2]
-        max_endtime = max(max_endtime, endtime)
-        laneind = meas[veh][-1,7]
-        if laneind not in lanes:
-            print("missing lane for downstream boundary")
-            laneind = 6
-        # create vehicle object
-        newveh = vehicle_class(veh, y, initpos, initspd, inittime, leadstatemem, leadinittime,
-                                    length=length, lane=lanes[laneind])
+    for veh in vehicles:
+        # make vehicle objects
+        vehdata = vehdict[veh]
+        t0, t1 = vehdata.longest_lead_times()
+        y = vehdata[t0-vehdata.start:t1-vehdata.start+1]
+        initpos, initspd = vehdata.posmem[t0-vehdata.start], vehdata.speedmem[t0-vehdata.start]
+        length, lane = vehdata.len, vehdata.lanemem[t1]
+
+        needleads = set(vehdata.leads).difference(vehicles)
+        # build the leadstatemem in all times [t0, t1], even if it is only needed for a portion of the times.
+        if len(needleads)>0:
+            leadstatemem, leadstart = zip(vehdata.leadmem.pos[t0:t1+1], vehdata.leadmem.speed[t0:t1+1]), t0
+        else:
+            leadstatemem = leadstart = 0
+
+        newveh = vehicle_class(veh, y, initpos, initspd, t0, leadstatemem, leadstart, length=length,
+                               lane=lanes[lane])
         vehicle_list.append(newveh)
         id2obj[veh] = newveh
+        max_end = max(max_end, t1)
 
     # create events
-    addevent_list, lcevent_list = event_maker(vehicles, id2obj, meas, platooninfo, dt,
-                                                addevent_list, lcevent_list)
-
-    addevent_list.sort(key = lambda x: x[0], reverse = True)  # sort events in time
+    addevent_list, lcevent_list = event_maker(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list)
+    addevent_list.sort(key = lambda x: x[0], reverse = True)
     lcevent_list.sort(key = lambda x: x[0], reverse = True)
+
     # make calibration object
-    return calibration_class(vehicle_list, addevent_list, lcevent_list, dt, endtime=max_endtime,
+    return calibration_class(vehicle_list, addevent_list, lcevent_list, dt, end=max_end,
                              lc_event_fun=lc_event_fun, calibration_kwargs=calibration_kwargs)
 
 
-def make_lc_event(vehicles, id2obj, meas, platooninfo, dt, addevent_list, lcevent_list):
+def make_lc_event(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list):
     """Makes lc and add events for default Calibration, which includes adding relaxation."""
     for veh in vehicles:
         curveh = id2obj[veh]
-        leadinfo = helper.makeleadinfo([veh],platooninfo,meas)[0]
+        t0, t1 = vehdict[veh].longest_lead_times
+        leadinfo =  vehdict[veh].leadmem.intervals(t0, t1)
         for count, j in enumerate(leadinfo):
+            # we have an event everytime a leader changes - make the data
             curlead, start, end = j
-            curlead_in_vehicles = False
-            leadt_nstar = platooninfo[curlead][0]
+            curlead_in_vehicles = False  # initialize as False
+            leaddata = vehdict[curlead]
+            leadstart = leaddata.start
+
             # even though the change occurs at time start, we want to calculate the relaxation using
             # the differences in headway at time start - 1. This leads to 4 combinations, first, whether
             # the new leader is simulated or not, and second, whether the new lead is available at start-1
             if curlead in vehicles:  # curlead is simulated (in the same calibration object)
-                if start-1 < leadt_nstar:  # handle edge case where t_nstar = start
-                    leadstate = (meas[curlead][0,2]-meas[curlead][0,3]*dt,
-                                 meas[curlead][0,3])
+                if start-1 < leadstart:  # handle edge case where t_nstar = start
+                    leadstate = (leaddata.posmem[0]-leaddata.speedmem[0]*dt, leaddata.speedmem[0])
                 else:
                     leadstate = (None,)
                 curlead, curlen = id2obj[curlead], None
                 curlead_in_vehicles = True
             else:
-                curlen = meas[curlead][0,6]  # curlead is already simulated, stored in curveh.leadstatemem
-                if start-1 < leadt_nstar:  # handle edge case where t_nstar = start
-                    leadstate = (meas[curlead][0,2]-meas[curlead][0,3]*dt,
-                                 meas[curlead][0,3])
+                curlen = leaddata.len  # curlead is not simulated, it is stored in curveh.leadstatemem
+                if start-1 < leadstart:  # handle edge case where t_nstar = start
+                    leadstate = (leaddata.posmem[0]-leaddata.speedmem[0]*dt, leaddata.speedmem[0])
                 else:
-                    leadstate = (meas[curlead][start-1-leadt_nstar,2], meas[curlead][start-1-leadt_nstar,3])
+                    leadstate = (leaddata.posmem[start-1-leadstart], leaddata.posmem[start-1-leadstart])
 
-            if count == 0:  # add event adds vehicle to simulation
-                t_nstar, t_n = platooninfo[veh][0:2]
-                if t_n > t_nstar:  # apply merger rule
-                    userelax = True
-                else:
-                    userelax = False
+            # decide what case we are in
+            if count == 0:  # first event is always an add event to add vehicle to simulation
+                userelax = True if t0 > vehdict[veh].start else False
                 # make the add event
                 curevent = (start, 'lc', curveh, curlead, curlen, userelax, leadstate)
                 curevent = (start, 'add', curveh, curevent)
@@ -528,7 +506,7 @@ def make_lc_event(vehicles, id2obj, meas, platooninfo, dt, addevent_list, lceven
                 curevent = (start, 'lc', curveh, curlead, curlen, True, leadstate)
                 lcevent_list.append(curevent)
 
-            if count+1 == len(leadinfo) and not curlead_in_vehicles:
+            if count+1 == len(leadinfo) and not curlead_in_vehicles:  # set leader to None after leader exits
                 curevent = (end+1, 'lc', curveh, None, 0, False, None)
                 lcevent_list.append(curevent)
 
@@ -604,7 +582,7 @@ def lc_event(event, timeind, dt):
         relaxamounts = (olds - news, oldv - newv)
         curveh.set_relax(relaxamounts, timeind, dt)
 
-    if not curveh.endtime:
+    if not curveh.end:
         update_lead(curveh, newlead, leadlen, timeind)  # update leader
 
 

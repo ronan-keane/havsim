@@ -59,7 +59,7 @@ for curplatoon in platoon_list:
     pguess =  [40/3.28084, 1, 1, 3/3.28084, 10/3.28084, 25]*len(curplatoon)
     mybounds = [(20,120), (.1,5), (.1,35), (.1,20), (.1,20), (.1,75)]*len(curplatoon)
     start = time.time()
-    cal = calibration.make_calibration(curplatoon, vehdict, .1, calibration.CalibrationVehicle, lanes=lanes, calibration_kwargs=calibration_args)
+    cal = calibration.make_calibration(curplatoon, vehdict, .1, calibration.CalibrationVehicle, lanes=lanes, **calibration_args)
     print(curplatoon)
     print('time to make calibrate is '+str(time.time()-start))
     start = time.time()

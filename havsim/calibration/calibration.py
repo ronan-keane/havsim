@@ -460,14 +460,15 @@ class CalibrationLC(Calibration):
 ######### List of requirements for new add and lc events
 # add events, in addition to adding vehicles, now need to also add and remove leadvehicles as necessary.
 # lc events should keep ALL the vehicle orders updated (currently only update a vehicle's lead, sometimes update fol)
-# lc events should apply relax if applicable (they already do this, but now things are going to be simpler as there is no distinction
-# between the in_leadveh case, as there are no leadveh attributes.)
 # lc events should apply l_lc, r_lc if needed. Whenever setting l_lc or r_lc, the update_lc_state method of vehicle must be called
+# if a calibration vehicle completes a lane change:
+    # apply relaxation existing lc event already does this, but now things are simpler because there is no special case for veh.in_leadveh
+    # also need to call update_lc_state after completing a lane change
 
 ############## Notes on leadvehicles
 # the same lead vehicle may act as lfol, rfol, etc. for several vehicles at the same time.
 # all lead, fol, etc. must be either a CalibrationVehicle or LeadVehicle at all times. The vehicle order is
-# always defined by the data. Replace any None with a LeadVehicle at the starting position
+# always defined by the data. Replace any None for a follower, lfol, rfol with a LeadVehicle at the starting position
 # also, LeadVehicles need an initstate now
 
 #psuedo code for making the add/lc events in make_calibration

@@ -13,63 +13,21 @@ def generate_lane_data(veh_data):
         lane_data: python list of 0/1/2, 0 is lane changing to the left, 1 is 
             staying in the same lane, and 2 is lane changing to the right
     """
-    lane = veh_data.sparse_to_dense(veh_data.lanemem)
     lane_data = []
-    curr_lane = lane[0]
-    for lane_elem in lane[1:]:
-        if lane_elem < curr_lane:
+    for time in range(veh_data.start + 1, veh_data.end + 1):
+        if veh_data.lanemem[time] < veh_data.lanemem[time - 1]:
             lane_data.append(0)
-        elif lane_elem == curr_lane:
+        elif veh_data.lanemem[time] == veh_data.lanemem[time - 1]:
             lane_data.append(1)
         else:
             lane_data.append(2)
-    lane_data.append(1) # last time step stay in same lane to make # points the same
     return lane_data
 
-def make_dataset2(veh_dict, dt=.1):
-    # TODO: lead data + headway
-    ds = {}
-    for veh in veh_dict:
-        veh_data = veh_dict[veh]
-        # problem: what to do with vehicles that never have a leader?
-        if not veh_data.has_leader():
-            continue
-        t0, t3 = int(veh_data.starttime), int(veh_data.endtime)
-        t1, t2 = veh_data.lead_times()
-
-        vehpos = veh_data.posmem[t1-t0:]
-        vehspd = veh_data.speedmem[t1-t0:]
-        lanemem = generate_lane_data(veh_data)[t1-t0:]
-
-        # currently causes errors
-        # lfolmem = veh_data.sparse_to_dense(veh_data.lfolmem[t1-t0:])
-        # lfolspeed, lfolpos = [], []
-        # for idx, lfol_vehid in enumerate(lfolmem):
-        #     curr_time = t1 + idx
-        #     if lfol_vehid is None:
-        #         lfolspeed.append(None)
-        #         lfolpos.append(None)
-        #     else:
-        #         lfol_veh = veh_dict[lfol_vehid]
-        #         lfolspeed.append(lfol_veh.value_at(lfol_veh.speedmem, curr_time))
-        #         lfolpos.append(lfol_veh.value_at(lfol_veh.posmem, curr_time))
-
-        IC = [vehpos[0], vehspd[0]]
-
-        vehacc = [(vehpos[i+2] - 2*vehpos[i+1] + vehpos[i])/(dt**2) for i in range(len(vehpos)-2)]
-
-        # used to be int(t2 + 1), but I don't know if that's still relevant
-        ds[veh] = {'IC': IC, 'times': [t1, min(int(t2), t3)], 'posmem': vehpos, 'speedmem': vehspd, \
-                'lanemem': generate_lane_data(veh_data)}
-    return ds
-
-def make_dataset(meas, platooninfo, veh_list, dt=.1):
+def make_dataset(veh_dict, veh_list, dt=.1):
     """Makes dataset from meas and platooninfo.
 
     Args:
-        meas: see havsim.helper.makeplatooninfo
-        platooninfo: see havsim.helper.makeplatooninfo
-        veh_list: list of vehicle IDs to put into dataset
+        veh_dict: see havsim.helper.load_dataset
         dt: timestep
     Returns:
         ds: (reads as dataset) dictionary of vehicles, values are a dictionary with keys
@@ -83,6 +41,14 @@ def make_dataset(meas, platooninfo, veh_list, dt=.1):
             'lead posmem' - (1d,) numpy array of positions for leaders, 0 index corresponds to times[0].
                 length is subtracted from the lead position.
             'lead speedmem' - (1d,) numpy array of speeds for leaders.
+            'lfolpos' - (1d,) numpy array of positions for lfol
+            'lfolspeed' - (1d,) numpy array of speeds for lfol
+            'rfolpos' - (1d,) numpy array of positions for rfol
+            'rfolspeed' - (1d,) numpy array of speeds for rfol
+            'lleadpos' - (1d,) numpy array of positions for llead
+            'lleadspeed' - (1d,) numpy array of speeds for llead
+            'rleadpos' - (1d,) numpy array of positions for rlead
+            'rleadspeed' - (1d,) numpy array of speeds for rlead
         normalization amounts: tuple of
             maxheadway: max headway observed in training set
             maxspeed: max velocity observed in training set
@@ -90,27 +56,61 @@ def make_dataset(meas, platooninfo, veh_list, dt=.1):
             maxacc: maximum acceleration observed in training set
 
     """
-    # get normalization for inputs, and get input data
     ds = {}
     maxheadway, maxspeed = 0, 0
     minacc, maxacc = 1e4, -1e4
-    for veh in veh_list: 
-        # get data
-        t0, t1, t2, t3 = platooninfo[veh][:4] 
-        leadpos, leadspeed = helper.get_lead_data(veh, meas, platooninfo, dt=dt) 
-        vehpos = meas[veh][t1-t0:, 2]
-        vehspd = meas[veh][t1-t0:, 3]
-        IC = [meas[veh][t1-t0, 2], meas[veh][t1-t0, 3]]
-        headway = leadpos - vehpos[:t2+1-t1]
+    for veh in veh_list:
+        veh_data = veh_dict[veh]
 
-        # normalization + add item to datset
+        start, end = int(veh_data.start), int(veh_data.end)
+        start_sim, end_sim = veh_data.longest_lead_times
+
+        leadpos = np.array(veh_data.leadmem.pos[start_sim:end_sim + 1])
+        leadspeed = np.array(veh_data.leadmem.speed[start_sim:end_sim + 1])
+
+        # indexing for pos/spd
+        vehpos = np.array(veh_data.posmem[start_sim-start:])
+        vehspd = np.array(veh_data.speedmem[start_sim-start:])
+
+        lanemem = np.array(generate_lane_data(veh_data)[start_sim - start:])
+
+        # lfol rfol llead rllead
+        pos_and_spd = [ [[], []] for _ in range(len(veh_data.lcmems))]
+        lc_weights = [1] * (len(vehpos))
+        for time in range(start_sim, end + 1):
+            for mem_idx, lc_mem in enumerate(veh_data.lcmems):
+                if lc_mem[time] is not None:
+                    pos_and_spd[mem_idx][1].append(lc_mem.speed[time])
+                    pos_and_spd[mem_idx][0].append(lc_mem.pos[time])
+                else:
+                    pos_and_spd[mem_idx][1].append(0)
+                    pos_and_spd[mem_idx][0].append(0)
+                    lc_weights[time - start_sim] = 0
+
+        # convert to np.ndarray
+        for mem_idx in range(len(pos_and_spd)):
+            for j in range(2):
+                pos_and_spd[mem_idx][j] = np.array(pos_and_spd[mem_idx][j])
+
+        IC = [vehpos[0], vehspd[0]]
+        if end_sim != start_sim:
+            headway = leadpos - vehpos[:end_sim + 1 - start_sim]
+            maxheadway = max(max(headway), maxheadway)
+            maxspeed = max(max(leadspeed), maxspeed)
+        else:
+            # if there never was a leader, there never was a headway
+            headway = []
+
         vehacc = [(vehpos[i+2] - 2*vehpos[i+1] + vehpos[i])/(dt**2) for i in range(len(vehpos)-2)]
         minacc, maxacc = min(minacc, min(vehacc)), max(maxacc, max(vehacc))
-        maxheadway = max(max(headway), maxheadway)
-        maxspeed = max(max(leadspeed), maxspeed)
-        ds[veh] = {'IC': IC, 'times': [t1, min(int(t2+1), t3)], 'posmem': vehpos, 'speedmem': vehspd,
-                         'lead posmem': leadpos, 'lead speedmem': leadspeed}
 
+        ds[veh] = {'IC': IC, 'times': [start_sim, min(int(end_sim + 1), end)], 'posmem': vehpos, \
+                'speedmem': vehspd, 'lanemem': lanemem, 'lead posmem': leadpos,'lead speedmem': leadspeed, \
+                'lfolpos': pos_and_spd[0][0],'lfolspeed': pos_and_spd[0][1], \
+                'rfolpos': pos_and_spd[1][0], 'rfolspeed': pos_and_spd[1][1], \
+                'lleadpos': pos_and_spd[2][0], 'lleadspeed': pos_and_spd[2][1], \
+                'rleadpos': pos_and_spd[3][0], 'rleadspeed': pos_and_spd[3][1], \
+                'lc_weights': np.array(lc_weights)}
     return ds, (maxheadway, maxspeed, minacc, maxacc)
 
 

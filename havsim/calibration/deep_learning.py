@@ -11,7 +11,7 @@ def generate_lane_data(veh_data):
     Args:
         veh_data: (helper.VehicleData) represents vehicle we're analyzing
     Returns:
-        lane_data: python list of 0/1/2, 0 is lane changing to the left, 1 is 
+        lane_data: python list of 0/1/2, 0 is lane changing to the left, 1 is
             staying in the same lane, and 2 is lane changing to the right
     """
     lane_data = []
@@ -136,6 +136,7 @@ class RNNCFModel(tf.keras.Model):
         self.dense1 = tf.keras.layers.Dense(1)
         self.dense2 = tf.keras.layers.Dense(10, activation='relu',
                                             kernel_regularizer=tf.keras.regularizers.l2(l=.02))
+        self.lc_action = tf.keras.layers.Dense(3, activation='softmax')
 
         # normalization constants
         self.maxhd = maxhd
@@ -206,7 +207,11 @@ class RNNCFModel(tf.keras.Model):
             self.lstm_cell.reset_dropout_mask()
             x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
             x = self.dense2(x)
+            cur_lc = self.lc_actions(x)  # get outputed probabilities for LC
+            cur_lc = cur_lc * lc_weights  # TODO mask output probabilities
+            # TODO save cur_lc to list which we output so the loss can be calculated
             x = self.dense1(x)  # output of the model is current acceleration for the batch
+
 
             # update vehicle states
             x = tf.squeeze(x, axis=1)
@@ -234,7 +239,7 @@ def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
 
     Returns:
         lead_inputs - tensor with shape (nveh, nt, 10), giving the position and speed of the
-            the leader, lfol, rfol, llead, rllead at each timestep. Padded with zeros. 
+            the leader, lfol, rfol, llead, rllead at each timestep. Padded with zeros.
             nveh = len(vehs)
         true_traj: nested python list with shape (nveh, nt) giving the true vehicle position at each time.
             Padded with zeros
@@ -321,7 +326,8 @@ def train_step(x, y_true, sample_weight, model, loss_fn, optimizer):
     with tf.GradientTape() as tape:
         # would using model.predict_on_batch instead of model.call be faster to evaluate?
         # the ..._on_batch methods use the model.distribute_strategy - see tf.keras source code
-        y_pred, cur_speeds, hidden_state = model(x, training=True)
+        y_pred, cur_speeds, hidden_state = model(x, training=True)  # TODO get y_pred_lc lc outputs from model
+        # use categorical cross entropy or sparse categorical cross entropy to compute loss over y_pred_lc
         loss = loss_fn(y_true, y_pred, sample_weight) + sum(model.losses)
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))

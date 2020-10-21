@@ -3,6 +3,7 @@ import tensorflow as tf
 import numpy as np
 from havsim import helper
 import math
+from IPython import embed
 
 def generate_lane_data(veh_data):
     """
@@ -151,8 +152,8 @@ class RNNCFModel(tf.keras.Model):
 
         Args:
             inputs: list of lead_inputs, cur_state, hidden_states.
-                lead_inputs - tensor with shape (nveh, nt, 2), giving the leader position and speed at
-                    each timestep.
+                lead_inputs - tensor with shape (nveh, nt, 10), giving the position and speed of the
+                    the leader, lfol, rfol, llead, rllead at each timestep.
                 cur_state -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
                     starting timestep.
                 hidden_states - list of the two hidden states, each hidden state is a tensor with shape
@@ -177,12 +178,29 @@ class RNNCFModel(tf.keras.Model):
         outputs = []
         for cur_lead_input in lead_inputs:
             # normalize data for current timestep
-            cur_lead_pos, cur_lead_speed = tf.unstack(cur_lead_input, axis=1)
+            cur_lead_pos, cur_lead_speed, lfol_pos, lfol_speed, rfol_pos, rfol_speed, \
+                    llead_pos, llead_speed, rlead_pos, rlead_speed = \
+                    tf.unstack(cur_lead_input, axis=1)
+
+            # headway
             curhd = cur_lead_pos-cur_pos
             curhd = curhd/self.maxhd
+            cur_lfol_hd = (lfol_pos - cur_pos)/self.maxhd
+            cur_rfol_hd = (rfol_pos - cur_pos)/self.maxhd
+            cur_llead_hd = (llead_pos - cur_pos)/self.maxhd
+            cur_rlead_hd = (rlead_pos - cur_pos)/self.maxhd
+
+            # speed
             cur_lead_speed = cur_lead_speed/self.maxv
             norm_veh_speed = cur_speed/self.maxv
-            cur_inputs = tf.stack([curhd, norm_veh_speed, cur_lead_speed], axis=1)
+            cur_lfol_speed = lfol_speed/self.maxv
+            cur_rfol_speed = rfol_speed/self.maxv
+            cur_llead_speed = llead_speed/self.maxv
+            cur_rlead_speed = rlead_speed/self.maxv
+
+            cur_inputs = tf.stack([curhd, norm_veh_speed, cur_lead_speed, cur_lfol_hd, \
+                    cur_lfol_speed, cur_rfol_hd, cur_rfol_speed, cur_llead_hd, cur_llead_speed, \
+                    cur_rlead_hd, cur_rlead_speed], axis=1)
 
             # call to model
             self.lstm_cell.reset_dropout_mask()
@@ -215,8 +233,9 @@ def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
             can be calculated
 
     Returns:
-        lead_inputs: nested python list with shape (nveh, nt, 2), giving the leader position and speed at
-            each timestep. Padded with zeros. nveh = len(vehs).
+        lead_inputs - tensor with shape (nveh, nt, 10), giving the position and speed of the
+            the leader, lfol, rfol, llead, rllead at each timestep. Padded with zeros. 
+            nveh = len(vehs)
         true_traj: nested python list with shape (nveh, nt) giving the true vehicle position at each time.
             Padded with zeros
         loss_weights: nested python list with shape (nveh, nt) with either 1 or 0, used to weight each sample
@@ -226,9 +245,17 @@ def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
     lead_inputs = []
     true_traj = []
     loss_weights = []
+    true_lane = []
     for count, veh in enumerate(vehs):
         t, tmax = vehs_counter[count]
         leadpos, leadspeed = ds[veh]['lead posmem'], ds[veh]['lead speedmem']
+        lfolpos, lfolspeed = ds[veh]['lfolpos'], ds[veh]['lfolspeed']
+        rfolpos, rfolspeed = ds[veh]['rfolpos'], ds[veh]['rfolspeed']
+        lleadpos, lleadspeed = ds[veh]['lleadpos'], ds[veh]['lleadspeed']
+        rleadpos, rleadspeed = ds[veh]['rleadpos'], ds[veh]['rleadspeed']
+
+        lanemem = ds[veh]['lanemem']
+        lc_weights = ds[veh]['lc_weights']
         if rp is not None:
             meas, platooninfo, dt = relax_args
             relax = helper.get_fixed_relaxation(veh, meas, platooninfo, rp, dt=dt)
@@ -237,21 +264,28 @@ def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
         curlead = []
         curtraj = []
         curweights = []
+        curtruelane = []
         for i in range(nt):
-            if t+i < tmax:
-                curlead.append([leadpos[t+i], leadspeed[t+i]])
+            if t+i < tmax and lc_weights[t + i] == 1:
+                curlead.append([leadpos[t+i], leadspeed[t+i], lfolpos[t+i], lfolspeed[t+i], \
+                        rfolpos[t+i], rfolspeed[t+i], lleadpos[t+i], lleadspeed[t+i], \
+                        rleadpos[t+i], rleadspeed[t+i]])
                 curtraj.append(posmem[t+i+1])
+                curtruelane.append(lanemem[t+i])
                 curweights.append(1)
             else:
-                curlead.append([0, 0])
+                curlead.append([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
                 curtraj.append(0)
+                curtruelane.append(0)
                 curweights.append(0)
         lead_inputs.append(curlead)
         true_traj.append(curtraj)
         loss_weights.append(curweights)
+        true_lane.append(curtruelane)
 
     return [tf.convert_to_tensor(lead_inputs, dtype='float32'),
             tf.convert_to_tensor(true_traj, dtype='float32'),
+            tf.convert_to_tensor(true_lane, dtype = 'float32'),
             tf.convert_to_tensor(loss_weights, dtype='float32')]
 
 
@@ -328,7 +362,7 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
     hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
     hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
-    lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
+    lead_inputs, true_traj, _, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
     prev_loss = math.inf
     early_stop_counter = 0
 
@@ -384,7 +418,7 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
             c = tf.tensor_scatter_nd_update(c, inds_to_update, hidden_state_updates)
             hidden_states = [h, c]
 
-        lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
+        lead_inputs, true_traj, _, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
 
 
 def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
@@ -408,7 +442,7 @@ def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
     hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
     hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
-    lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt, **kwargs)
+    lead_inputs, true_traj, _, loss_weights = make_batch(vehs, vehs_counter, ds, nt, **kwargs)
 
     y_pred, cur_speeds, hidden_state = model([lead_inputs, cur_state, hidden_states])
     if loss is not None:

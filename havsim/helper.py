@@ -262,8 +262,8 @@ class VehicleData:
             lleadmem: like leadmem, but for right leader (leader if vehicle changed into right lane)
             vehdict: dictionary containing all VehicleData, where keys are the vehid
         """
-        self.posmem = posmem
-        self.speedmem = speedmem
+        self.posmem = StateMem(posmem, start)
+        self.speedmem = StateMem(speedmem, start)
         self.vehid = vehid
         self.start = start
         self.end = end
@@ -276,6 +276,7 @@ class VehicleData:
         self.rfolmem = VehMem(rfolmem, vehdict, start, end)
         self.rleadmem = VehMem(rleadmem, vehdict, start, end)
         self.lleadmem = VehMem(lleadmem, vehdict, start, end)
+        self.lcmems = [self.lfolmem, self.rfolmem, self.lleadmem, self.rleadmem]
 
         self.leads = self.get_unique_mem(leadmem)
         self.longest_lead_times = self.get_longest_lead_times()
@@ -351,6 +352,36 @@ def convert_to_data(vehicle):
     raise NotImplementedError
     return VehicleData(vehicle)
 
+
+class StateMem:
+    """Let posmem or speedmem etc. be slicable by times."""
+    def __init__(self, posmem, start):
+        self.data = posmem
+        self.start = start
+        self.end = start + len(posmem)-1
+
+    def __getitem__(self, times):
+        if type(times) == slice:
+            start, stop = times.start, times.stop
+            if not start:
+                start = self.start
+            elif start < self.start:
+                start = self.start
+            elif start > self.end:
+                return []
+            if not stop:
+                stop = self.end+1
+            elif stop > self.end+1:
+                stop = self.end+1
+            elif stop < self.start+1:
+                return []
+
+            return self.data[start-self.start:stop-self.start]
+
+        else:
+            if times < self.start or times > self.end:
+                raise IndexError
+            return self.data[times-self.start]
 
 class VehMem:
     """Implements memory of lane, lead, fol, rfol, lfol, rlead, llead.
@@ -515,11 +546,10 @@ class VehMemPosition:
             return self.index(vehdata, times)
 
     def myslice(self, vehdata, start, stop):
-        curstart = vehdata.start
-        return vehdata.posmem[start-curstart:stop-curstart]
+        return vehdata.posmem[start:stop]
 
     def index(self, vehdata, time):
-        return vehdata.posmem[time - vehdata.start]
+        return vehdata.posmem[time]
 
     def __repr__(self):
         return str(self.__getitem__(slice(self.start, self.end+1)))
@@ -528,11 +558,10 @@ class VehMemPosition:
 class VehMemSpeed(VehMemPosition):
     """Returns speed data instead of position data."""
     def myslice(self, vehdata, start, stop):
-        curstart = vehdata.start
-        return vehdata.speedmem[start-curstart:stop-curstart]
+        return vehdata.speedmem[start:stop]
 
     def index(self, vehdata, time):
-        return vehdata.speedmem[time - vehdata.start]
+        return vehdata.speedmem[time]
 
 
 class VehMemLen(VehMemPosition):

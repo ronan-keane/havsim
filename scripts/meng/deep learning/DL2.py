@@ -5,12 +5,8 @@ import numpy as np
 import tensorflow as tf
 import math
 
-try:
-    with open('C:/Users/rlk268/OneDrive - Cornell University/havsim/data/recon-ngsim.pkl', 'rb') as f:
-        meas, platooninfo = pickle.load(f) #load data
-except:
-    with open('/home/rlk268/havsim/data/recon-ngsim.pkl', 'rb') as f:
-        meas, platooninfo = pickle.load(f) #load data
+with open('data/veh_dict.pckl', 'rb') as f:
+    all_veh_dict = pickle.load(f)
 
 try:
     # Disable all GPUS
@@ -25,19 +21,23 @@ except:
 #%% generate training data and initialize model/optimizer
 
 nolc_list = []
-# train on no lc vehicles only  # good
-for veh in meas.keys():
-    temp = nolc_list.append(veh) if len(platooninfo[veh][4]) == 1 else None
+# remove vehicles that never had a leader
+for veh in all_veh_dict.keys():
+    start_sim, end_sim = all_veh_dict[veh].longest_lead_times
+    if start_sim != end_sim:
+        nolc_list.append(veh)
 # train on all vehicles  # bad
 # for veh in meas.keys():
 #     temp = nolc_list.append(veh) if len(platooninfo[veh][4]) > 0 else None
+
 np.random.shuffle(nolc_list)
 train_veh = nolc_list[:-300]
 test_veh = nolc_list[-300:]
 
-training, norm = deep_learning.make_dataset(meas, platooninfo, train_veh)
+
+training, norm = deep_learning.make_dataset(all_veh_dict, train_veh, dt=0.1)
 maxhd, maxv, mina, maxa = norm
-testing, unused = deep_learning.make_dataset(meas, platooninfo, test_veh)
+testing, unused = deep_learning.make_dataset(all_veh_dict, test_veh)
 
 model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=60)
 loss = deep_learning.masked_MSE_loss

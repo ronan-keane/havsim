@@ -574,8 +574,8 @@ def make_calibration(vehicles, vehdict, dt, vehicle_class=None, calibration_clas
         # make vehicle objects
         vehdata = vehdict[veh]
         t0, t1 = vehdata.longest_lead_times
-        y = np.array(vehdata.posmem[t0-vehdata.start:t1-vehdata.start+1])
-        initpos, initspd = vehdata.posmem[t0-vehdata.start], vehdata.speedmem[t0-vehdata.start]
+        y = np.array(vehdata.posmem[t0:t1+1])
+        initpos, initspd = vehdata.posmem[t0], vehdata.speedmem[t0]
         length, lane = vehdata.len, vehdata.lanemem[t1]
 
         needleads = set(vehdata.leads).difference(vehicles)
@@ -619,18 +619,20 @@ def make_lc_event(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list):
             # the differences in headway at time start - 1. This leads to 4 combinations, first, whether
             # the new leader is simulated or not, and second, whether the new lead is available at start-1
             if curlead in vehicles:  # curlead is simulated (in the same calibration object)
-                if start-1 < leadstart:  # handle edge case where t_nstar = start
-                    leadstate = (leaddata.posmem[0]-leaddata.speedmem[0]*dt, leaddata.speedmem[0])
+                if start-1 < leadstart:  # handle edge case where leadstart = start
+                    leadstate = (leaddata.posmem[leadstart]-leaddata.speedmem[leadstart]*dt,
+                                 leaddata.speedmem[leadstart])
                 else:
                     leadstate = (None,)
                 curlead, curlen = id2obj[curlead], None
                 curlead_in_vehicles = True
             else:
                 curlen = leaddata.len  # curlead is not simulated, it is stored in curveh.leadstatemem
-                if start-1 < leadstart:  # handle edge case where t_nstar = start
-                    leadstate = (leaddata.posmem[0]-leaddata.speedmem[0]*dt, leaddata.speedmem[0])
+                if start-1 < leadstart:  # handle edge case where leadstart = start
+                    leadstate = (leaddata.posmem[leadstart]-leaddata.speedmem[leadstart]*dt,
+                                 leaddata.speedmem[leadstart])
                 else:
-                    leadstate = (leaddata.posmem[start-1-leadstart], leaddata.posmem[start-1-leadstart])
+                    leadstate = (leaddata.posmem[start-1], leaddata.speedmem[start-1])
 
             # decide what case we are in
             if count == 0:  # first event is always an add event to add vehicle to simulation

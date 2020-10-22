@@ -115,6 +115,7 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
                 return (time_series(timeind) - veh.speed)/dt
             return veh.free_cf(veh.cf_parameters, veh.speed)
         return free_downstream
+
     # options - merge_side, merge_anchor_ind, target_lane, self_lane, shift, minacc, time_series
     elif method == 'merge':
         # first try to get a vehicle in the target_lane and use its shifted speed. Cannot be an AnchorVehicle
@@ -203,10 +204,12 @@ def get_inflow_wrapper(time_series=None, args=(None,), inflow_type='flow'):
     """
     # TODO - refactor this to modify the inflow buffer directly and return the flow amount - this will allow
     # the 'arrivals' type inflow to correctly interact with the methods such as eql_inflow_congested.
+    
     # give flow series - simple
     if inflow_type == 'flow':
         def get_inflow(self, timeind):
             return time_series(timeind), None
+
     # give speed series, we convert to equilibrium flow using the parameters of the next vehicle to be added
     # note that if all vehicles have same parameters/length, this is exactly equivalent to the 'flow' method
     # (where the speeds correspond to the flows for the eql soln being used)
@@ -238,7 +241,9 @@ def get_inflow_wrapper(time_series=None, args=(None,), inflow_type='flow'):
     # in arrivals type we generate arrival times according to some stochastic process and add 1 inflow
     # whenever the time index passes the
     elif inflow_type == 'arrivals':
-        get_inflow = arrival_time_inflow(*args)
+        dist_wrapper = arrival_time_inflow(*args)
+        def get_inflow(self, timeind):
+            return dist_wrapper(timeind), None
 
     return get_inflow
 
@@ -291,7 +296,7 @@ class arrival_time_inflow:
     def __call__(self, timeind):
         if timeind >= self.next_timeind:
             self.next_timeind += self.dist(timeind)/self.dt
-            return 1
+            return 1/self.dt
         else:
             return 0
 

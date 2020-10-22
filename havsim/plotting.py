@@ -147,6 +147,7 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
     # can specify a lane, and make trajectories outside of that lane opaque.
     # can colorcode trajectories based on their speeds to easily see shockwaves and other structures.
 
+    # TODO make this faster
     if sim is not None:
         colorcode = False
 

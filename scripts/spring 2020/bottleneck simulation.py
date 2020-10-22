@@ -3,7 +3,7 @@
 Bottleneck simulation
 """
 import havsim.simulation as hs
-from havsim.simulation.road_networks import downstream_wrapper, AnchorVehicle
+from havsim.simulation.road_networks import downstream_wrapper, AnchorVehicle, arrival_time_inflow, M3Arrivals
 from havsim.helper import boundaryspeeds, getentryflows, calculateflows
 from havsim.plotting import plot_format, platoonplot, plotvhd, plotflows
 import numpy as np
@@ -31,6 +31,9 @@ import time
 #%%
 # done with - accident free relax, no acceleration bounds, max speed bounds
 #vehicle parameters
+cf_p, unused = IDM_parameters()
+tempveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
+
 def onramp_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
     kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15,
@@ -43,15 +46,17 @@ def mainroad_newveh(self, vehid, *args):
               'hdbounds':(cf_p[2]+1e-6, 1e4)}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 #inflow amounts
+onramp = .1
+mainroad = .59
+# deterministic constant inflow
 def onramp_inflow(timeind, *args):
-    # return .06 + np.random.rand()/25
-    return .1
+    return onramp
 def mainroad_inflow(*args):
-    # return .43 + np.random.rand()*24/100
-    return .59
+    return mainroad
+# stochastic inflow
+onramp_inflow2 = (M3Arrivals(onramp, cf_p[1], .3), .25)
+mainroad_inflow2 = (M3Arrivals(mainroad, cf_p[1], .3), .25)
 
-cf_p, unused = IDM_parameters()
-tempveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
 
 #outflow using speed series
 # outspeed = tempveh.inv_flow(.59, congested = True)
@@ -69,6 +74,8 @@ tempveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
 #define boundary conditions
 get_inflow1 = {'time_series':onramp_inflow}
 get_inflow2 = {'time_series':mainroad_inflow}
+# get_inflow1 = {'inflow_type': 'arrivals', 'args':onramp_inflow2}
+# get_inflow2 = {'inflow_type': 'arrivals', 'args':mainroad_inflow2}
 # increment_inflow = {'method': 'ceql'}
 # increment_inflow = {'method': 'seql', 'kwargs':{'c':.8, 'eql_speed':False}}
 increment_inflow = {'method': 'seql2', 'kwargs':{'c':.8, 'eql_speed':True, 'transition':tempveh.inv_flow(.59, output_type='v', congested=False)}}
@@ -133,7 +140,7 @@ inflow_lanes = [lane0, lane1, lane2]
 simulation = hs.Simulation(inflow_lanes, merge_lanes, dt = .25)
 
 #call
-timesteps = 10000
+timesteps = 20000
 start = time.time()
 simulation.simulate(timesteps)
 end = time.time()

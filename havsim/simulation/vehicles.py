@@ -327,6 +327,7 @@ class Vehicle:
         lane_events: list of lane events for current lane
     """
     # TODO implementation of adjoint method for cf, relax, shift parameters
+    # TODO set_route_events should be a method of vehicle?
 
     def __init__(self, vehid, curlane, cf_parameters, lc_parameters, lead=None, fol=None, lfol=None,
                  rfol=None, llead=None, rlead=None, length=3, eql_type='v', relax_parameters=15,

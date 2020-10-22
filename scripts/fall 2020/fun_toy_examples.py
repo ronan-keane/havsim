@@ -326,14 +326,14 @@ p_values2.on_changed(update)
 
 #%% Real, not toy, example. Want actual models to be like example 3 - many models already seem to have that property
 from havsim.old.opt import platoonobjfn_objder
-from havsim.helper import makeleadfolinfo
+from havsim.old.helper import makeleadfolinfo
 from havsim.old.models import daganzo, daganzoadjsys, daganzoadj
 import scipy.optimize as sc
 import copy
 import pickle
 import havsim
 
-with open('C:/Users/rlk268/Downloads/recon-ngsim.pkl', 'rb') as f:
+with open('/home/rlk268/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
     meas, platooninfo = pickle.load(f)
 
 model, modeladjsys, modeladj = daganzo, daganzoadjsys, daganzoadj
@@ -350,7 +350,7 @@ sim[curveh[0]][:-1,3] = (sim[curveh[0]][1:,2] - sim[curveh[0]][:-1,2])/.1
 havsim.plotting.plotvhd(meas, sim, platooninfo, curveh)
 
 #%%
-pinit = bfgs[0]
+pinit = [2.08804351, 16.44383503, 32.14563722, 7.62970812]
 p = pinit.copy()
 def helper(p, rediff=True, process_regime=True):
     obj, grad, regimes = platoonobjfn_objder(p,model, modeladjsys, modeladj, meas, sim, platooninfo, curveh, leadinfo, folinfo,rinfo, *args, return_regime=True)
@@ -361,11 +361,13 @@ def helper(p, rediff=True, process_regime=True):
         relax = regimes[0][1]!=0
         regimes = [temp, relax]
     return obj, grad, regimes
+
 gs = gridspec.GridSpec(4,2)
-fig = plt.figure(figsize=(10,10))
+fig = plt.figure(figsize=(10, 10))
+plt.subplots_adjust(bottom = .18, top=.97)
 ax = plt.subplot(gs[:2,:])
 ax2, ax3, ax4, ax5 = plt.subplot(gs[2,0]), plt.subplot(gs[2,1]), plt.subplot(gs[3,0]), plt.subplot(gs[3,1])
-plt.subplots_adjust(bottom = .18, top=.97)
+
 # ax plots
 initobj, initgrad, regimes = helper(pinit)
 artist, = ax.plot(sim[curveh[0]][:end,3])
@@ -395,8 +397,8 @@ ax4p = np.linspace(.1, 15, 10000)
 #     p[3] = p1
 #     obj, grad, unused = helper(p, False, False)
 #     objlist.append(obj), gradlist.append(grad[3])
-# with open('gradlist2.pkl', 'wb') as f:
-#     pickle.dump([objlist, gradlist], f)
+# # with open('gradlist2.pkl', 'wb') as f:
+# #     pickle.dump([objlist, gradlist], f)
 # p[3] = pinit[3]
 with open('gradlist2.pkl', 'rb') as f:
     objlist, gradlist = pickle.load(f)
@@ -409,7 +411,7 @@ ax2.set_ylabel('objective')
 ax2.set_xlabel('free flow speed')
 ax3.set_ylabel('gradient')
 ax4.set_ylabel('objective')
-ax4.set_xlabel('relaxation time')
+# ax4.set_xlabel('relaxation time')
 ax5.set_ylabel('gradient')
 
 def update(val):
@@ -441,14 +443,14 @@ def update2(val):
     ax4art.set_ydata(obj)
     ax5art.set_ydata(grad[3])
     fig.canvas.draw_idle()
-
+    
+axp2 = plt.axes([.15, 0.1, 0.65, 0.03])
 axp = plt.axes([.15, 0.05, 0.65, 0.03])
-p_values = Slider(axp, 'free flow', 25, 45, valinit=pinit[2])
+p_values2 = Slider(axp, 'relaxation', .1, 15, valinit=pinit[3])
+p_values2.on_changed(update2)
+p_values = Slider(axp2, 'free flow', 25, 45, valinit=pinit[2])
 p_values.on_changed(update)
 
-axp2 = plt.axes([.15, 0.1, 0.65, 0.03])
-p_values2 = Slider(axp2, 'relaxation', .1, 15, valinit=pinit[3])
-p_values2.on_changed(update2)
 
 
 

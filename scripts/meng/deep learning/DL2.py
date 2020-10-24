@@ -32,13 +32,14 @@ for veh in meas.keys():
 # for veh in meas.keys():
 #     temp = nolc_list.append(veh) if len(platooninfo[veh][4]) > 0 else None
 np.random.shuffle(nolc_list)
-train_veh = nolc_list[:-300]
-test_veh = nolc_list[-300:]
+train_veh = nolc_list[:-100]
+test_veh = nolc_list[-100:]
 
 training, norm = deep_learning.make_dataset(meas, platooninfo, train_veh)
 maxhd, maxv, mina, maxa = norm
 testing, unused = deep_learning.make_dataset(meas, platooninfo, test_veh)
 
+#%%
 model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=60)
 loss = deep_learning.masked_MSE_loss
 opt = tf.keras.optimizers.Adam(learning_rate = .0008)

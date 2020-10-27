@@ -9,16 +9,17 @@ import time
 import havsim.helper as helper
 from havsim import simulation
 import scipy.optimize as sc
+import havsim.calibration.calibration as calibration
 #%%
 # please put pickle loading stuff in a seperate file not on github. Also note that recon-ngsim-old is
 # what holds meas/platooninfo (still needed as not everything is converted)
 #recon-ngsim now holds the same data in the updated format.
 #also, recon-ngsim is in units of meters now instead of feet.
 # try:
-#     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim.pkl', 'rb') as f:
+#     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
 #         meas, platooninfo = pickle.load(f) #load data
 # except:
-#     with open('/home/rlk268/havsim/data/recon-ngsim.pkl', 'rb') as f:
+#     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
 #         meas, platooninfo = pickle.load(f) #load data
 
 # try:
@@ -29,6 +30,15 @@ import scipy.optimize as sc
 #         meas, platooninfo = pickle.load(f) #load data
 
 # # print(meas)
+
+# try:
+#     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim.pkl', 'rb') as f:
+#         data = pickle.load(f) #load data
+# except:
+#     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim.pkl', 'rb') as f:
+#         data = pickle.load(f) #load data
+
+
 
 #%%
 # make downstream boundaries
@@ -46,7 +56,11 @@ lanes[7] = lanes[6]
 
 
 #%%
-# curplatoon = [3244.0, 3248.0, 3258.0, 3259.0, 3262.0]
+# curplatoon = [1013, 1023, 1030, 1037, 1045]
+# calibration_args = {"parameter_dict" : None, "ending_position" : 1475/3.28084}
+# cal = calibration.make_calibration(curplatoon, data, .1, calibration.CalibrationVehicleLC,
+# calibration.CalibrationLC, calibration.make_lc_events_new, lanes=lanes, calibration_kwargs = calibration_args)
+
 # curplatoon = [1013, 1023, 1030, 1037, 1045]
 # platoon_list = [[977.0, 3366.0, 774.0, 788.0]]
 for curplatoon in platoon_list:

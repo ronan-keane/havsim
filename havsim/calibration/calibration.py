@@ -455,7 +455,7 @@ class CalibrationLC(Calibration):
         super().initialize(parameters)  # don't actually call update_add_event as we need its own add events
         self.leadvehicles = set()
         for veh in self.all_leadvehicles:
-            veh.initialize()
+            veh.initialize
 
 ######### List of requirements for new add and lc events
 # add events, in addition to adding vehicles, now need to also add and remove leadvehicles as necessary.
@@ -477,6 +477,90 @@ class CalibrationLC(Calibration):
 # find anytime a vehicle order changes, - make a lc event for all of them. Should a single lc event
 # be able to update several vehicle orders (e.g. update lead, lfol, rfol, llead, rlead in the same event)?
 # maybe there should be seperate events for each update.
+
+
+# INPROGRESS: add/lc events for make_calibration for LC model
+def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list, leadveh_list):
+    for veh in vehicles:
+        curveh = id2obj[veh]
+        t0, t1 = vehdict[veh].longest_lead_times
+
+        info_list = [(vehdict[veh].leadmem.intervals(t0, t1), "l"),
+        (vehdict[veh].rleadmem.intervals(t0, t1), "rl"),
+        (vehdict[veh].lleadmem.intervals(t0, t1), "ll"),
+        (vehdict[veh].folmem.intervals(t0, t1), "f"),
+        (vehdict[veh].lfolmem.intervals(t0, t1), "lf"),
+        (vehdict[veh].rfolmem.intervals(t0, t1), "rl")]
+
+
+        for tup_index in range(len(info_list)):
+            tup = info_list[tup_index]
+            info, fl_type = tup[0], tup[1]
+            if info == 0:
+                create_add_events(info, id2obj, curveh, vehdict, vehicles, dt, addevent_list, lcevent_list, leadveh_list, fl_type, True)
+            else:
+                create_add_events(info, id2obj, curveh, vehdict, vehicles, dt, addevent_list, lcevent_list, leadveh_list, fl_type)
+
+    # is this necessary? Could we have case where there are duplicate objects because veh is in multiple relationship mems?
+    leadveh_list = list(set(leadveh_list))
+
+    return addevent_list, lcevent_list, leadveh_list
+
+
+
+# INPROGRESS: Helper function to create lc/add events for LC model
+def create_add_events(veh_data, id2obj, curveh, vehdict, vehicles, dt, addevent_list, lcevent_list, leadveh_list, fl_type, first_call=False):
+    # enumerating through the data for fol/lead vehs for a certain simulated veh
+    for count, j in enumerate(veh_data):
+        # need a better variable name
+        fol_lead_veh, start, end = j
+        # if there is a switch to no veh in this fl_type relationship
+        if not fol_lead_veh:
+            curevent = (start, 'lc', curveh, None, fl_type)
+            lcevent_list.append(curevent)
+        else:
+            cur_data = vehdict[fol_lead_veh]
+            cur_start = cur_data.start
+            fol_lead_veh_in_simulation = False
+
+            # checking if veh will be simulated or not
+            if fol_lead_veh in vehicles:
+                # if it is get vehicledata object from id2obj
+                fol_lead_veh, curlen = id2obj[fol_lead_veh], None
+                fol_lead_veh_in_simulation = True
+            else:
+                # if not in simulation, create LeadVehicle object
+                curlen = cur_data.len
+                if start-1 < cur_start:
+                    flstatemem = (cur_data.posmem[cur_start]-cur_data.speedmem[cur_start]*dt,
+                                 cur_data.speedmem[cur_start])
+                else:
+                    flstatemem = (cur_data.posmem[start-1], cur_data.speedmem[start-1])
+                # created leadvehicle
+                fol_lead_veh = LeadVehicle(flstatemem, start, curlen)
+                leadveh_list.append(fol_lead_veh)
+
+            # adding and removing LeadVehicle Objects
+            if not fol_lead_veh_in_simulation:
+                # add fol_lead_veh event if it is a LeadVehicle object
+                curevent = (start, 'add', fol_lead_veh)
+                addevent_list.append(curevent)
+                # remove fol_lead_veh event for same LeadVehicle Object
+                curevent = (end, 'remove', fol_lead_veh)
+                addevent_list.append(curevent)
+
+            if count == 0:
+                # lc event for first tims
+                curevent = (start, 'lc', curveh, fol_lead_veh, curlen, fl_type)
+                # only needed for the first time to create the add cur_veh event
+                if first_call:
+                    curevent = (start, 'add', curveh, curevent)
+                addevent_list.append(curevent)
+
+            else:
+                # lc event for fol_lead_veh with respect to curveh
+                curevent = (start, 'lc', curveh, fol_lead_veh, fl_type)
+                lcevent_list.append(curevent)
 
 
 
@@ -567,6 +651,7 @@ def make_calibration(vehicles, vehdict, dt, vehicle_class=None, calibration_clas
     vehicle_list = []
     addevent_list = []
     lcevent_list = []
+    leadveh_list = [] # for lanechanging model to hold all leadveh objects
     id2obj = {}  # holds references to the CalibrationVehicle objects we create
     max_end = 0  # maximum possible time loss function can be calculated
 
@@ -575,6 +660,7 @@ def make_calibration(vehicles, vehdict, dt, vehicle_class=None, calibration_clas
         vehdata = vehdict[veh]
         t0, t1 = vehdata.longest_lead_times
         y = np.array(vehdata.posmem[t0:t1+1])
+        y_lc = np.array(vehdata.lanemem[t0:t1+1])
         initpos, initspd = vehdata.posmem[t0], vehdata.speedmem[t0]
         length, lane = vehdata.len, vehdata.lanemem[t1]
 
@@ -586,20 +672,33 @@ def make_calibration(vehicles, vehdict, dt, vehicle_class=None, calibration_clas
         else:
             leadstatemem = leadstart = 0
 
-        newveh = vehicle_class(veh, y, initpos, initspd, t0, leadstatemem, leadstart, length=length,
+        if vehicle_class == CalibrationVehicle:
+            newveh = vehicle_class(veh, y, initpos, initspd, t0, leadstatemem, leadstart, length=length,
                                lane=lanes[lane])
+        else:
+            newveh = vehicle_class(veh, y, y_lc, initpos, initspd, t0, length=length, lane=lanes[lane])
+
         vehicle_list.append(newveh)
         id2obj[veh] = newveh
         max_end = max(max_end, t1)
 
     # create events
-    addevent_list, lcevent_list = event_maker(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list)
+    if event_maker == make_lc_event:
+        addevent_list, lcevent_list = event_maker(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list)
+    else:
+        addevent_list, lcevent_list, leadveh_list = event_maker(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list, leadveh_list)
+        # print(addevent_list)
+        # print(lcevent_list)
+        # print(leadveh_list)
     addevent_list.sort(key = lambda x: x[0], reverse = True)
     lcevent_list.sort(key = lambda x: x[0], reverse = True)
 
     # make calibration object
-    return calibration_class(vehicle_list, addevent_list, lcevent_list, dt, end=max_end,
-                             lc_event_fun=lc_event_fun, **calibration_kwargs)
+    if calibration_class == Calibration:
+        return calibration_class(vehicle_list, addevent_list, lcevent_list, dt, end=max_end,
+                                 lc_event_fun=lc_event_fun, **calibration_kwargs)
+    else:
+        return calibration_class(vehicle_list, leadveh_list, addevent_list, lcevent_list, dt, end=max_end)
 
 
 def make_lc_event(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list):

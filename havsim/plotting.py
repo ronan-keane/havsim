@@ -921,6 +921,7 @@ def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsi
     # presim = True - presim and postsim control whether the entire trajectory is displayed or just the simulated parts (t_nstar - T_n versus T-n - T_nm1)
     # postsim = True
     # TODO an interactive plotter for single times could be nice.
+    # also make arraytraj faster
     if platoon != []:
         followerchain = helper.platoononly(followerchain, platoon)
     platoontraj, mytime = helper.arraytraj(meas, followerchain, presim, postsim, datalen)

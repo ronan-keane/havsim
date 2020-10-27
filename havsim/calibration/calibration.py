@@ -417,6 +417,7 @@ def update_calibration(vehicles, add_events, lc_events, addtime, lctime, timeind
         if veh.lead is not None:
             veh.hd = get_headway(veh, veh.lead)
 
+
     #removing vehs that have an end position above the ending_position attribute
     remove_list = remove_vehicles(vehicles, ending_position, timeind)
     for remove_vec in remove_list:
@@ -506,6 +507,35 @@ def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_lis
 
     return addevent_list, lcevent_list, leadveh_list
 
+
+def make_leadvehicles(vehicles, id2obj, vehdict, dt):
+    # find all LeadVehicles and their start/end times
+    all_leadvehicles = {}  # keys are LeadVehicles id, values are tuples of (start, end)
+    vehmem_list = ['leadmem', 'lleadmem', 'rleadmem', 'folmem', 'lfolmem', 'rfolmem']
+    for veh in vehicles:
+        for curvehmem in vehmem_list:
+            vehmem = getattr(vehdict[veh], curvehmem)
+            for i in vehmem.data:
+                curveh, curstart, curend = i
+                if curveh in all_leadvehicles:
+                    start, end = all_leadvehicles[curveh]
+                    all_leadvehicles[curveh] = (min(curstart, start), max(curend, end))
+                else:
+                    all_leadvehicles[curveh] = (curstart, end)
+
+    # init all leadVehicles and add to id2obj
+    for curlead in all_leadvehicles:
+        start, end = all_leadvehicles[curlead]
+        curleaddata = vehdict[curlead]
+
+        leadstatemem = list(zip(curleaddata.posmem[start:end+1], curleaddata.speedmem[start:end+1]))
+        length = curleaddata.len
+        if start-1 < curleaddata.start:
+            initstate = (curleaddata.posmem[start]-dt*curleaddata.speedmem[start], curleaddata.speedmem[start])
+        else:
+            initstate = (curleaddata.posmem[start-1], curleaddata.speedmem[start-1])
+
+        id2obj[curlead] = LeadVehicle(leadstatemem, start, length=length, initstate = initstate)
 
 
 # INPROGRESS: Helper function to create lc/add events for LC model

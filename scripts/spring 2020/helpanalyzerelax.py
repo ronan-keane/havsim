@@ -2,6 +2,49 @@
 """
 script for trying to understand effects of relaxation on specific timesteps in simulation
 """
+#%% Estimate for empircal TTE
+import numpy as np
+import copy
+def get_veh(vehid):
+    for veh in all_vehicles:
+        if veh.vehid == vehid:
+            break
+    return veh
+vehid = 1044
+headway = []
+veh = get_veh(vehid)
+
+start = veh.starttime
+leadmem = veh.leadmem.copy()
+for count, i in enumerate(leadmem.copy()):
+    if count < len(leadmem)-1:
+        leadmem[count] = (*i, leadmem[count+1][1])
+    else:
+        leadmem[count] = (*i, veh.endtime)
+        
+for entry in leadmem:
+    lead, curstart, curend = entry
+    if lead is None:
+        curhd = np.zeros((curend-curstart,1))
+    else:
+        leadstart = lead.starttime
+        curhd = np.array(lead.posmem[curstart-leadstart:curend-leadstart]) - lead.len - veh.posmem[curstart-start:curend-start]
+        curhd = np.expand_dims(curhd, axis=1)
+        
+    headway.append(curhd)
+headway = np.concatenate(headway, axis=0)
+
+plt.figure()
+plt.subplot(1,2,1)
+plt.plot(headway)
+plt.subplot(1,2,2)
+plt.plot(veh.speedmem)
+plt.title('headway, speed time series for vehicle '+str(veh.vehid))
+    
+
+
+
+
 #%% was for simulation code
 for veh in all_vehicles:
     if veh.vehid == 1202:

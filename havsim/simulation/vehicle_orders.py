@@ -103,42 +103,36 @@ def update_all_lrfol_multiple(vehicles):
     #now to finish the order we have to update all vehicles which overtook
     for lfol, overtook in lovertaken.items():
         if len(overtook) == 1:  # we know what lfol new rfol is - it can only be one thing
-            # update for lfol
             veh = overtook[0]
-            try:
-                lfol.rfol.llead.remove(lfol)
-            except:  # for edge case when lfol.rfol is None - occurs when you overtake and get new rlane
-            # in the same timestep
-                pass
-            lfol.rfol = veh
-            veh.llead.append(lfol)
         else:
             distlist = [get_dist(veh, lfol) for veh in overtook]
             ind = np.argmin(distlist)
             veh = overtook[ind]
+        # update for lfol
+        # try/except is for rare edge case when lfol.rfol is None - occurs when you overtake and get new rlane
+        # in the same timestep
+        try:
             lfol.rfol.llead.remove(lfol)
-            lfol.rfol = veh
-            veh.llead.append(lfol)
+        except:  
+            pass
+        lfol.rfol = veh
+        veh.llead.append(lfol)
 
     # same for right side
     for rfol, overtook in rovertaken.items():
         if len(overtook) == 1:  # we know what lfol new rfol is - it can only be one thing
-            # update for lfol
             veh = overtook[0]
-            try:
-                rfol.lfol.rlead.remove(rfol)
-            except:  # for edge case when rfol.lfol is None
-                pass
-            rfol.lfol = veh
-            veh.rlead.append(rfol)
-
         else:
             distlist = [get_dist(veh, rfol) for veh in overtook]
             ind = np.argmin(distlist)
             veh = overtook[ind]
+        # update for rfol
+        try:
             rfol.lfol.rlead.remove(rfol)
-            rfol.lfol = veh
-            veh.rlead.append(rfol)
+        except:
+            pass
+        rfol.lfol = veh
+        veh.rlead.append(rfol)
 
 
 def update_lfol_recursive(veh, lfol, lovertaken):

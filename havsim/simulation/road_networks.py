@@ -356,15 +356,19 @@ def eql_speed(curlane, *args, c=.8, minspeed=0, eql_speed=True, **kwargs):
     
     This is similar to the eql_inflow but uses microscopic quantities instead of flow. First, calculate the
     speed to add the new vehicle. We use the maximum of the lead vehicle speed, and the equilibrium speed
-    based on the current gap. This allows the inflow speed to dynamically adjust between congested and
-    free flow conditions based on the current gap/speed on the road. We then calculate the equilium headway
-    based on the speed of the new vehicle; for the vehicle to be added, the gap must be at least c times
-    the equilibrium headway.
+    based on the current gap. We then calculate the equilium headway based on the speed of the new vehicle;
+    for the vehicle to be added, the gap must be at least c times the equilibrium headway.
+
+    This method allows the inflow speed to transition to a congested state after initially
+    being in free flow. The eql_speed2 method can be used to specify what the entry speeds of vehicle should
+    be after the transition to a congested state. In that version, you can specify a transition speed;
+    if below the transition speed, we treat c=1 - this will make it so vehicles will enter with a speed
+    roughly equal to transition.
     
     Args:
         curlane: Lane with upstream boundary condition
         c: Constant. If less than 1, then vehicles can be added wtih deceleration in congested conditions.
-        If greater than or equal to one, vehicles must have 0 or positive acceleration when being added.
+            If greater than or equal to one, vehicles must have 0 or positive acceleration when being added.
         minspeed: if eql_speed is True, Vehicles must have at least minspeed when being added
         eql_speed: If False, vehicles are added with the speed of their leader. If True, we take the max
             of the lead.speed and equilibrium speed corresponding to the lead gap.

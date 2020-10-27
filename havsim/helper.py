@@ -1202,6 +1202,10 @@ def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .
 
         #if lane is given we need to find the segments of data inside the lane
         if lane is not None:
+            # TODO this way seems to have some small problems as you lose the interval between LC (for 'flow' method)
+            # also note that the 'area' method seems to consistently underestimate the flow by 1-2%.
+            # is that because you never start/end exactly at the boundaries? If your trajectory starts/ends slightly outside
+            # of the area box, we should interpolate onto the box, and this should get rid of the underestimation problem.
             alldata = alldata[alldata[:,7]==lane] #boolean mask selects data inside lane
             inds = sequential(alldata) #returns indexes where there are jumps
             indlist = []

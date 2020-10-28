@@ -1,7 +1,6 @@
 from havsim import helper
 from havsim import plotting
 from havsim.calibration.deep_learning import make_dataset2, make_dataset, generate_lane_data
-from IPython import embed
 import numpy as np
 import pickle
 import time

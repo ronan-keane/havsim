@@ -10,17 +10,21 @@ def generate_lane_data(veh_data):
     Args:
         veh_data: (helper.VehicleData) represents vehicle we're analyzing
     Returns:
-        lane_data: python list of 0/1/2, 0 is lane changing to the left, 1 is
-            staying in the same lane, and 2 is lane changing to the right
+        lane_data: python list of -1/0/1, -1 is lane changing to the left, 0 is
+            staying in the same lane, and 1 is lane changing to the right
     """
     lane_data = []
-    for time in range(veh_data.start + 1, veh_data.end + 1):
-        if veh_data.lanemem[time] < veh_data.lanemem[time - 1]:
-            lane_data.append(0)
-        elif veh_data.lanemem[time] == veh_data.lanemem[time - 1]:
-            lane_data.append(1)
-        else:
-            lane_data.append(2)
+
+    intervals = veh_data.lanemem.intervals()
+    for idx, (val, start, end) in list(enumerate(intervals)):
+        lane_data += [0] * (end - start - 1)
+        if idx < len(intervals) - 1:
+            if val < intervals[idx + 1][0]:
+                lane_data.append(-1)
+            elif val == intervals[idx + 1][0]:
+                lane_data.append(0)
+            else:
+                lane_data.append(1)
     return lane_data
 
 def make_dataset(veh_dict, veh_list, dt=.1):
@@ -66,26 +70,40 @@ def make_dataset(veh_dict, veh_list, dt=.1):
         start_sim, end_sim = veh_data.longest_lead_times
 
         leadpos = np.array(veh_data.leadmem.pos[start_sim:end_sim + 1])
+        leadlen = np.array(veh_data.leadmem.len[start_sim:end_sim + 1])
+        leadpos = leadpos - leadlen # adjust by lead length
+
         leadspeed = np.array(veh_data.leadmem.speed[start_sim:end_sim + 1])
 
         # indexing for pos/spd
-        vehpos = np.array(veh_data.posmem[start_sim-start:])
-        vehspd = np.array(veh_data.speedmem[start_sim-start:])
+        vehpos = np.array(veh_data.posmem[start_sim:])
+        vehspd = np.array(veh_data.speedmem[start_sim:])
 
         lanemem = np.array(generate_lane_data(veh_data)[start_sim - start:])
 
         # lfol rfol llead rllead
+        contains_lane1 = 1.0 in veh_data.get_unique_mem(veh_data.lanemem)
         pos_and_spd = [ [[], []] for _ in range(len(veh_data.lcmems))]
-        lc_weights = [1] * (len(vehpos))
+        lc_weights = np.zeros((vehpos.shape[0], 2))
         for time in range(start_sim, end + 1):
             for mem_idx, lc_mem in enumerate(veh_data.lcmems):
                 if lc_mem[time] is not None:
                     pos_and_spd[mem_idx][1].append(lc_mem.speed[time])
-                    pos_and_spd[mem_idx][0].append(lc_mem.pos[time])
+                    # adjust position based off of who is leader, and who is follower
+                    # llead/rlead, subtract the length of the leader
+                    # lfol/rfol, subtract current vehicle
+                    if mem_idx > 1:
+                        pos_and_spd[mem_idx][0].append(lc_mem.pos[time] - lc_mem.len[time])
+                    else:
+                        pos_and_spd[mem_idx][0].append(lc_mem.pos[time] + veh_data.len)
                 else:
                     pos_and_spd[mem_idx][1].append(0)
                     pos_and_spd[mem_idx][0].append(0)
-                    lc_weights[time - start_sim] = 0
+
+                if veh_data.lanemem[time] > 2 or (veh_data.lanemem[time] == 2 and contains_lane1):
+                    lc_weights[time - start_sim, 0] = 1
+                if veh_data.lanemem[time] < 6:
+                    lc_weights[time - start_sim, 1] = 1
 
         # convert to np.ndarray
         for mem_idx in range(len(pos_and_spd)):
@@ -135,7 +153,7 @@ class RNNCFModel(tf.keras.Model):
         self.dense1 = tf.keras.layers.Dense(1)
         self.dense2 = tf.keras.layers.Dense(10, activation='relu',
                                             kernel_regularizer=tf.keras.regularizers.l2(l=.02))
-        self.lc_action = tf.keras.layers.Dense(3, activation='softmax')
+        self.lc_actions = tf.keras.layers.Dense(3, activation='softmax')
 
         # normalization constants
         self.maxhd = maxhd
@@ -147,7 +165,7 @@ class RNNCFModel(tf.keras.Model):
         self.dt = dt
         self.lstm_units = lstm_units
 
-    def call(self, inputs, training=False):
+    def call(self, inputs, lc_weights, training=False):
         """Updates states for a batch of vehicles.
 
         Args:
@@ -175,8 +193,9 @@ class RNNCFModel(tf.keras.Model):
         lead_inputs, init_state, hidden_states = inputs
         lead_inputs = tf.unstack(lead_inputs, axis=1)  # unpacked over time dimension
         cur_pos, cur_speed = tf.unstack(init_state, axis=1)
-        outputs = []
-        for cur_lead_input in lead_inputs:
+        lc_weights = tf.unstack(lc_weights, axis=1)
+        acc_outputs, lc_outputs = [], []
+        for cur_lead_input, lc_w in zip(lead_inputs, lc_weights):
             # normalize data for current timestep
             cur_lead_pos, cur_lead_speed, lfol_pos, lfol_speed, rfol_pos, rfol_speed, \
                     llead_pos, llead_speed, rlead_pos, rlead_speed = \
@@ -185,8 +204,8 @@ class RNNCFModel(tf.keras.Model):
             # headway
             curhd = cur_lead_pos-cur_pos
             curhd = curhd/self.maxhd
-            cur_lfol_hd = (lfol_pos - cur_pos)/self.maxhd
-            cur_rfol_hd = (rfol_pos - cur_pos)/self.maxhd
+            cur_lfol_hd = (cur_pos - lfol_pos)/self.maxhd
+            cur_rfol_hd = (cur_pos - rfol_pos)/self.maxhd
             cur_llead_hd = (llead_pos - cur_pos)/self.maxhd
             cur_rlead_hd = (rlead_pos - cur_pos)/self.maxhd
 
@@ -207,20 +226,21 @@ class RNNCFModel(tf.keras.Model):
             x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
             x = self.dense2(x)
             cur_lc = self.lc_actions(x)  # get outputed probabilities for LC
-            cur_lc = cur_lc * lc_weights  # TODO mask output probabilities
-            # TODO save cur_lc to list which we output so the loss can be calculated
-            x = self.dense1(x)  # output of the model is current acceleration for the batch
+            cur_lc = cur_lc * lc_w 
 
+            lc_outputs.append(cur_lc)
+            x = self.dense1(x)  # output of the model is current acceleration for the batch
 
             # update vehicle states
             x = tf.squeeze(x, axis=1)
             cur_acc = (self.maxa-self.mina)*x + self.mina
             cur_pos = cur_pos + self.dt*cur_speed
             cur_speed = cur_speed + self.dt*cur_acc
-            outputs.append(cur_pos)
+            acc_outputs.append(cur_pos)
 
-        outputs = tf.stack(outputs, 1)
-        return outputs, cur_speed, hidden_states
+        acc_outputs = tf.stack(acc_outputs, 1)
+        lc_outputs = tf.stack(lc_outputs, 1)
+        return acc_outputs, lc_outputs, cur_speed, hidden_states
 
 
 def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
@@ -246,10 +266,12 @@ def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
             of the loss function. If 0, it means the input at the corresponding index doesn't contribute
             to the loss.
     """
+    identity = np.eye(3)
     lead_inputs = []
     true_traj = []
     loss_weights = []
-    true_lane = []
+    true_lane_action = []
+    lc_weights = []
     for count, veh in enumerate(vehs):
         t, tmax = vehs_counter[count]
         leadpos, leadspeed = ds[veh]['lead posmem'], ds[veh]['lead speedmem']
@@ -259,7 +281,7 @@ def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
         rleadpos, rleadspeed = ds[veh]['rleadpos'], ds[veh]['rleadspeed']
 
         lanemem = ds[veh]['lanemem']
-        lc_weights = ds[veh]['lc_weights']
+        veh_lc_weights = ds[veh]['lc_weights']
         if rp is not None:
             meas, platooninfo, dt = relax_args
             relax = helper.get_fixed_relaxation(veh, meas, platooninfo, rp, dt=dt)
@@ -269,28 +291,34 @@ def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
         curtraj = []
         curweights = []
         curtruelane = []
+        curlcweights = []
         for i in range(nt):
-            if t+i < tmax and lc_weights[t + i] == 1:
+            # acceleration weights
+            if t+i < tmax:
                 curlead.append([leadpos[t+i], leadspeed[t+i], lfolpos[t+i], lfolspeed[t+i], \
                         rfolpos[t+i], rfolspeed[t+i], lleadpos[t+i], lleadspeed[t+i], \
                         rleadpos[t+i], rleadspeed[t+i]])
+                curtruelane.append(lanemem[t+i] + 1)
                 curtraj.append(posmem[t+i+1])
-                curtruelane.append(lanemem[t+i])
                 curweights.append(1)
+                curlcweights.append([veh_lc_weights[t+i, 0], 1, veh_lc_weights[t+i, 1]])
             else:
                 curlead.append([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
                 curtraj.append(0)
                 curtruelane.append(0)
                 curweights.append(0)
+                curlcweights.append([0, 0, 0])
         lead_inputs.append(curlead)
         true_traj.append(curtraj)
         loss_weights.append(curweights)
-        true_lane.append(curtruelane)
+        true_lane_action.append(curtruelane)
+        lc_weights.append(curlcweights)
 
     return [tf.convert_to_tensor(lead_inputs, dtype='float32'),
             tf.convert_to_tensor(true_traj, dtype='float32'),
-            tf.convert_to_tensor(true_lane, dtype = 'float32'),
-            tf.convert_to_tensor(loss_weights, dtype='float32')]
+            tf.convert_to_tensor(true_lane_action, dtype = 'float32'),
+            tf.convert_to_tensor(loss_weights, dtype='float32'),
+            tf.convert_to_tensor(lc_weights, dtype='float32')]
 
 
 def masked_MSE_loss(y_true, y_pred, mask_weights):
@@ -306,18 +334,20 @@ def weighted_masked_MSE_loss(y_true, y_pred, mask_weights):
 
 
 @tf.function
-def train_step(x, y_true, sample_weight, model, loss_fn, optimizer):
+def train_step(x, y_true, lc_true, sample_weight,  lc_weights, model, loss_fn, optimizer):
     """Updates parameters for a single batch of examples.
 
     Args:
         x: input to model
         y_true: target for loss function
         sample_weight: weight for loss function
+        lc_weights: weights for lc output
         model: tf.keras.Model
         loss_fn: function takes in y_true, y_pred, sample_weight, and returns the loss
         optimizer: tf.keras.optimizer
     Returns:
         y_pred: output from model
+        lc_pred: output from lc_model
         cur_speeds: output from model
         hidden_state: hidden_state for model
         loss:
@@ -325,12 +355,13 @@ def train_step(x, y_true, sample_weight, model, loss_fn, optimizer):
     with tf.GradientTape() as tape:
         # would using model.predict_on_batch instead of model.call be faster to evaluate?
         # the ..._on_batch methods use the model.distribute_strategy - see tf.keras source code
-        y_pred, cur_speeds, hidden_state = model(x, training=True)  # TODO get y_pred_lc lc outputs from model
+        y_pred, lc_pred, cur_speeds, hidden_state = model(x, training=True, lc_weights=lc_weights)
         # use categorical cross entropy or sparse categorical cross entropy to compute loss over y_pred_lc
-        loss = loss_fn(y_true, y_pred, sample_weight) + sum(model.losses)
+        loss = loss_fn(y_true, y_pred, sample_weight) + sum(model.losses) \
+                + tf.keras.losses.SparseCategoricalCrossentropy()(lc_true, lc_pred)
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    return y_pred, cur_speeds, hidden_state, loss
+    return y_pred, lc_pred, cur_speeds, hidden_state, loss
 
 
 def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100, n=20,
@@ -348,7 +379,7 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
         m: number of batches per print out. If using early stopping, the early_stopping_loss is evaluated
             every m batches.
         n: if using early stopping, number of batches that the testing loss can increase before stopping.
-        early_stopping_loss: if None, we return the loss from train_step every m batches. If not None, it is
+        early_stopping_loss: if None, we return the loss from train_tep every m batches. If not None, it is
             a function which takes in model, returns a loss value. If the loss increases, we stop the
             training, and load the best weights.
     Returns:
@@ -367,15 +398,15 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
     hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
     hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
-    lead_inputs, true_traj, _, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
+    lead_inputs, true_traj, true_lane_action, loss_weights, lc_weights = make_batch(vehs, vehs_counter, ds, nt)
     prev_loss = math.inf
     early_stop_counter = 0
 
     for i in range(nbatches):
         # call train_step
-        veh_states, cur_speeds, hidden_states, loss_value = \
-            train_step([lead_inputs, cur_state, hidden_states], true_traj, loss_weights, model,
-                       loss, optimizer)
+        veh_states, lc_pred, cur_speeds, hidden_states, loss_value = \
+            train_step([lead_inputs, cur_state, hidden_states], true_traj, true_lane_action, \
+                        loss_weights, lc_weights, model, loss, optimizer)
 
         # print out and early stopping
         if i % m == 0:
@@ -423,7 +454,9 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
             c = tf.tensor_scatter_nd_update(c, inds_to_update, hidden_state_updates)
             hidden_states = [h, c]
 
-        lead_inputs, true_traj, _, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
+        lead_inputs, true_traj, true_lane_action, loss_weights, lc_weights = \
+                make_batch(vehs, vehs_counter, ds, nt)
+
 
 
 def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
@@ -447,9 +480,10 @@ def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
     hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
     hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
-    lead_inputs, true_traj, _, loss_weights = make_batch(vehs, vehs_counter, ds, nt, **kwargs)
+    lead_inputs, true_traj, true_lane_action, loss_weights, lc_weights = \
+            make_batch(vehs, vehs_counter, ds, nt, **kwargs)
 
-    y_pred, cur_speeds, hidden_state = model([lead_inputs, cur_state, hidden_states])
+    y_pred, lc_pred, cur_speeds, hidden_state = model([lead_inputs, cur_state, hidden_states])
     if loss is not None:
         out_loss = loss(true_traj, y_pred, loss_weights)
         return y_pred, cur_speeds, out_loss

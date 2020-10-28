@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import math
 
-with open('data/veh_dict.pckl', 'rb') as f:
+with open('data/recon-ngsim.pkl', 'rb') as f:
     all_veh_dict = pickle.load(f)
 
 try:
@@ -41,7 +41,8 @@ testing, unused = deep_learning.make_dataset(all_veh_dict, test_veh)
 
 model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=60)
 loss = deep_learning.masked_MSE_loss
-opt = tf.keras.optimizers.Adam(learning_rate = .0008)
+# opt = tf.keras.optimizers.Adam(learning_rate = .0008)
+opt = tf.keras.optimizers.Adam(learning_rate = .00008)
 
 #%% train and save results
 early_stopping = False

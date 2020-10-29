@@ -1,8 +1,8 @@
 authorName: default
 experimentName: havsim_dl_hpo
-trialConcurrency: 2
-maxExecDuration: 1h
-maxTrialNum: 10
+trialConcurrency: 1
+maxExecDuration: 24h
+maxTrialNum: 120
 #choice: local, remote, pai
 trainingServicePlatform: local
 searchSpacePath: search_space.json
@@ -14,7 +14,12 @@ tuner:
   builtinTunerName: TPE
   classArgs:
     #choice: maximize, minimize
-    optimize_mode: maximize
+    optimize_mode: minimize
+assessor:
+    builtinAssessorName: Medianstop
+    classArgs:
+      optimize_mode: minimize
+      start_step: 10
 trial:
   command: python DL2.py
   codeDir: .

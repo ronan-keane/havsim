@@ -33,21 +33,33 @@ for veh in meas.keys():
 # train on all vehicles
 # for veh in meas.keys():
 #     temp = nolc_list.append(veh) if len(platooninfo[veh][4]) > 0 else None
+
+# platooninfo[veh][1:3] first and last time step
 np.random.shuffle(nolc_list)
-train_veh = nolc_list[:-100]
+train_veh = nolc_list[:-200]
+val_veh = nolc_list[-200:-100]
 test_veh = nolc_list[-100:]
 
 training, norm = deep_learning.make_dataset(meas, platooninfo, train_veh)
 maxhd, maxv, mina, maxa = norm
+validation, unused = deep_learning.make_dataset(meas, platooninfo, val_veh)
 testing, unused = deep_learning.make_dataset(meas, platooninfo, test_veh)
 
-tuned_params = nni.get_current_parameter()
-if tuned_params is None:
-    tuned_params = nni.get_next_parameter()
+default_params = {
+    "lstm_units" : 64,
+    "learning_rate": 0.0008,
+    "dropout": 0.2,
+    "regularizer": 0.02,
+    "batch_size": 32
+}
 
-model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=tuned_params['lstm_units'])
+tuned_params = nni.get_next_parameter()
+
+params = tuned_params if tuned_params else default_params
+
+model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=params['lstm_units'], params=params)
 loss = deep_learning.masked_MSE_loss
-opt = tf.keras.optimizers.Adam(learning_rate = .0008)
+opt = tf.keras.optimizers.Adam(learning_rate=params['learning_rate'])
 
 #%% train and save results
 early_stopping = False
@@ -55,33 +67,39 @@ early_stopping = False
 def test_loss():
     return deep_learning.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss)[-1]
 
+def valid_loss():
+    return deep_learning.generate_trajectories(model, list(validation.keys()), validation, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+
 def train_loss():
     return deep_learning.generate_trajectories(model, list(training.keys()), training, loss=deep_learning.weighted_masked_MSE_loss)[-1]
 # no early stopping -
 if not early_stopping:
-    epochs = 5
-    batches = [10000, 1000, 1000, 1000, 2000]
-    timesteps = [50, 100, 200, 300, 500]
-    veh = 32
+    epochs = 6
+    batches = [10000, 1000, 1000, 1000, 1000, 5000]
+    timesteps = [50, 100, 200, 300, 500, 750]   #go up to 750
+    veh = params['batch_size']
     train_losses = []
-    test_losses = []
+    valid_losses = []
     for i in range(epochs):
-        deep_learning.training_loop(model, loss, opt, training, nbatches=batches[i], nveh=veh, nt=timesteps[i])
-        test_loss_val = test_loss()
-        train_loss_val = train_loss()
-        train_losses.append(train_loss_val)
-        test_losses.append(test_loss_val)
-        # nni.report_intermediate_result(test_losses[-1])
+        nbatches = batches[i]
+        steps = 500
+        for j in range(nbatches//steps):
+            deep_learning.training_loop(model, loss, opt, training, nbatches=steps, nveh=veh, nt=timesteps[i])
+            valid_loss_val = valid_loss().numpy()
+            train_loss_val = train_loss().numpy()
+            train_losses.append(train_loss_val)
+            valid_losses.append(valid_loss_val)
+            nni.report_intermediate_result(valid_losses[-1])
     # plt.figure(1)
-    # plt.plot(list(range(epochs)), train_losses, 'b-', test_losses, 'r-')
+    # plt.plot(list(range(epochs)), train_losses, 'b-', valid_losses, 'r-')
     # plt.title('Training vs Validation loss')
     # plt.xlabel('epoch')
     # plt.ylabel('loss')
     # plt.legend(['training', 'validation'], loc='upper right')
     # plt.show()
-    print(*train_losses)
-    print(*test_losses)
-    nni.report_final_result(test_losses[-1])
+    print('train loss', *train_losses)
+    print('validation_loss', *valid_losses)
+    nni.report_final_result(valid_losses[-1])
 # early stopping -
 if early_stopping:
     def early_stopping_loss(model):
@@ -107,7 +125,7 @@ if early_stopping:
 #%% test by generating entire trajectories
 
 
-print(' testing loss was '+str(test_loss()))
+print(' validation loss was '+str(valid_loss()))
 print(' training loss was '+str(train_loss()))
 
 

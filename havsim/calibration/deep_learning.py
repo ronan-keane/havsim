@@ -3,12 +3,6 @@ import tensorflow as tf
 import numpy as np
 from havsim import helper
 import math
-import nni
-
-
-tuned_params = nni.get_next_parameter()
-if tuned_params is None:
-    tuned_params = nni.get_current_parameter()
 
 def make_dataset(meas, platooninfo, veh_list, dt=.1):
     """Makes dataset from meas and platooninfo.
@@ -64,7 +58,7 @@ def make_dataset(meas, platooninfo, veh_list, dt=.1):
 class RNNCFModel(tf.keras.Model):
     """Simple RNN based CF model."""
 
-    def __init__(self, maxhd, maxv, mina, maxa, lstm_units=20, dt=.1):
+    def __init__(self, maxhd, maxv, mina, maxa, lstm_units=20, dt=.1, params=None):
         """Inits RNN based CF model.
 
         Args:
@@ -73,18 +67,19 @@ class RNNCFModel(tf.keras.Model):
             mina: minimum acceleration (for nomalization of outputs)
             maxa: maximum acceleration (for nomalization of outputs)
             dt: timestep
+            params: dictionary of model parameters. Used to pass nni autotune hyperparameters
         """
         super().__init__()
         # architecture
-        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=tuned_params['dropout'],
-                                                  kernel_regularizer=tf.keras.regularizers.l2(l=.02),
-                                                  recurrent_regularizer=tf.keras.regularizers.l2(l=.02))
-        self.lstm_cell2 = tf.keras.layers.LSTMCell(lstm_units, dropout=.2, 
-                                                kernel_regularizer=tf.keras.regularizers.l2(l=.02),
-                                                recurrent_regularizer=tf.keras.regularizers.l2(l=.02))
+        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=params['dropout'],
+                                                  kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']),
+                                                  recurrent_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
+        # self.lstm_cell2 = tf.keras.layers.LSTMCell(lstm_units, dropout=params['dropout'], 
+        #                                         kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']),
+        #                                         recurrent_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
         self.dense1 = tf.keras.layers.Dense(1)
         self.dense2 = tf.keras.layers.Dense(10, activation='relu',
-                                            kernel_regularizer=tf.keras.regularizers.l2(l=.02))
+                                            kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
 
         # normalization constants
         self.maxhd = maxhd
@@ -95,7 +90,7 @@ class RNNCFModel(tf.keras.Model):
         # other constants
         self.dt = dt
         self.lstm_units = lstm_units
-        self.num_hidden_layers = 2
+        self.num_hidden_layers = 1
 
     def call(self, inputs, training=False):
         """Updates states for a batch of vehicles.
@@ -138,11 +133,11 @@ class RNNCFModel(tf.keras.Model):
 
             # call to model
             self.lstm_cell.reset_dropout_mask()
-            self.lstm_cell2.reset_dropout_mask()
+            # self.lstm_cell2.reset_dropout_mask()
             x, hidden_state1 = self.lstm_cell(cur_inputs, hidden_states[0], training)
-            x, hidden_state2 = self.lstm_cell2(x, hidden_states[1], training)
+            # x, hidden_state2 = self.lstm_cell2(x, hidden_states[1], training)
             hidden_states[0] = hidden_state1 
-            hidden_states[1] = hidden_state2
+            # hidden_states[1] = hidden_state2
             x = self.dense2(x)
             x = self.dense1(x)  # output of the model is current acceleration for the batch
 
@@ -310,8 +305,6 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
                     prev_loss = loss_value
                     early_stop_counter = 0
             print('loss for '+str(i)+'th batch is '+str(loss_value))
-            
-            nni.report_intermediate_result(loss_value.numpy())
 
         # update iteration
         cur_state = tf.stack([veh_states[:, -1], cur_speeds], axis=1)  # current state for vehicles in batch

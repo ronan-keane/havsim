@@ -10,7 +10,7 @@ def get_veh(vehid):
         if veh.vehid == vehid:
             break
     return veh
-vehid = 1044
+vehid = 538
 headway = []
 veh = get_veh(vehid)
 
@@ -47,30 +47,30 @@ plt.title('headway, speed time series for vehicle '+str(veh.vehid))
 
 #%% was for simulation code
 for veh in all_vehicles:
-    if veh.vehid == 1202:
+    if veh.vehid == 538:
         break
 vehtn = veh.starttime
 
 # changetime = veh.lanemem[1][1]
-# relaxind = 0
-# relax = veh.relaxmem[relaxind][-1]
-relax = veh.relax
-# relaxstart = veh.relaxmem[relaxind][0]
-relaxstart = veh.relax_start
+relaxind = 0
+relax = veh.relaxmem[relaxind][0]
+# relax = veh.relax
+relaxstart = veh.relaxmem[relaxind][-1]
+# relaxstart = veh.relax_start
 lead = veh.leadmem[1][0]
 leadtn = lead.starttime
 
 # timeinds = list(range(11938, 11948))
-timeinds = [4770]
+timeinds = [2095]
 for timeind in timeinds:
     hd = lead.posmem[timeind - leadtn] - veh.posmem[timeind - vehtn] - lead.len
     leadspeed = lead.speedmem[timeind - leadtn]
     vehspeed = veh.speedmem[timeind - vehtn]
 
-    print(veh.cf_model(veh.cf_parameters, [hd, vehspeed, leadspeed]))
+    print('baseline cf model is '+str(veh.cf_model(veh.cf_parameters, [hd, vehspeed, leadspeed])))
 
-    ttc = hd / (vehspeed - leadspeed +1e-6)
-    if ttc < 1.2 and ttc > 0:
+    ttc = (hd -2 -.2*vehspeed) / (vehspeed - leadspeed +1e-6)
+    if ttc < 1.5 and ttc > 0:
         temp = (ttc/1.5)**2
         currelax, currelax_v = relax[timeind-relaxstart]
         currelax, currelax_v = temp*currelax, temp*currelax_v
@@ -78,7 +78,17 @@ for timeind in timeinds:
     else:
         currelax, currelax_v = relax[timeind-relaxstart]
         # currelax = relax[timeind-relaxstart]
-    print(veh.cf_model(veh.cf_parameters, [hd + currelax, vehspeed, leadspeed + currelax_v]))
+    print('original relax formulation is '+str(veh.cf_model(veh.cf_parameters, [hd + currelax, vehspeed, leadspeed + currelax_v])))
+    
+    acc, normal_relax = havsim.simulation.models.relaxation_model_ttc([1.5, 2, .3, 1], [hd, vehspeed, leadspeed], .25)
+    ###
+    if normal_relax:
+        currelax, currelax_v = relax[timeind-relaxstart]
+        # currelax = self.relax[timeind - self.relax_start]
+
+        acc = veh.cf_model(veh.cf_parameters, [hd +currelax, vehspeed, leadspeed+currelax_v])
+    print('alternative relax formulation is '+str(acc))
+        
     # print(veh.cf_model(veh.cf_parameters, [hd , vehspeed, leadspeed]) + currelax)
 #%% try for calibration code
 

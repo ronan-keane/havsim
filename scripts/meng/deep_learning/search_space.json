@@ -1,7 +1,7 @@
 {
     "lstm_units":{"_type":"choice", "_value":[32, 64, 128, 256]},
     "learning_rate":{"_type":"uniform", "_value":[0.0001, 0.01]},
-    "dropout":{"_type":"choice", "_value":[0.1, 0.2, 0.3, 0.4]},
+    "dropout":{"_type":"choice", "_value":[0,0.1, 0.2, 0.3, 0.4]},
     "regularizer":{"_type":"uniform", "_value":[0.001, 0.1]},
     "batch_size":{"_type":"choice","_value":[8,16,32,64]}
 }

@@ -71,7 +71,7 @@ class RNNCFModel(tf.keras.Model):
         """
         super().__init__()
         # architecture
-        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=params['dropout'],
+        self.gru_cell = tf.keras.layers.GRUCell(lstm_units, dropout=params['dropout'],
                                                   kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']),
                                                   recurrent_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
         # self.lstm_cell2 = tf.keras.layers.LSTMCell(lstm_units, dropout=params['dropout'], 
@@ -132,9 +132,9 @@ class RNNCFModel(tf.keras.Model):
             cur_inputs = tf.stack([curhd, norm_veh_speed, cur_lead_speed], axis=1)
 
             # call to model
-            self.lstm_cell.reset_dropout_mask()
+            self.gru_cell.reset_dropout_mask()
             # self.lstm_cell2.reset_dropout_mask()
-            x, hidden_state1 = self.lstm_cell(cur_inputs, hidden_states[0], training)
+            x, hidden_state1 = self.gru_cell(cur_inputs, hidden_states[0], training)
             # x, hidden_state2 = self.lstm_cell2(x, hidden_states[1], training)
             hidden_states[0] = hidden_state1 
             # hidden_states[1] = hidden_state2
@@ -286,7 +286,8 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
     # make inputs for network
     cur_state = [ds[veh]['IC'] for veh in vehs]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
-    hidden_state = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
+    # hidden_state = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
+    hidden_state = tf.zeros((nveh, model.lstm_units))
     hidden_states = tf.stack([hidden_state for i in range(model.num_hidden_layers)])
     lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
     prev_loss = math.inf
@@ -340,10 +341,13 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
             tf.unstack(hidden_states)
             new_hidden_states = []
             for i in range(len(hidden_states)):
-                h, c = hidden_states[i]
+                # h, c = hidden_states[i]
+                # h = tf.tensor_scatter_nd_update(h, inds_to_update, hidden_state_updates)
+                # c = tf.tensor_scatter_nd_update(c, inds_to_update, hidden_state_updates)
+                # new_hidden_states.append(tf.stack([h, c]))
+                h = hidden_states[i]
                 h = tf.tensor_scatter_nd_update(h, inds_to_update, hidden_state_updates)
-                c = tf.tensor_scatter_nd_update(c, inds_to_update, hidden_state_updates)
-                new_hidden_states.append(tf.stack([h, c]))
+                new_hidden_states.append(h)
             hidden_states = tf.stack(new_hidden_states)
 
         lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
@@ -367,7 +371,8 @@ def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
     vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0]] for count, veh in enumerate(vehs)}
     nt = max([i[1] for i in vehs_counter.values()])
     cur_state = [ds[veh]['IC'] for veh in vehs]
-    hidden_state = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
+    # hidden_state = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
+    hidden_state = tf.zeros((nveh, model.lstm_units))
     hidden_states = tf.stack([hidden_state for i in range(model.num_hidden_layers)])
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
     lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt, **kwargs)

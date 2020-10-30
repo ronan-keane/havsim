@@ -10,7 +10,7 @@ def get_veh(vehid):
         if veh.vehid == vehid:
             break
     return veh
-vehid = 538
+vehid = 599
 headway = []
 veh = get_veh(vehid)
 
@@ -47,7 +47,7 @@ plt.title('headway, speed time series for vehicle '+str(veh.vehid))
 
 #%% was for simulation code
 for veh in all_vehicles:
-    if veh.vehid == 538:
+    if veh.vehid == 125:
         break
 vehtn = veh.starttime
 
@@ -57,11 +57,11 @@ relax = veh.relaxmem[relaxind][0]
 # relax = veh.relax
 relaxstart = veh.relaxmem[relaxind][-1]
 # relaxstart = veh.relax_start
-lead = veh.leadmem[1][0]
+lead = veh.leadmem[2][0]
 leadtn = lead.starttime
 
 # timeinds = list(range(11938, 11948))
-timeinds = [2095]
+timeinds = [648, 649, 650]
 for timeind in timeinds:
     hd = lead.posmem[timeind - leadtn] - veh.posmem[timeind - vehtn] - lead.len
     leadspeed = lead.speedmem[timeind - leadtn]
@@ -88,6 +88,8 @@ for timeind in timeinds:
 
         acc = veh.cf_model(veh.cf_parameters, [hd +currelax, vehspeed, leadspeed+currelax_v])
     print('alternative relax formulation is '+str(acc))
+    print('s star is '+str(hd - 2 - .3*vehspeed))
+    print('ttc is '+str(max(hd-2-.3*vehspeed, 0)/(vehspeed-leadspeed)))
         
     # print(veh.cf_model(veh.cf_parameters, [hd , vehspeed, leadspeed]) + currelax)
 #%% try for calibration code

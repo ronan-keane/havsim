@@ -47,7 +47,7 @@ def mainroad_newveh(self, vehid, *args):
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 #inflow amounts
 onramp_inflow_amount = .09
-mainroad_inflow_amount = .545
+mainroad_inflow_amount = .54
 # deterministic constant inflow
 def onramp_inflow(*args):
     return onramp_inflow_amount

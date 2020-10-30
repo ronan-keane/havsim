@@ -506,15 +506,18 @@ def relaxation_model_ttc(p, state, dt):
     # calculate proxy for time to collision = ttc
     sstar_branch = False
     sstar = s - sj - a*v
-    if sstar < .1:
-        sstar = .1
+    if sstar < 1e-6:
+        sstar = 1e-6
+        # sstar = 1e-6*(v - vl + 1e-6)
         sstar_branch = True
     ttc = sstar/(v - vl + 1e-6)
 
-    if ttc < T and ttc > 0:  # apply control if ttc is below target
+    if ttc < T and ttc >= 0:  # apply control if ttc is below target
         if sstar_branch:
-            acc = sstar+T*(-v+vl)
+            acc = sstar+T*(-v+vl-1e-6)
             acc = (v-vl)*acc*delta/(sstar-dt*delta*acc)
+            # acc = (v-vl)*(sstar+T*(-v+vl))*delta
+            # acc = acc/(sstar-dt*delta*sstar+(v-vl)*(-1+dt*T*delta))
         else:
             acc = -(v-vl)*(v+(-s+sj)*delta+(a+T)*v*delta-vl*(1+T*delta))
             acc = acc/(s-sj-a*vl+dt*delta*(-s+sj+(a+T)*v-T*vl))
@@ -529,6 +532,6 @@ def IDM_parameters(*args):
     cf_parameters = [33.5, 1.3, 3, 1.1, 1.5]  # note speed is supposed to be in m/s
     
     # note last 3 parameters have units in terms of timesteps, not seconds
-    lc_parameters = [-8, -20, .5, .1, 0, .2, .1, 10, 20]
+    lc_parameters = [-4, -20, .5, .1, 0, .2, .1, 10, 20]
 
     return cf_parameters, lc_parameters

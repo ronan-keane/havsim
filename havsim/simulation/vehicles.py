@@ -514,7 +514,9 @@ class Vehicle:
                 # use the equilibrium solution to modify relax (recommended)
                 
                 # alternative formulation applies control to ttc
-                acc, normal_relax = models.relaxation_model_ttc([1.5, 2, .3, 1], [hd, spd, lead.speed], dt)
+                v_sens = .3+(timeind-self.relax_start)*dt/self.relax_parameters
+                acc, normal_relax = models.relaxation_model_ttc([1.5, 2, v_sens, 1],
+                                                                [hd, spd, lead.speed], dt)
                 ###
                 if normal_relax:
                     currelax, currelax_v = self.relax[timeind-self.relax_start]

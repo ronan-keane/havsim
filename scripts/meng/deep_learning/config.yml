@@ -8,18 +8,15 @@ trainingServicePlatform: local
 searchSpacePath: search_space.json
 #choice: true, false
 useAnnotation: false
-tuner:
-  #choice: TPE, Random, Anneal, Evolution, BatchTuner, MetisTuner, GPTuner
-  #SMAC (SMAC should be installed through nnictl)
-  builtinTunerName: TPE
+advisor:
+  builtinAdvisorName: BOHB
   classArgs:
     #choice: maximize, minimize
     optimize_mode: minimize
-assessor:
-    builtinAssessorName: Medianstop
-    classArgs:
-      optimize_mode: minimize
-      start_step: 10
+    min_budget: 5
+    max_budget: 38
+    eta: 2
+    top_n_percent: 15
 trial:
   command: python DL2.py
   codeDir: .

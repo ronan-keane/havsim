@@ -4,6 +4,9 @@
 """
 import tensorflow as tf
 import pickle
+import numpy as np
+import math
+import deep_learning
 
 class RNNCFModel(tf.keras.Model):
     """Simple RNN based CF model."""
@@ -117,3 +120,52 @@ def load_model(filepath):
 # save_model(model, 'trained LSTM')
 #%%
 model = load_model('trained LSTM')
+
+try:
+    with open('/Users/nkluke/Documents/Cornell/CS5999/havsim/data/recon-ngsim.pkl', 'rb') as f:
+        meas, platooninfo = pickle.load(f) #load data
+except:
+    with open('/Users/nkluke/Documents/Cornell/CS5999/havsim/data/recon-ngsim.pkl', 'rb') as f:
+        meas, platooninfo = pickle.load(f) #load data
+
+try:
+    # Disable all GPUS
+    tf.config.set_visible_devices([], 'GPU')
+    visible_devices = tf.config.get_visible_devices()
+    for device in visible_devices:
+        assert device.device_type != 'GPU'
+except:
+    # Invalid device or cannot modify virtual devices once initialized.
+    pass
+
+nolc_list = []
+# # train on no lc vehicles only
+for veh in meas.keys():
+    temp = nolc_list.append(veh) if len(platooninfo[veh][4]) == 1 else None
+# train on all vehicles
+# for veh in meas.keys():
+#     temp = nolc_list.append(veh) if len(platooninfo[veh][4]) > 0 else None
+
+# platooninfo[veh][1:3] first and last time step
+np.random.shuffle(nolc_list)
+train_veh = nolc_list[:-200]
+val_veh = nolc_list[-200:-100]
+test_veh = nolc_list[-100:]
+
+training, norm = deep_learning.make_dataset(meas, platooninfo, train_veh)
+maxhd, maxv, mina, maxa = norm
+validation, unused = deep_learning.make_dataset(meas, platooninfo, val_veh)
+testing, unused = deep_learning.make_dataset(meas, platooninfo, test_veh)
+
+def test_loss():
+    return deep_learning.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+
+def valid_loss():
+    return deep_learning.generate_trajectories(model, list(validation.keys()), validation, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+
+def train_loss():
+    return deep_learning.generate_trajectories(model, list(training.keys()), training, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+
+print(test_loss())
+print(valid_loss())
+print(train_loss())

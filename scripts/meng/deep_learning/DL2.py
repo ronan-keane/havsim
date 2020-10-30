@@ -6,6 +6,7 @@ import tensorflow as tf
 import math
 import matplotlib.pyplot as plt
 import nni
+import random
 
 try:
     with open('/Users/nkluke/Documents/Cornell/CS5999/havsim/data/recon-ngsim.pkl', 'rb') as f:
@@ -35,10 +36,11 @@ for veh in meas.keys():
 #     temp = nolc_list.append(veh) if len(platooninfo[veh][4]) > 0 else None
 
 # platooninfo[veh][1:3] first and last time step
-np.random.shuffle(nolc_list)
-train_veh = nolc_list[:-200]
-val_veh = nolc_list[-200:-100]
-test_veh = nolc_list[-100:]
+# np.random.shuffle(nolc_list)
+random.Random(2020).shuffle(nolc_list)
+train_veh = nolc_list[:-100]
+val_veh = nolc_list[-100:]
+test_veh = []
 
 training, norm = deep_learning.make_dataset(meas, platooninfo, train_veh)
 maxhd, maxv, mina, maxa = norm

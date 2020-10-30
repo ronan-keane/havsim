@@ -152,6 +152,14 @@ class RNNCFModel(tf.keras.Model):
         hidden_states = tf.stack(hidden_states)
         return outputs, cur_speed, hidden_states
 
+    def get_config(self):
+        return {'pos_args': (self.maxhd, self.maxv, self.mina, self.maxa,), 'lstm_units': self.lstm_units, 'dt': self.dt}
+
+    @classmethod
+    def from_config(self, config):
+        pos_args = config.pop('pos_args')
+        return self(*pos_args, **config)
+
 
 def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
     """Create batch of data to send to model.

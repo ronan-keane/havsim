@@ -4,6 +4,7 @@ Base Vehicle class and its helper functions.
 """
 import scipy.optimize as sc
 import numpy as np
+import math
 
 from havsim.simulation.road_networks import get_dist, get_headway
 from havsim.simulation.relaxation import new_relaxation
@@ -159,7 +160,7 @@ def inv_flow_helper(veh, x, leadlen=None, output_type='v', congested=True, eql_t
         raise RuntimeError('could not invert provided equilibrium function')
 
 
-def set_lc_helper(veh, chk_lc=1, get_fol=True):
+def set_lc_helper(veh, lside, rside, timeind, chk_lc=True, chk_lc_prob=1, get_fol=True):
     """Calculates the new headways to be passed to the lane changing (LC) model.
 
     Evaluates the lane changing situation to decide if we need to evaluate lane changing model on the
@@ -169,58 +170,34 @@ def set_lc_helper(veh, chk_lc=1, get_fol=True):
 
     Args:
         veh: Vehicle to have their lane changing model called.
-        chk_lc: float between 0 and 1 which gives the probability of checking the lane changing model
-            when the vehicle is in a discretionary state.
+        timeind: time index
+        chk_lc: bool, if True we are in mandatory or active discretionary state. If False we are in normal
+            discretionary state and don't necessarily evaluate the LC model every timestep.
+        chk_lc_prob: float between 0 and 1 which gives the probability of checking the lane changing model
+            when the vehicle is in the normal discretionary state.
         get_fol: if True, we also find the new follower headway.
 
     Returns:
         bool: True if we want to call the lane changing model.
-        tuple of floats: (lside, rside, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd). lside/rside
-            are bools which are True if we need to check that side in the LC model. rest are float headways,
+        tuple of floats: (newlfolhd, newlhd, newrfolhd, newrhd, newfolhd). float headways,
             giving the new headway for that vehicle. If get_fol = False, newfolhd is not present.
+            If a vehicle would have no leader in the new configuration, None is returned as the headway. If
+            a AnchorVehicle acts as a (l/r)fol, the headway is computed as normal.
     """
-    # first determine what situation we are in and which sides we need to check
-    l_lc, r_lc = veh.l_lc, veh.r_lc
-    if l_lc is None:
-        if r_lc is None:
+    if not lside and not rside:
+        return False, None
+    if not chk_lc:  # decide if we want to evaluate lc model or not - this only applies to discretionary state
+        # when vehicle is not actively trying to change
+        if timeind < veh.disc_cooldown:
             return False, None
-        elif r_lc == 'discretionary':
-            lside, rside = False, True
-            chk_cond = not veh.lc_side
-        else:
-            lside, rside = False, True
-            chk_cond = False
-    elif l_lc == 'discretionary':
-        if r_lc is None:
-            lside, rside = True, False
-            chk_cond = not veh.lc_side
-        elif r_lc == 'discretionary':
-            if veh.lc_side is not None:
-                chk_cond = False
-                if veh.lc_side == 'l':
-                    lside, rside = True, False
-                else:
-                    lside, rside = False, True
-            else:
-                chk_cond = True
-                lside, rside = True, True
-        else:
-            lside, rside = False, True
-            chk_cond = False
-    else:
-        lside, rside = True, False
-        chk_cond = False
-
-    if chk_cond:  # decide if we want to evaluate lc model or not - this only applies to discretionary state
-        # when there is no cooperation or tactical positioning
-        if chk_lc >= 1:
+        if chk_lc_prob >= 1:
             pass
-        elif np.random.rand() > chk_lc:
+        elif np.random.rand() > chk_lc_prob:
             return False, None
 
     # next we compute quantities to send to LC model for the required sides
     if lside:
-        newlfolhd, newlhd = get_new_hd(veh.lfol, veh, veh.llane)  # better to just store left/right lanes
+        newlfolhd, newlhd = get_new_hd(veh.lfol, veh, veh.llane)
     else:
         newlfolhd = newlhd = None
 
@@ -229,19 +206,15 @@ def set_lc_helper(veh, chk_lc=1, get_fol=True):
     else:
         newrfolhd = newrhd = None
 
-    # if get_fol option is given to wrapper, it means model requires the follower's quantities as well
     if get_fol:
-        fol, lead = veh.fol, veh.lead
-        if fol.cf_parameters is None:
-            newfolhd = None
-        elif lead is None:
+        if veh.lead is None:
             newfolhd = None
         else:
-            newfolhd = get_headway(fol, lead)
+            newfolhd = get_headway(veh.fol, veh.lead)
     else:
-        return True, (lside, rside, newlfolhd, newlhd, newrfolhd, newrhd)
+        return True, (newlfolhd, newlhd, newrfolhd, newrhd)
 
-    return True, (lside, rside, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd)
+    return True, (newlfolhd, newlhd, newrfolhd, newrhd, newfolhd)
 
 
 def get_new_hd(lcsidefol, veh, lcsidelane):
@@ -256,20 +229,14 @@ def get_new_hd(lcsidefol, veh, lcsidelane):
         newlcsidefolhd: new float headway for lcsidefol
         newlcsidehd: new float headway for veh
     """
-    # helper functino for set_lc_helper
+    # helper function for set_lc_helper
     lcsidelead = lcsidefol.lead
     if lcsidelead is None:
         newlcsidehd = None
     else:
         newlcsidehd = get_headway(veh, lcsidelead)
-        # if newlcsidehd < 0:
-            # newlcsidehd = 1e-6
-    if lcsidefol.cf_parameters is None:
-        newlcsidefolhd = None
-    else:
-        newlcsidefolhd = get_headway(lcsidefol, veh)
-        # if newlcsidefolhd < 0:
-            # newlcsidefolhd = 1e-6
+
+    newlcsidefolhd = get_headway(lcsidefol, veh)
 
     return newlcsidefolhd, newlcsidehd
 
@@ -318,12 +285,14 @@ class Vehicle:
             control how a vehicle can modify its acceleration in order to facilitate lane changing.
         coop_parameters: float between (0, 1) which gives the base probability of the vehicle
             cooperating with a vehicle wanting to change lanes
-        lc_side: if the vehicle enters into a tactical or cooperative state, lc_side gives which side the
-            vehicle wants to change in, either 'l' or 'r'
         lc_urgency: for mandatory lane changes, lc_urgency is a tuple of floats which control if
             the ego vehicle can force cooperation (simulating aggressive behavior)
         coop_veh: For cooperation, coop_veh is a reference the vehicle giving cooperation. There is no
             attribute (currently) which allows the ego vehicle to see if itself is giving cooperation.
+        disc_cooldown: when a vehicle makes a discretionary change, it cannot make another discretionary
+            change until after time index disc_cooldown. Initialized as -math.inf
+        disc_endtime: when a vehicle enters the active discretionary state, it stays in that state until
+            time index disc_endtime
         lead: leading vehicle (Vehicle)
         fol: following vehicle (Vehicle)
         lfol: left follower (Vehicle)
@@ -348,12 +317,17 @@ class Vehicle:
         rlane: the Lane to the right of the current lane the vehicle is on, or None
         l_lc: the current lane changing state for the left side, None, 'discretionary' or 'mandatory'
         r_lc: the current lane changing state for the right side, None, 'discretionary' or 'mandatory'
+        lside: If True, we need to evaluate making a left lane change
+        rside: If True, we need to evaluate making a right lane change
+        in_disc: If True, we are in a discretionary lane changing state
+        chk_lc: If True, we are either in a mandatory or active discretionary lane changing state
         cur_route: dictionary where keys are lanes, value is a list of route event dictionaries which
             defines the route a vehicle with parameters p needs to take on that lane
         route_events: list of current route events for current lane
         lane_events: list of lane events for current lane
     """
     # TODO implementation of adjoint method for cf, relax, shift parameters
+    # TODO set_route_events should be a method of vehicle?
 
     def __init__(self, vehid, curlane, cf_parameters, lc_parameters, lead=None, fol=None, lfol=None,
                  rfol=None, llead=None, rlead=None, length=3, eql_type='v', relax_parameters=15,
@@ -385,10 +359,14 @@ class Vehicle:
             relax_parameters: float parameter for relaxation; if None, no relaxation
             shift_parameters: list of float parameters for the tactical/cooperative model. shift_parameters
                 control how a vehicle can modify its acceleration in order to facilitate lane changing.
+                By default, gives the deceleration/acceleration amounts which are added to the car following
+                acceleration when the tactical/cooperative model is activated.
+                can modify the car following acceleration
             coop_parameters: float between (0, 1) which gives the base probability of the vehicle
                 cooperating with a vehicle wanting to change lanes
             route: list of road names (str) which defines the route for the vehicle.
-            route_parameters: parameters for the route model (list of floats).
+            route_parameters: parameters for the route model (list of floats). See make_cur_route for
+                explanation of the default route model.
             accbounds: tuple of bounds for acceleration.
             maxspeed: maximum allowed speed.
             hdbounds: tuple of bounds for headway.
@@ -423,11 +401,14 @@ class Vehicle:
         self.eql_type = eql_type
 
         # cooperative/tactical model
-        self.shift_parameters = [2, .4] if shift_parameters is None else shift_parameters
+        self.shift_parameters = [-3, 1.5] if shift_parameters is None else shift_parameters
         self.coop_parameters = coop_parameters
-        self.lc_side = None
+        # any attributes not set by update_lc_state must be set in __init__
         self.lc_urgency = None
         self.coop_veh = None
+        self.disc_cooldown = -math.inf
+        self.disc_endtime = -math.inf
+        self.chk_lc = None
 
         # leader/follower relationships
         self.lead = lead
@@ -469,7 +450,7 @@ class Vehicle:
         self.posmem.append(pos)
         self.speedmem.append(spd)
 
-        # llane/rlane and l/r
+        # initialize LC model - set llane/rlane, l/r_lc and initial lc state
         self.llane = self.lane.get_connect_left(pos)
         if self.llane is None:
             self.l_lc = None
@@ -484,13 +465,14 @@ class Vehicle:
             self.r_lc = 'discretionary'
         else:
             self.r_lc = None
+        self.update_lc_state(starttime)
 
         # set lane/route events - sets lane_events, route_events, cur_route attributes
         self.cur_route = update_lane_routes.make_cur_route(
             self.route_parameters, self.lane, self.route.pop(0))
         # self.route_events = self.cur_route[self.lane].copy()
         update_lane_routes.set_lane_events(self)
-        update_lane_routes.set_route_events(self)
+        update_lane_routes.set_route_events(self, starttime)
 
     def cf_model(self, p, state):
         """Defines car following model.
@@ -502,8 +484,6 @@ class Vehicle:
         Returns:
             float acceleration of the model.
         """
-        # if state[0] < 0:  # need bound on headway because IDM will not act correctly for negative headways
-            # state[0] = .1  # bound is in mobil
         return p[3]*(1-(state[1]/p[0])**4-((p[2]+state[1]*p[1]+(state[1]*(state[1]-state[2])) /
                                             (2*(p[3]*p[4])**(1/2)))/(state[0]))**2)
 
@@ -526,21 +506,22 @@ class Vehicle:
             acc = curlane.call_downstream(self, timeind, dt)
 
         else:
-            if self.in_relax:
-                # accident free formulation of relaxation
-                # ttc = hd / (self.speed - lead.speed)
-                # if ttc < 1.5 and ttc > 0:
-                if False:  # disable accident free
-                    temp = (ttc/1.5)**2
-                    currelax, currelax_v = self.relax[timeind-self.relax_start]  # hd + v relax
-                    currelax, currelax_v = currelax*temp, currelax_v*temp
-                    # currelax = self.relax[timeind - self.relax_start]*temp
-                else:
+            if userelax:
+                ### relaxation formulations
+                # always use vanilla - can potentially lead to collisions
+                # normal_relax=True
+                
+                # use the equilibrium solution to modify relax (recommended)
+                
+                # alternative formulation applies control to ttc
+                acc, normal_relax = models.relaxation_model_ttc([1.5, 2, .3, 1], [hd, spd, lead.speed], dt)
+                ###
+                if normal_relax:
                     currelax, currelax_v = self.relax[timeind-self.relax_start]
                     # currelax = self.relax[timeind - self.relax_start]
 
-                acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
-                # acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed])
+                    acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
+                    # acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed])
             else:
                 acc = self.cf_model(self.cf_parameters, [hd, spd, lead.speed])
 
@@ -588,10 +569,15 @@ class Vehicle:
     def get_flow(self, x, leadlen=None, input_type='v'):
         """Input a speed or headway, and output the flow based on the equilibrium solution.
 
+        This will automatically apply bounds to the headway/speed based on the maxspeed and hdbounds
+        attributes. Also, note that it is possible to get the maximum possible flow and corresponding
+        equilibrium solution - call inv_flow with an unattainable flow and it will return the speed/headway
+        corresponding to the maximum possible flow. Then you can call get_flow on the returned equilibrium.
+
         Args:
             x: Input, either headway or speed
             leadlen: When converting an equilibrium solution to a flow, we must use a vehicle length. leadlen
-                is that vehicle length. If None, we will infer the vehicle length.
+                is that vehicle length. If None, we will use the vehicle's own length.
             input_type: if input_type is 'v' (v for velocity), then x is a speed. Otherwise x is a headway.
                 If x is a speed, we return a headway. Otherwise we return a speed.
 
@@ -647,10 +633,60 @@ class Vehicle:
         Returns:
             None. (Modifies lc_actions, some vehicle attributes, in place)
         """
-        call_model, args = set_lc_helper(self, self.lc_parameters[-1]*dt)
+        call_model, args = set_lc_helper(self, self.lside, self.rside, timeind, self.chk_lc,
+                                         self.lc_parameters[6])
         if call_model:
             models.mobil(self, lc_actions, *args, timeind, dt)
         return
+
+    def update_lc_state(self, timeind, lc=None):
+        """Updates the lane changing internal state when completing, aborting, or beginning lane changing.
+
+        Cases when this is called -
+            -after a route event ends a discretionary state or begins a mandatory state
+            -after the network topology changes (e.g. a new left lane, or right lane ends)
+            -after a lane changing is completed
+        """
+        # do not allow multiple discretionary within short time period
+        if lc and self.in_disc:
+            self.disc_cooldown = timeind+self.lc_parameters[8]
+
+        # activated_disc_side is 'lside' if vehicle is actively trying to make a left discretionary change
+        if self.chk_lc and self.in_disc:
+            activated_disc_side = 'lside' if self.lside else 'rside'
+        else:
+            activated_disc_side = False
+
+        # main logic is to determine lside, rside, in_disc attributes.
+        l_lc, r_lc = self.l_lc, self.r_lc
+        if l_lc is None:
+            if r_lc is None:
+                self.lside, self.rside, self.in_disc = False, False, False
+            elif r_lc == 'discretionary':
+                self.lside, self.rside, self.in_disc = False, True, True
+            else:
+                self.lside, self.rside, self.in_disc = False, True, False
+        elif l_lc == 'discretionary':
+            if r_lc is None:
+                self.lside, self.rside, self.in_disc = True, False, True
+            elif r_lc == 'discretionary':
+                self.lside, self.rside, self.in_disc = True, True, True
+            else:
+                self.lside, self.rside, self.in_disc = False, True, False
+        else:
+            self.lside, self.rside, self.in_disc = True, False, False
+
+        # chk_lc should be True for mandatory or activated discretionary state, False otherwise
+        if activated_disc_side:
+            # can't discretionary change anymore -> end activated state
+            if not getattr(self, activated_disc_side):
+                self.chk_lc = False
+            else:
+                # if we stay in activated state, only the activated side of lside, rside, can be True
+                opside = 'rside' if activated_disc_side == 'lside' else 'lside'
+                setattr(self, opside, False)
+        else:
+            self.chk_lc = not self.in_disc
 
     def acc_bounds(self, acc):
         """Apply acceleration bounds."""
@@ -687,7 +723,7 @@ class Vehicle:
         if self.in_relax:
             if timeind == self.relax_end:
                 self.in_relax = False
-                self.relaxmem.append((self.relax_start, self.relax))
+                self.relaxmem.append((self.relax, self.relax_start))
 
     def __hash__(self):
         """Vehicles need to be hashable. We hash them with a unique vehicle ID."""
@@ -703,7 +739,10 @@ class Vehicle:
 
     def __repr__(self):
         """Display for vehicle in interactive console."""
-        return 'vehicle '+str(self.vehid)+' on lane '+str(self.lane)+' at position '+str(self.pos)
+        if not self.endtime:
+            return 'vehicle '+str(self.vehid)+' on lane '+str(self.lane)+' at position '+str(self.pos)
+        else:
+            return 'vehicle '+str(self.vehid)
 
     def __str__(self):
         """Convert vehicle to a str representation."""

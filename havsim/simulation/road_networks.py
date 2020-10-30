@@ -3,6 +3,7 @@
 The Lane class and boundary conditions.
 """
 import numpy as np
+import math
 
 
 def downstream_wrapper(method='speed', time_series=None, congested=True, merge_side='l',
@@ -114,6 +115,7 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
                 return (time_series(timeind) - veh.speed)/dt
             return veh.free_cf(veh.cf_parameters, veh.speed)
         return free_downstream
+
     # options - merge_side, merge_anchor_ind, target_lane, self_lane, shift, minacc, time_series
     elif method == 'merge':
         # first try to get a vehicle in the target_lane and use its shifted speed. Cannot be an AnchorVehicle
@@ -170,7 +172,7 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
         return call_downstream
 
 
-def get_inflow_wrapper(time_series, inflow_type='flow'):
+def get_inflow_wrapper(time_series=None, args=(None,), inflow_type='flow'):
     """Defines get_inflow method for Lane.
 
     get_inflow is used for a lane with upstream boundary conditions to increment the inflow_buffer
@@ -179,6 +181,7 @@ def get_inflow_wrapper(time_series, inflow_type='flow'):
     Args:
         time_series: function which takes in a timeind and returns either a flow (inflow_type = 'flow') or
             speed (inflow_type = 'speed' or 'congested').
+        args: tuple of arguments to be passed to arrival_time_inflow if inflow_type is 'arrivals'.
         inflow_type: Method to add vehicles. One of 'flow', 'speed', 'congested'
             'flow' - time_series returns the flow explicitly
 
@@ -187,18 +190,26 @@ def get_inflow_wrapper(time_series, inflow_type='flow'):
 
             'congested' - This is meant to add a vehicle with ~0 acceleration as soon as it is possible to do
             so. This is similar to 'speed', but instead of getting speed from time_series, we get it from
-            the anchor's lead vehicle. This may help remove artifacts from the upstream boundary
+            the anchor's lead vehicle. This may help remove artifacts from the downstream boundary
             condition caused by simulations with different Vehicle parameters.
             Requires get_eql method of the Vehicle.
 
+            'arrivals' - We sample from some distribution to generate the next (continuous) arrival time.
+            When we pass that time in the simulation (time index >= next arrival time), we add 1 flow. *args
+            is passed to arrival_time_inflow.__init__
+
     Returns:
         get_inflow method for a Lane. Takes in (timeind) and returns instantaneous flow, vehicle speed,
-        at that time. If we return None for the speed, increment_inflow will invert the flow to obtain speed.
+        at that time. If we return None for the speed, increment_inflow will obtain the speed.
     """
+    # TODO - refactor this to modify the inflow buffer directly and return the flow amount - this will allow
+    # the 'arrivals' type inflow to correctly interact with the methods such as eql_inflow_congested.
+    
     # give flow series - simple
     if inflow_type == 'flow':
         def get_inflow(self, timeind):
             return time_series(timeind), None
+
     # give speed series, we convert to equilibrium flow using the parameters of the next vehicle to be added
     # note that if all vehicles have same parameters/length, this is exactly equivalent to the 'flow' method
     # (where the speeds correspond to the flows for the eql soln being used)
@@ -227,6 +238,13 @@ def get_inflow_wrapper(time_series, inflow_type='flow'):
             s = self.newveh.get_eql(spd, find='s')
             return spd / (s + leadlen), spd
 
+    # in arrivals type we generate arrival times according to some stochastic process and add 1 inflow
+    # whenever the time index passes the
+    elif inflow_type == 'arrivals':
+        dist_wrapper = arrival_time_inflow(*args)
+        def get_inflow(self, timeind):
+            return dist_wrapper(timeind), None
+
     return get_inflow
 
 
@@ -237,16 +255,64 @@ def timeseries_wrapper(timeseries, starttimeind=0):
     return out
 
 
+class M3Arrivals:
+    """Generates random arrival times according to the M3 Model (Cowan, 1975)."""
+
+    def __init__(self, q, tm, alpha):
+        """Inits object whose call method generates arrival times.
+
+        Args:
+            q (float): the (expected) flow rate q
+            tm (float): the minimum possible time headway
+            alpha (float): (1- alpha) is the probability having tm arrival time
+        """
+        self.tm = tm
+        self.alpha = alpha
+        self.lam = alpha*q/(1-tm*q)   # reads as lambda
+
+    def __call__(self, *args):
+        """Returns a random arrival time sampled from the distribution."""
+        y = np.random.rand()
+        if y >= self.alpha:
+            return self.tm
+        else:
+            return -math.log(y/self.alpha)/self.lam + self.tm
+
+
+class arrival_time_inflow:
+    """Implements get_inflow method for a Lane where inflow is generated by stochastic arrival times."""
+
+    def __init__(self, dist, dt, timeind=0):
+        """
+        Args:
+            dist: calling dist() should generate an arrivals time. Can be a class, e.g. M3Arrivals.
+            dt: timestep
+            timeind: index of the first inflow
+        """
+        self.dist = dist  # distribution
+        self.dt = dt
+        self.next_timeind = timeind + dist(timeind)/dt
+
+    def __call__(self, timeind):
+        if timeind >= self.next_timeind:
+            self.next_timeind += self.dist(timeind)/self.dt
+            return 1/self.dt
+        else:
+            return 0
+
+
 def eql_inflow_congested(curlane, inflow, *args, c=.8, check_gap=True, **kwargs):
     """Condition when adding vehicles for use in congested conditions. Requires to invert flow.
 
     Suggested by Treiber, Kesting in their traffic flow book for congested conditions. Requires to invert
     the inflow to obtain the equilibrium (speed, headway) for the flow. The actual headway on the road must
     be at least c times the equilibrium headway for the vehicle to be added, where c is a constant.
+    The speed the vehicle is added with corresponds to the equilibrium speed at that flow.
 
     Args:
         curlane: Lane with upstream boundary condition, which will possibly have a vehicle added.
-        inflow: current instantaneous flow.
+        inflow: current instantaneous flow. Note that the 'arrivals' method for get_inflow does not
+            return the instantaneous flow, and therefore cannot be naively used in this formulation.
         c: Constant, should be less than or equal to 1. Lower is less strict - Treiber, Kesting suggest .8
         check_gap: If False, we don't check the Treiber, Kesting condition, so we don't have to invert
             the flow. We always just add the vehicle. Gets speed from headway.
@@ -285,19 +351,67 @@ def eql_inflow_free(curlane, inflow, *args, **kwargs):
     return curlane.start, spd, hd
 
 
-def eql_speed(curlane, *args, c=.8, **kwargs):
-    """Like eql_inflow, but get equilibrium headway from leader's speed instead of inverting flow."""
+def eql_speed(curlane, *args, c=.8, minspeed=0, eql_speed=True, **kwargs):
+    """Add a vehicle with a speed determined from the vehicle's equilibrium solution.
+    
+    This is similar to the eql_inflow but uses microscopic quantities instead of flow. First, calculate the
+    speed to add the new vehicle. We use the maximum of the lead vehicle speed, and the equilibrium speed
+    based on the current gap. We then calculate the equilium headway based on the speed of the new vehicle;
+    for the vehicle to be added, the gap must be at least c times the equilibrium headway.
+
+    This method allows the inflow speed to transition to a congested state after initially
+    being in free flow. The eql_speed2 method can be used to specify what the entry speeds of vehicle should
+    be after the transition to a congested state. In that version, you can specify a transition speed;
+    if below the transition speed, we treat c=1 - this will make it so vehicles will enter with a speed
+    roughly equal to transition.
+    
+    Args:
+        curlane: Lane with upstream boundary condition
+        c: Constant. If less than 1, then vehicles can be added wtih deceleration in congested conditions.
+            If greater than or equal to one, vehicles must have 0 or positive acceleration when being added.
+        minspeed: if eql_speed is True, Vehicles must have at least minspeed when being added
+        eql_speed: If False, vehicles are added with the speed of their leader. If True, we take the max
+            of the lead.speed and equilibrium speed corresponding to the lead gap.
+        
+    """
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
     spd = lead.speed
+    
+    # use both lead.speed and equilibrium speed corresponding to the gap to lead
+    if eql_speed:
+        eqlspd = curlane.newveh.get_eql(hd, input_type='s')
+        spd = max(minspeed, max(spd, eqlspd))  # Try to add with largest speed possible
 
     se = curlane.newveh.get_eql(spd, input_type='v')
-
     if hd > c*se:
         return curlane.start, spd, hd
     else:
         return None
+    
 
+def eql_speed2(curlane, *args, c=.8, minspeed=0, eql_speed=True, transition=20, **kwargs):
+    """Allow transition back to uncongested state corresponding to inflow with speed transition."""
+    lead = curlane.anchor.lead
+    hd = get_headway(curlane.anchor, lead)
+    spd = lead.speed
+    
+    # use both lead.speed and equilibrium speed corresponding to the gap to lead
+    if eql_speed:
+        eqlspd = curlane.newveh.get_eql(hd, input_type='s')
+        spd = max(minspeed, max(spd, eqlspd))  # Try to add with largest speed possible
+        
+    se = curlane.newveh.get_eql(spd, input_type='v')
+    if spd > transition:
+        if hd > c*se:
+            return curlane.start, spd, hd
+        else:
+            return None
+    elif hd >= se:
+        return curlane.start, spd, hd
+    else:
+        return None
+        
 
 def shifted_speed_inflow(curlane, inflow, timeind, dt, shift=1, accel_bound=-.5, **kwargs):
     """Extra condition for upstream boundary based on Newell model and a vehicle's car following model.
@@ -316,6 +430,7 @@ def shifted_speed_inflow(curlane, inflow, timeind, dt, shift=1, accel_bound=-.5,
         If The vehicle is not to be added, we return None. Otherwise, we return the (pos, spd, hd) for the
         vehicle to be added with.
     """
+    # might make more sense to use the lead.lead if leader trajectory is not long enough.
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
     spd = shift_speed(lead.speedmem, shift, dt)
@@ -357,13 +472,14 @@ def newell_inflow(curlane, inflow, timeind, dt, p=[1, 2], accel_bound=-2, **kwar
 
     Args:
         curlane: Lane with upstream boundary condition
+        inflow: unused
+        timeind: unused
         dt: timestep
         p: parameters for Newell model, p[0] = time delay = 1/ speed-headway slope. p[1] = jam spacing
         accel_bound: vehicle must have accel greater than this to be added
 
     Returns: None if no vehicle is to be added, otherwise a (pos, speed, headway) tuple for IC of new vehicle.
     """
-
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
     newveh = curlane.newveh
@@ -395,12 +511,12 @@ def speed_inflow(curlane, inflow, timeind, dt, speed_series=None, accel_bound=-2
     return curlane.start, spd, hd
 
 
-def increment_inflow_wrapper(method='ceql', speed_series=None, accel_bound=-.5, check_gap=True, shift=1, c=.8,
-                             p=[1, 2]):
-    """Defines increment_inflow method for Lane. keyword args control behavior of increment_inflow.
+def increment_inflow_wrapper(method='ceql', kwargs={}):
+    """Defines increment_inflow method for Lane.
 
     The increment_inflow method has two parts to it. First, it is responsible for determining when to add
-    vehicles to the simulation. It does this by updating an attribute inflow_buffer. When inflow_buffer >= 1,
+    vehicles to the simulation. It does this by calling the Lane.get_inflow method every timestep, which
+    returns the flow amount that timestep, which updates the attribute inflow_buffer. When inflow_buffer >= 1,
     it attempts to add a vehicle to the simulation. There are extra conditions required to add a vehicle,
     which are controlled by the 'method' keyword arg.
     Once it has been determined a new vehicle can be added, this function is also responsible for calling
@@ -409,13 +525,13 @@ def increment_inflow_wrapper(method='ceql', speed_series=None, accel_bound=-.5, 
 
     Args:
         method: One of 'ceql' (eql_inflow_congested), 'feql' (eql_inflow_free), 'seql' (eql_speed),
-            'shifted' (shifted_speed_inflow), 'newell', or 'speed' (speed_inflow) - refer to those functions
-        speed_series: for speed_inflow method
-        accel_bound: for speed_inflow and shifted_speed_inflow methods
-        check_gap: for eql_inflow_congested method
-        shift: for shifted_speed_inflow method
-        c: for eql_inflow_congested method
-        p: for newell_inflow method
+            'shifted' (shifted_speed_inflow), 'newell', or 'speed' (speed_inflow) - refer to those functions.
+            We suggest using 'seql' method as it seems to provide the most consistent results and works in
+            both congested/uncongested conditions, including the transition between those.
+            The function should take in the inflow lane, inflow amount, timeind, and dt, as well as any
+            extra keyword options, and return the initial position, speed, and headway of the vehicle to be
+            added. If a vehicle cannot be added, it should return None.
+        kwargs: dictionary of keyword arguments for the method chosen.
 
     Returns:
         increment_inflow method -
@@ -433,6 +549,8 @@ def increment_inflow_wrapper(method='ceql', speed_series=None, accel_bound=-.5, 
         method_fun = eql_inflow_free
     elif method == 'seql':
         method_fun = eql_speed
+    elif method == 'seql2':
+        method_fun = eql_speed2
     elif method == 'shifted':
         method_fun = shifted_speed_inflow
     elif method == 'speed':
@@ -445,16 +563,20 @@ def increment_inflow_wrapper(method='ceql', speed_series=None, accel_bound=-.5, 
         self.inflow_buffer += inflow * dt
 
         if self.inflow_buffer >= 1:
+
             if self.anchor.lead is None:  # rule for adding vehicles when road is empty
-                if spd is None:
-                    if speed_series is not None:
-                        spd = speed_series(timeind)
-                    else:
-                        spd = self.newveh.inv_flow(inflow, congested=True)
+                # old rule
+                #     if spd is None:
+                #         if speed_series is not None:
+                #             spd = speed_series(timeind)
+                #         else:
+                #             spd = self.newveh.inv_flow(inflow, congested=True)
+
+                # new rule
+                spd = self.newveh.maxspeed*.9
                 out = (self.start, spd, None)
             else:  # normal rule for adding vehicles
-                out = method_fun(self, inflow, timeind, dt, c=c, check_gap=check_gap, accel_bound=accel_bound,
-                                 shift=shift, p=p, speed_series=speed_series)
+                out = method_fun(self, inflow, timeind, dt, **kwargs)
 
             if out is None:
                 return vehid
@@ -466,7 +588,7 @@ def increment_inflow_wrapper(method='ceql', speed_series=None, accel_bound=-.5, 
             newveh.lead = lead
 
             # initialize state
-            newveh.initialize(pos, speed, hd, timeind+1)
+            newveh.initialize(pos+1e-6, speed, hd, timeind+1)
 
             # update leader/follower relationships######
             # leader relationships
@@ -536,7 +658,8 @@ class AnchorVehicle:
         cf_parameters: Always None, used to identify a vehicle as being an anchor
         lane, road, lfol, rfol, lead, rlead, llead, all have the same meaning as for Vehicle
         pos: position anchor is on, used for headway/dist calculations
-        speed: speed of anchor, can be used if anchor is used as a leader for a Vehicle
+        speed: speed of anchor (acts as placeholder)
+        acc: acceleration of anchor (acts as placeholder)
         hd: always None
         len: length of anchor, should be 0
         leadmem: same format as Vehicle
@@ -556,10 +679,16 @@ class AnchorVehicle:
 
         self.pos = curlane.start
         self.speed = 0
+        self.acc = 0
+        self.in_relax = False  # for mobil model
         self.hd = None
         self.len = 0
 
         self.leadmem = [[lead, starttime]]
+
+    def get_cf(self, *args):
+        """Dummy method returns 0 for cf model."""
+        return 0
 
     def set_relax(self, *args):
         """Dummy method does nothing - it's so we don't have to check for anchors when applying relax."""
@@ -583,7 +712,7 @@ def get_headway(veh, lead):
 
 
 def get_dist(veh, lead):
-    """ Calculates distance from veh to the front of lead."""
+    """Calculates distance from veh to the front of lead."""
     dist = lead.pos-veh.pos
     if veh.road != lead.road:
         dist += veh.lane.roadlen[lead.road]  # lead.road is hashable because its a string
@@ -622,12 +751,7 @@ class Lane:
         events: lane events (see update_lane_events)
     """
     # TODO need a RoadNetwork object, possibly Road object as well.
-    # should create common road configurations. Should different road configurations have their own
-    # logics to create routes?
-    # Also combine lane events and route events into a single sorted list. This would let you check only 1
-    # position per timestep instead of two. Can store the next value to check as well, to avoid the indexing
-    # operations.
-    # Also need a better (easier) way to allow boundary conditions to be defined, and in a more modular way
+    # should create common road configurations.
     # E.g. of good design - create road network by specifying types of roads (e.g. road, on/off ramp, merge)
     # add boundary conditions to road network.
 

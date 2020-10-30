@@ -9,6 +9,7 @@ import math
 def update_lrfol(veh):
     """After a vehicle's state has been updated, this updates its left and right followers.
 
+    It is recommended to use update_all_lrfol_multiple instead of this.
     We keep each vehicle's left/right followers updated by doing a single distance compute each timestep.
     The current way of dealing with l/r followers is designed for timesteps which are relatively small.
     (e.g. .1 or .25 seconds) where we also keep l/rfol updated at all timesteps. Other strategies would be
@@ -17,7 +18,7 @@ def update_lrfol(veh):
     See update_change documentation for explanation of naming conventions.
     Called in simulation by update_all_lrfol.
     update_all_lrfol_multiple can be used to handle edge cases so that the vehicle order is always correct,
-    but is slightly more computationally expensive and not required in normal situations.
+    but is slightly more computationally expensive.
     The edge cases occur when vehicles overtake multiple vehicles in a single timestep.
 
     Args:
@@ -90,67 +91,48 @@ def update_all_lrfol_multiple(vehicles):
         lfol, rfol = veh.lfol, veh.rfol
         if lfol is None:
             pass
-        elif get_dist(veh, lfol) > 0:
-            # update for veh
-            veh.lfol = lfol.fol
-            veh.lfol.rlead.append(veh)
-            lfol.rlead.remove(veh)
-            # to handle edge case 1 we keep track of vehicles lfol overtakes
-            if lfol in lovertaken:
-                lovertaken[lfol].append(veh)
-            else:
-                lovertaken[lfol] = [veh]
-            # to handle edge case 2 we update recursively if lfol overtakes
-            update_lfol_recursive(veh, lfol.fol, lovertaken)
+        else:
+            update_lfol_recursive(veh, lfol, lovertaken)
 
         # same for right side
         if rfol is None:
             pass
-        elif get_dist(veh, rfol) > 0:
-
-            veh.rfol = rfol.fol
-            veh.rfol.llead.append(veh)
-            rfol.llead.remove(veh)
-
-            if rfol in rovertaken:
-                rovertaken[rfol].append(veh)
-            else:
-                rovertaken[rfol] = [veh]
-
-            update_rfol_recursive(veh, rfol.fol, rovertaken)
+        else:
+            update_rfol_recursive(veh, rfol, rovertaken)
 
     #now to finish the order we have to update all vehicles which overtook
     for lfol, overtook in lovertaken.items():
         if len(overtook) == 1:  # we know what lfol new rfol is - it can only be one thing
-            # update for lfol
             veh = overtook[0]
-            lfol.rfol.llead.remove(lfol)
-            lfol.rfol = veh
-            veh.llead.append(lfol)
         else:
             distlist = [get_dist(veh, lfol) for veh in overtook]
             ind = np.argmin(distlist)
             veh = overtook[ind]
+        # update for lfol
+        # try/except is for rare edge case when lfol.rfol is None - occurs when you overtake and get new rlane
+        # in the same timestep
+        try:
             lfol.rfol.llead.remove(lfol)
-            lfol.rfol = veh
-            veh.llead.append(lfol)
+        except:  
+            pass
+        lfol.rfol = veh
+        veh.llead.append(lfol)
 
     # same for right side
     for rfol, overtook in rovertaken.items():
         if len(overtook) == 1:  # we know what lfol new rfol is - it can only be one thing
-            # update for lfol
             veh = overtook[0]
-            rfol.lfol.rlead.remove(rfol)
-            rfol.lfol = veh
-            veh.rlead.append(rfol)
-
         else:
             distlist = [get_dist(veh, rfol) for veh in overtook]
             ind = np.argmin(distlist)
             veh = overtook[ind]
+        # update for rfol
+        try:
             rfol.lfol.rlead.remove(rfol)
-            rfol.lfol = veh
-            veh.rlead.append(rfol)
+        except:
+            pass
+        rfol.lfol = veh
+        veh.rlead.append(rfol)
 
 
 def update_lfol_recursive(veh, lfol, lovertaken):
@@ -160,12 +142,13 @@ def update_lfol_recursive(veh, lfol, lovertaken):
         veh.lfol = lfol.fol
         veh.lfol.rlead.append(veh)
         lfol.rlead.remove(veh)
-        # handles edge case 1
+        # updating lovertaken so we can handle edge case 1
         if lfol in lovertaken:
             lovertaken[lfol].append(veh)
         else:
             lovertaken[lfol] = [veh]
-        update_lfol_recursive(veh, lfol.fol)
+        # to handle edge case 2 we update recursively if lfol overtakes
+        update_lfol_recursive(veh, lfol.fol, lovertaken)
 
 
 def update_rfol_recursive(veh, rfol, rovertaken):
@@ -199,7 +182,9 @@ def update_rfol_recursive(veh, rfol, rovertaken):
 
 # Another option you could do is to only store lfol/rfol, to keep it updated you would have to
 # do 2 dist calculations per side per timestep (do a call of leadfol find where we already have either
-# a follower or leader as guess). When there is a lane change store a dict which has the lane changing
+# a follower or leader as guess. To explain why you need to do 2 dist calculations - consider how to
+# update the opsidefol of the new lcside leaders).
+# When there is a lane change store a dict which has the lane changing
 # vehicle as a key, and store as the value the new guess to use. You would need to use this dict to update
 # guesses whenever it is time to update the lfol/rfol. Updating guesses efficiently is the challenge here.
 # This strategy would have higher costs per timestep to keep lfol/rfol updated, but would be simpler to
@@ -214,8 +199,7 @@ def update_rfol_recursive(veh, rfol, rovertaken):
 # likewise, if you don't need to always have the lead/fol updated every timestep, there is no reason to
 # keep it updated. On the other hand, if you need more than just the lfol/rfol, perhaps those should
 # kept updated as well.
-# TODO optimizing the vehicle orders can be done in the future when it is more clear exactly what information
-# is needed at each timestep.
+# TODO optimizing/refactoring the vehicle orders can be considered
 # ######
 
 def update_leadfol_after_lc(veh, lcsidelane, newlcsidelane, side, timeind):

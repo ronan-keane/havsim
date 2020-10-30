@@ -2,7 +2,7 @@
 <html>
 <head><meta charset="utf-8" />
 
-<title>havsimdocumentation</title>
+<title>havsim guide (work in progress)</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
@@ -13017,45 +13017,6 @@ ul.typeahead-list  > li > a.pull-right {
 .highlight .vm { color: #19177C } /* Name.Variable.Magic */
 .highlight .il { color: #666666 } /* Literal.Number.Integer.Long */
     </style>
-<style type="text/css">
-    
-/* Temporary definitions which will become obsolete with Notebook release 5.0 */
-.ansi-black-fg { color: #3E424D; }
-.ansi-black-bg { background-color: #3E424D; }
-.ansi-black-intense-fg { color: #282C36; }
-.ansi-black-intense-bg { background-color: #282C36; }
-.ansi-red-fg { color: #E75C58; }
-.ansi-red-bg { background-color: #E75C58; }
-.ansi-red-intense-fg { color: #B22B31; }
-.ansi-red-intense-bg { background-color: #B22B31; }
-.ansi-green-fg { color: #00A250; }
-.ansi-green-bg { background-color: #00A250; }
-.ansi-green-intense-fg { color: #007427; }
-.ansi-green-intense-bg { background-color: #007427; }
-.ansi-yellow-fg { color: #DDB62B; }
-.ansi-yellow-bg { background-color: #DDB62B; }
-.ansi-yellow-intense-fg { color: #B27D12; }
-.ansi-yellow-intense-bg { background-color: #B27D12; }
-.ansi-blue-fg { color: #208FFB; }
-.ansi-blue-bg { background-color: #208FFB; }
-.ansi-blue-intense-fg { color: #0065CA; }
-.ansi-blue-intense-bg { background-color: #0065CA; }
-.ansi-magenta-fg { color: #D160C4; }
-.ansi-magenta-bg { background-color: #D160C4; }
-.ansi-magenta-intense-fg { color: #A03196; }
-.ansi-magenta-intense-bg { background-color: #A03196; }
-.ansi-cyan-fg { color: #60C6C8; }
-.ansi-cyan-bg { background-color: #60C6C8; }
-.ansi-cyan-intense-fg { color: #258F8F; }
-.ansi-cyan-intense-bg { background-color: #258F8F; }
-.ansi-white-fg { color: #C5C1B4; }
-.ansi-white-bg { background-color: #C5C1B4; }
-.ansi-white-intense-fg { color: #A1A6B2; }
-.ansi-white-intense-bg { background-color: #A1A6B2; }
-
-.ansi-bold { font-weight: bold; }
-
-    </style>
 
 
 <style type="text/css">
@@ -13116,7 +13077,7 @@ div#notebook {
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Documentation-for-Havsim-simulation-code">Documentation for Havsim simulation code<a class="anchor-link" href="#Documentation-for-Havsim-simulation-code">&#182;</a></h1><p>$\textbf{Note:}$ This document is not a substitute for reading the actual code documentation. Rather, here we discuss issues which are outside the scope of the actual module documentation. We give some overview of traffic simulation, including some basic of traffic flow theory, and explain some design patterns of the simulation code. We also discuss issues such as code style, installation, etc. which are relevant for contributing to havsim.</p>
+<h1 id="Havsim-guide">Havsim guide<a class="anchor-link" href="#Havsim-guide">&#182;</a></h1><p>$\textbf{Note:}$ This document is not a substitute for reading the actual code documentation. Rather, here we discuss issues which are outside the scope of the actual module documentation. We give some overview of traffic simulation, including some basic of traffic flow theory, and explain some design patterns of the simulation code. We also discuss issues such as code style, installation, etc. which are relevant for contributing to havsim.</p>
 
 </div>
 </div>
@@ -13129,8 +13090,8 @@ div#notebook {
 <li>Open python console, navigate to source folder (the one with setup.py)</li>
 <li>run 'pip install -e .'  -e means install in developer mode, . means to use the current folder</li>
 </ol>
-<p>To check if the package is installed, you can run 'pip list' and check that it is listed. If so, you know the package has been installed. If it's not, it might be because you are using the wrong environment; assuming you are using the anaconda distribution of python, try 'conda info --envs' to see all your environments and the current one you have activated.
-To work on the package, you'll also need an IDE (I recommend either pycharm or spyder) and git or github desktop.</p>
+<p>To check if the package is installed, you can try 'python -c "import havsim" ' or 'pip list' 
+If you plan on contributing, you should also be using an IDE (I recommend either pycharm or spyder) and either git or github desktop.</p>
 
 </div>
 </div>
@@ -13138,13 +13099,9 @@ To work on the package, you'll also need an IDE (I recommend either pycharm or s
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Code-Style">Code Style<a class="anchor-link" href="#Code-Style">&#182;</a></h1><p>We are following the google style guide for python <a href="https://google.github.io/styleguide/pyguide.html">https://google.github.io/styleguide/pyguide.html</a>, which is more or less equivalent to the pep8 style guide. All code which will be part of modules should follow those code styles. No need to worry about code style for scripts. Some older modules are not yet compliant with the code style (for examples of the proper style, see simulation.simulation or simulation.models). <br>
-The only exceptions to following the google code style is that we use 110 characters as the maximum line length, and we don't have to use snake case for attribute/variable names. You can also use 'modifiers' which are basically common parts of a variable/attribute name which are at the beginning or end of the name. For example (this list is not exhaustive)- <br>
-modifiers at beginning of variable name: max, min, cur (reads as current), new, prev, init, start, end, temp <br>
-modifiers at end of variable name: ind (reads as index), mem (reads as memory), dict, list, bounds, len, time, info <br>
-So for example instead of cur_name, just say curname. or instead of start_time, just say starttime. This isn't to say you should avoid using snake case with modifiers; rather, it means you the option to not have to type underscores if the meaning of the name is obvious.</p>
-<p>To check for code style, you should use pylint. The default settings are mostly fine, I just added a few extra codes to the ignore: invalid-name, W0105, R0912, R0913, R0914, R0915, R0902, R0911, R1705, R1710. Pylint will also return results for refactoring, warnings, and errors, and these can be ignored. <br>
-In spyder, it has options to automatically generate docstrings in google format, and can give inline, real time warnings on code style using pycodestyle and pydocstyle. The inline warnings are not a replacement for using pylint but are more convenient.</p>
+<h1 id="Code-Style">Code Style<a class="anchor-link" href="#Code-Style">&#182;</a></h1><p>We are following the google style guide for python <a href="https://google.github.io/styleguide/pyguide.html">https://google.github.io/styleguide/pyguide.html</a>, which is more or less equivalent to the pep8 style guide. All code which will be part of modules should follow those code styles. It is not necessary to follow the code style for scripts. <br>
+The only exceptions to following the google code style is that we use 110 characters as the maximum line length, and we don't have to use snake case for attribute/variable names. Please try to use readable variable names and write comments where necessary/helpful. Writing docstrings is very important, and remember, a code is not truly complete unless it has a clear and complete docstring. <br>
+To check for code style, you should use pylint. Pylint will also return results for refactoring, warnings, and errors, and these can be ignored. In spyder, it has options to automatically generate docstrings in google format, and can give inline, real time warnings on code style using pycodestyle and pydocstyle. Pycharm has equivalent features. The inline warnings are not a replacement for using pylint but are more convenient.</p>
 
 </div>
 </div>

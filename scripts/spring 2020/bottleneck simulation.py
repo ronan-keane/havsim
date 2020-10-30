@@ -6,6 +6,8 @@ import havsim.simulation as hs
 from havsim.simulation.road_networks import downstream_wrapper, AnchorVehicle, arrival_time_inflow, M3Arrivals
 from havsim.helper import boundaryspeeds, getentryflows, calculateflows
 from havsim.plotting import plot_format, platoonplot, plotvhd, plotflows
+from havsim.simulation.simulation_models import OVMVehicle, SKARelaxIDM
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 from havsim.simulation.models import IDM_parameters
@@ -29,36 +31,72 @@ import time
 # plt.plot(density,flows)
 
 #%%
-# done with - accident free relax, no acceleration bounds, max speed bounds
-#vehicle parameters
+
+### for default model = havsim.simulation.vehicles.Vehicle = IDM + havsim model
 cf_p, unused = IDM_parameters()
 tempveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
 
 def onramp_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
     kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15,
-              'shift_parameters': [-2, 2], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
+              'shift_parameters': [-2, 3], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 
 def mainroad_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15, 'shift_parameters': [-2, 2],
+    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15, 'shift_parameters': [-2, 3],
               'hdbounds':(cf_p[2]+1e-6, 1e4)}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
-#inflow amounts
+
+### SKARelaxIDM = alternative relaxation model seems to cause artifacts when changing lanes
+# cf_p, unused = IDM_parameters()
+# tempveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
+
+# def onramp_newveh(self, vehid, *args):
+#     cf_p, lc_p  = IDM_parameters()
+#     kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':[1.1, 15],
+#               'shift_parameters': [-2, 3], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
+#     self.newveh = SKARelaxIDM(vehid, self, cf_p, lc_p, **kwargs)
+
+# def mainroad_newveh(self, vehid, *args):
+#     cf_p, lc_p  = IDM_parameters()
+#     kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':[1.1, 15], 'shift_parameters': [-2, 3],
+#               'hdbounds':(cf_p[2]+1e-6, 1e4)}
+#     self.newveh = SKARelaxIDM(vehid, self, cf_p, lc_p, **kwargs)
+
+### for OVM  - works OK but IDM is better
+# def OVM_parameters():
+#     return [16.8,.06, 1.545, 2, .12 ], [-4, -20, .5, .1, 0, .2, .1, 10, 20]
+# cf_p, unused = OVM_parameters()
+# tempveh = OVMVehicle(-1, None, cf_p, None, maxspeed = cf_p[0]*(1-math.tanh(-cf_p[2]))-.1, eql_type='s')
+
+# def onramp_newveh(self, vehid, *args):
+#     cf_p, lc_p  = OVM_parameters()
+#     kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]*(1-math.tanh(-cf_p[2]))-.1, 'relax_parameters':15,
+#               'shift_parameters': [-2, 1], 'hdbounds':(cf_p[4]+1e-6, 1e4), 'eql_type':'s'}
+#     self.newveh = OVMVehicle(vehid, self, cf_p, lc_p, **kwargs)
+
+# def mainroad_newveh(self, vehid, *args):
+#     cf_p, lc_p  = OVM_parameters()
+#     kwargs = {'route':['exit'], 'maxspeed': cf_p[0]*(1-math.tanh(-cf_p[2]))-.1, 'relax_parameters':15, 'shift_parameters': [-2, 1],
+#               'hdbounds':(cf_p[4]+1e-6, 1e4), 'eql_type':'s'}
+#     self.newveh = OVMVehicle(vehid, self, cf_p, lc_p, **kwargs)
+    
+### inflow amounts
 onramp_inflow_amount = .09
-mainroad_inflow_amount = .54
+mainroad_inflow_amount = .55
 # deterministic constant inflow
 def onramp_inflow(*args):
     return onramp_inflow_amount
 def mainroad_inflow(*args):
     return mainroad_inflow_amount
+
 # stochastic inflow
-onramp_inflow2 = (M3Arrivals(onramp_inflow_amount, cf_p[1], .3), .25)
-mainroad_inflow2 = (M3Arrivals(mainroad_inflow_amount, cf_p[1], .3), .25)
+# onramp_inflow2 = (M3Arrivals(onramp_inflow_amount, cf_p[1], .3), .25)
+# mainroad_inflow2 = (M3Arrivals(mainroad_inflow_amount, cf_p[1], .3), .25)
 
 
-#outflow using speed series
+### outflow using speed series
 # outspeed = tempveh.inv_flow(.59, congested = True)
 # inspeed, inhd = tempveh.inv_flow(.59, output_type = 'both', congested = True)
 # inspeedramp, inhd = tempveh.inv_flow(.1, output_type = 'both', congested = True)
@@ -71,7 +109,7 @@ mainroad_inflow2 = (M3Arrivals(mainroad_inflow_amount, cf_p[1], .3), .25)
 # def speed_inflow_ramp(*args):
 #     return inspeedramp
 
-#define boundary conditions
+### define boundary conditions
 get_inflow1 = {'time_series':onramp_inflow}
 get_inflow2 = {'time_series':mainroad_inflow}
 # get_inflow1 = {'inflow_type': 'arrivals', 'args':onramp_inflow2}
@@ -160,12 +198,12 @@ sim, siminfo = plot_format(all_vehicles, laneinds)
 #     if 2 in sim[veh][:,7]:
 #         mylane2list.append(veh)
 #%%
-# platoonplot(sim, None, siminfo, lane = 2, opacity = 0, speed_limit=[0,30])
+platoonplot(sim, None, siminfo, lane = 2, opacity = 0, speed_limit=[0,30])
 platoonplot(sim, None, siminfo, lane = 1, opacity = 0, speed_limit=[0,33.5])
 plt.ylabel('distance (m)')
 plt.xlabel('time index (.25s)')
-# platoonplot(sim, None, siminfo, lane = 0, opacity = 0, speed_limit=[0,33.5])
-platoonplot(sim, None, siminfo, lane = 1, colorcode = False, opacity=0)
+platoonplot(sim, None, siminfo, lane = 0, opacity = 0, speed_limit=[0,33.5])
+# platoonplot(sim, None, siminfo, lane = 1, colorcode = False, opacity=0)
 # platoonplot(sim, None, siminfo, lane = 1, colorcode = False)
 
 # %%

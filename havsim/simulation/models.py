@@ -42,9 +42,10 @@ def OVM(p, state):
 
     Args:
         p: parameters - p[0],p[1],p[2],p[4] are shape parameters for the optimal velocity function.
-            The maximum speed is p[0]*(1 - tanh(-p[2])), jam spacing is p[4]. p[1] controls the
-            slope of the velocity/headway equilibrium curve. p[3] is a sensitivity parameter
-            which controls the strength of acceleration.
+            The maximum speed is p[0]*(1 - tanh(-p[2])), jam spacing is p[4]/p[1]. p[1] controls the
+            slope of the velocity/headway equilibrium curve. higher p[1] = higher maximum flow.
+            There is no physical interpretation of p[1].
+            p[3] is a sensitivity parameter which controls the strength of acceleration.
         state: list of [headway, self velocity, leader velocity] (leader velocity unused)
 
     Returns:
@@ -53,9 +54,9 @@ def OVM(p, state):
     return p[3]*(p[0]*(math.tanh(p[1]*state[0]-p[2]-p[4])-math.tanh(-p[2]))-state[1])
 
 
-def OVM_free(p, state):
+def OVM_free(p, v):
     """Free flow model for OVM."""
-    return p[3]*(p[0]*(1-math.tanh(-p[2])) - state[1])
+    return p[3]*(p[0]*(1-math.tanh(-p[2])) - v)
 
 
 def OVM_eql(p, s):
@@ -242,13 +243,13 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
     # safe = p[0] (or use the maximum safety, p[1])
 
     # safety changes with relative velocity (implemented in treiber, kesting' traffic-simulation.de) -
-    # safe = veh.speed/veh.maxspeed
-    # safe = safe*p[0] + (1-safe)*p[1]
+    safe = veh.speed/veh.maxspeed
+    safe = safe*p[0] + (1-safe)*p[1]
 
-    if in_disc:  # different safeties for discretionary/mandatory
-        safe = p[0]
-    else:
-        safe = p[1]  # or use the relative velocity safety
+    # if in_disc:  # different safeties for discretionary/mandatory
+    #     safe = p[0]
+    # else:
+    #     safe = p[1]  # or use the relative velocity safety
     # ####################################################
 
     # determine if LC can be completed, and if not, determine if we want to enter cooperative or
@@ -465,6 +466,7 @@ def tactical_model(veh, lcsidefol, lcsidefolsafe, vehsafe, safe, coop_veh_is_lcs
         if lcsidefolsafe < safe:
             if vehsafe < safe:  # both unsafe
                 if lcsidefol.lead.speed > veh.speed:  # edge case where lcsidefol.lead is None?
+                # if lcsidefol.lead is not None and lcsidefol.lead.speed > veh.speed:
                     tactstate = 'decel'
                 else:
                     tactstate = 'accel'
@@ -485,7 +487,7 @@ def check_if_veh_cooperates(veh, coop_veh, in_disc):
 
 
 def relaxation_model_ttc(p, state, dt):
-    """Alternative relaxation model for very short or dangerous spacings - applies control to ttc.
+    """Alternative relaxation model for short/dangeorus spacings - applies control to ttc (not recommended).
 
     Args:
         p (list of floats): list of target ttc (time to collision), jam spacing, velocity sensitivity, gain

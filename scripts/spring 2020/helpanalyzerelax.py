@@ -10,7 +10,7 @@ def get_veh(vehid):
         if veh.vehid == vehid:
             break
     return veh
-vehid = 599
+vehid = 813
 headway = []
 veh = get_veh(vehid)
 
@@ -40,7 +40,8 @@ plt.plot(headway)
 plt.subplot(1,2,2)
 plt.plot(veh.speedmem)
 plt.title('headway, speed time series for vehicle '+str(veh.vehid))
-    
+plt.figure()
+plt.plot(headway, veh.speedmem[:-1])
 
 
 

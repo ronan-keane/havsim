@@ -512,11 +512,21 @@ class Vehicle:
                 # normal_relax=True
                 
                 # use the equilibrium solution to modify relax (recommended)
+                ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)
+                if ttc < 1.5 and ttc > 0:
+                    normal_relax = False
+                    eql_hd = self.get_eql(lead.speed, input_type='v')
+                    currelax, currelax_v = self.relax[timeind-self.relax_start]
+                    currelax = min(currelax, eql_hd - hd)
+                    currelax_v = min(currelax_v, 0)
+                    acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
+                else:
+                    normal_relax = True
                 
-                # alternative formulation applies control to ttc
-                v_sens = .3+(timeind-self.relax_start)*dt/self.relax_parameters
-                acc, normal_relax = models.relaxation_model_ttc([1.5, 2, v_sens, 1],
-                                                                [hd, spd, lead.speed], dt)
+                # alternative formulation applies control to ttc (not recommended to use)
+                # v_sens = .3+(timeind-self.relax_start)*dt/self.relax_parameters
+                # acc, normal_relax = models.relaxation_model_ttc([1.5, 2, v_sens, 1],
+                #                                                 [hd, spd, lead.speed], dt)
                 ###
                 if normal_relax:
                     currelax, currelax_v = self.relax[timeind-self.relax_start]
@@ -598,7 +608,7 @@ class Vehicle:
             return x / (s + leadlen)
         elif input_type == 's':
             v = self.get_eql(x, input_type=input_type)
-            return v / (s + leadlen)
+            return v / (x + leadlen)
 
     def inv_flow(self, x, leadlen=None, output_type='v', congested=True):
         """Get equilibrium solution corresponding to the provided flow."""

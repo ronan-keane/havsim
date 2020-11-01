@@ -515,13 +515,28 @@ class Vehicle:
                 ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)
                 if ttc < 1.5 and ttc > 0:
                     normal_relax = False
-                    eql_hd = self.get_eql(lead.speed, input_type='v')
                     currelax, currelax_v = self.relax[timeind-self.relax_start]
-                    currelax = min(currelax, eql_hd - hd)
-                    currelax_v = min(currelax_v, 0)
+                    if currelax > 0:
+                        eql_hd = self.get_eql(lead.speed, input_type='v')
+                        currelax = min(currelax, eql_hd - hd)
+                        currelax_v = min(currelax_v, 0)
                     acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
                 else:
                     normal_relax = True
+                    
+                    
+                # accident free safeguard is more aggressive
+                # ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)
+                # if ttc < 1.5 and ttc > 0:
+                #     normal_relax = False
+                #     currelax, currelax_v = self.relax[timeind-self.relax_start]
+                #     temp = (ttc/1.5)
+                #     currelax = currelax*temp if currelax > 0 else currelax
+                #     currelax_v = currelax_v*temp if currelax_v > 0 else currelax_v
+                #     acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
+                # else:
+                #     normal_relax = True
+                    
                 
                 # alternative formulation applies control to ttc (not recommended to use)
                 # v_sens = .3+(timeind-self.relax_start)*dt/self.relax_parameters

@@ -356,8 +356,10 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol
     if the vehicle's own safety is violated; the vehicle decelerates.
     the tactical model only modifies the acceleration of veh.
 
-    in the cooperative model, we try to identify a cooperating vehicle. A cooperating vehicle always gets a
+    in the cooperative model, we try to identify a cooperating vehicle. A cooperating vehicle gets a
     deceleration added so that it will give extra space to let the ego vehicle successfully change lanes.
+    Cooperation is only applied if the lcside fol is blocking the ego vehicle; if only the lcside leader
+    is blocking, only the tactical model will be applied.
     If the cooperation is applied without tactical, then the cooperating vehicle must be the lcside follower,
     and the newlcsidefolhd must be > jam spacing. This prevents cooperation with vehicles that are right next
     to you.
@@ -406,9 +408,9 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol
     # clearly it would be possible to modify different things, such as how the acceleration modifications
     # are obtained, and changing the conditions for entering/exiting the cooperative/tactical conditions
     # in particular we might want to add extra conditions for entering cooperative state
+    
     coop_veh_is_lcsidefolfol = False
-
-    if use_coop and use_tact:
+    if use_coop and use_tact and lcsidefolsafe < safe:
         coop_veh = veh.coop_veh
         if coop_veh is not None:  # first, check cooperation is valid, and apply cooperation if so
             if coop_veh is lcsidefol and newlcsidefolhd > jam_spacing:  # coop_veh = lcsidefol
@@ -436,7 +438,7 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol
                 veh.coop_veh = coop_veh
                 coop_veh.acc += coop_veh.shift_eql('decel')
 
-    elif not use_tact and use_coop:
+    elif not use_tact and use_coop and lcsidefolsafe < safe:
         coop_veh = veh.coop_veh
         if coop_veh is not None:
             if coop_veh is lcsidefol and newlcsidefolhd > jam_spacing:  # coop_veh = lcsidefol

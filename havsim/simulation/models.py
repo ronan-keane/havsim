@@ -348,13 +348,9 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol
     There are three possible options - cooperation and tactical, or only cooperation, or only tactical
 
     In the tactical model, first we check the safety conditions to see what is preventing us from
-    changing (either lcside fol or lcside lead). if both are violating safety, and the lcside leader is
-    faster than vehicle, then the vehicle gets deceleration to try to change behind them. If vehicle is
-    faster than lcside leader, then the vehicle gets acceleration to try to overtake. if only one is
-    violating safety, the vehicle moves in a way to prevent that violation. Meaning -
-    if only the follower's safety is violated, the vehicle accelerates.
-    if the vehicle's own safety is violated; the vehicle decelerates.
-    the tactical model only modifies the acceleration of veh.
+    changing (either lcside fol or lcside lead). If only the follower's safety is violated, the vehicle
+    accelerates. If the vehicle's own safety is violated; the vehicle decelerates. In the case where both
+    safeties are violated, the vehicle accelerates. The tactical model only modifies the acceleration of veh.
 
     in the cooperative model, we try to identify a cooperating vehicle. A cooperating vehicle gets a
     deceleration added so that it will give extra space to let the ego vehicle successfully change lanes.
@@ -464,16 +460,19 @@ def tactical_model(veh, lcsidefol, lcsidefolsafe, vehsafe, safe, coop_veh_is_lcs
             tactstate = 'accel'
         veh.acc += veh.shift_eql(tactstate)
     else: # in normal rule, you find the safety that is blocking and move to widen that gap.
-        # if both lcsidefol and lcsidelead are blocking, look at lcsidelead speed
         if lcsidefolsafe < safe:
-            if vehsafe < safe:  # both unsafe
-                if lcsidefol.lead.speed > veh.speed:  # edge case where lcsidefol.lead is None?
-                # if lcsidefol.lead is not None and lcsidefol.lead.speed > veh.speed:
-                    tactstate = 'decel'
-                else:
-                    tactstate = 'accel'
-            else:  # only follower unsafe
-                tactstate = 'accel'
+            tactstate = 'accel'
+
+            # if both lcsidefol and lcsidelead are blocking, could look at lcsidelead speed
+            # if vehsafe < safe:  # both unsafe
+            #     if lcsidefol.lead.speed > veh.speed:  # edge case where lcsidefol.lead is None?
+            #     # if lcsidefol.lead is not None and lcsidefol.lead.speed > veh.speed:
+            #         tactstate = 'decel'
+            #     else:
+            #         tactstate = 'accel'
+            # else:  # only follower unsafe
+            #     tactstate = 'accel'
+
         else:  # only leader unsafe
             tactstate = 'decel'
         veh.acc += veh.shift_eql(tactstate)

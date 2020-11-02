@@ -10,7 +10,7 @@ def get_veh(vehid):
         if veh.vehid == vehid:
             break
     return veh
-vehid = 73
+vehid = 4593
 headway = []
 veh = get_veh(vehid)
 
@@ -48,7 +48,7 @@ plt.plot(headway, veh.speedmem[:-1])
 
 #%% was for simulation code
 for veh in all_vehicles:
-    if veh.vehid == 73:
+    if veh.vehid == 1660:
         break
 vehtn = veh.starttime
 
@@ -58,16 +58,19 @@ relax = veh.relaxmem[relaxind][0]
 # relax = veh.relax
 relaxstart = veh.relaxmem[relaxind][-1]
 # relaxstart = veh.relax_start
-lead = veh.leadmem[2][0]
+lead = veh.leadmem[1][0]
 leadtn = lead.starttime
 
 # timeinds = list(range(11938, 11948))
-timeinds = [459, 460, 461]
+timeinds = list(range(5918, 5921))
 for timeind in timeinds:
     print('-------------- time index '+str(timeind)+' -----------------')
     hd = lead.posmem[timeind - leadtn] - veh.posmem[timeind - vehtn] - lead.len
     leadspeed = lead.speedmem[timeind - leadtn]
     vehspeed = veh.speedmem[timeind - vehtn]
+    ttc = max(hd - 2 - .6*vehspeed, 1e-6)/(vehspeed-leadspeed+1e-6)
+    print('state is '+str([hd, vehspeed, leadspeed]))
+    print('ttc is '+str(ttc))
 
     print('baseline cf model is '+str(veh.cf_model(veh.cf_parameters, [hd, vehspeed, leadspeed])))
 
@@ -78,7 +81,7 @@ for timeind in timeinds:
         if currelax > 0:
             eql_hd = veh.get_eql(leadspeed, input_type='v')
             currelax = min(currelax, eql_hd - hd)
-            currelax_v = min(currelax_v, 0)
+        currelax_v = currelax_v*(ttc/1.5) if currelax_v > 0 else currelax_v
         acc = veh.cf_model(veh.cf_parameters, [hd + currelax, vehspeed, leadspeed + currelax_v])
         print('in special regime relax is '+str(acc))
         

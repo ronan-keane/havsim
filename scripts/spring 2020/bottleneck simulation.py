@@ -38,13 +38,13 @@ tempveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
 
 def onramp_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':5,
+    kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':10,
               'shift_parameters': [-2, 3], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 
 def mainroad_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':5, 'shift_parameters': [-2, 3],
+    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':10, 'shift_parameters': [-2, 3],
               'hdbounds':(cf_p[2]+1e-6, 1e4)}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 

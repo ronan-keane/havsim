@@ -393,7 +393,7 @@ class Vehicle:
 
         # bounds
         if accbounds is None:
-            self.minacc, self.maxacc = -7, 3
+            self.minacc, self.maxacc = -10, 6
         else:
             self.minacc, self.maxacc = accbounds[0], accbounds[1]
         self.maxspeed = maxspeed
@@ -511,34 +511,23 @@ class Vehicle:
                 # always use vanilla - can potentially lead to collisions
                 # normal_relax=True
                 
-                # use the equilibrium solution to modify relax (recommended)
+                # safeguard for relaxation
                 ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)
                 if ttc < 1.5 and ttc > 0:
                     normal_relax = False
                     currelax, currelax_v = self.relax[timeind-self.relax_start]
-                    if currelax > 0:
-                        eql_hd = self.get_eql(lead.speed, input_type='v')
-                        currelax = min(currelax, eql_hd - hd)
-                        currelax_v = min(currelax_v, 0)
+                    # safeguard based on equilibrium
+                    # if currelax > 0:
+                    #     eql_hd = self.get_eql(lead.speed, input_type='v')
+                    #     currelax = min(currelax, eql_hd - hd)
+                    currelax = currelax*(ttc/1.5) if currelax > 0 else currelax
+                    currelax_v = currelax_v*(ttc/1.5) if currelax_v > 0 else currelax_v
                     acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
+                    acc = max(acc, self.minacc)
                 else:
                     normal_relax = True
-                    
-                    
-                # accident free safeguard is more aggressive
-                # ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)
-                # if ttc < 1.5 and ttc > 0:
-                #     normal_relax = False
-                #     currelax, currelax_v = self.relax[timeind-self.relax_start]
-                #     temp = (ttc/1.5)
-                #     currelax = currelax*temp if currelax > 0 else currelax
-                #     currelax_v = currelax_v*temp if currelax_v > 0 else currelax_v
-                #     acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
-                # else:
-                #     normal_relax = True
-                    
                 
-                # alternative formulation applies control to ttc (not recommended to use)
+                # alternative formulation applies control to ttc (not recommended)
                 # v_sens = .3+(timeind-self.relax_start)*dt/self.relax_parameters
                 # acc, normal_relax = models.relaxation_model_ttc([1.5, 2, v_sens, 1],
                 #                                                 [hd, spd, lead.speed], dt)

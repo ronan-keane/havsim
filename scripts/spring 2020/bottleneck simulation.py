@@ -84,7 +84,7 @@ def mainroad_newveh(self, vehid, *args):
     
 ### inflow amounts
 onramp_inflow_amount = .09
-mainroad_inflow_amount = .45
+mainroad_inflow_amount = .5675
 # deterministic constant inflow
 def onramp_inflow(*args):
     return onramp_inflow_amount
@@ -204,7 +204,7 @@ platoonplot(sim, None, siminfo, lane = 1, opacity = 0, speed_limit=[0,35])
 plt.ylabel('distance (m)')
 plt.xlabel('time index (.25s)')
 # platoonplot(sim, None, siminfo, lane = 0, opacity = 0, speed_limit=[0,33.5])
-platoonplot(sim, None, siminfo, lane = 1, colorcode = False, opacity=0)
+# platoonplot(sim, None, siminfo, lane = 1, colorcode = False, opacity=0)
 # platoonplot(sim, None, siminfo, lane = 1, colorcode = False)
 
 # %%

@@ -29,8 +29,15 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
     """
     # TODO can add seperate parameters for positive/negative relaxation
     rp = veh.relax_parameters
-    if veh.lead is None or rp is None:
+    if rp is None:  # no relax -> do nothing
         return
+    if veh.lead is None:  
+        if veh.in_relax:  # new lead is None -> reset relaxation
+            veh.in_relax = False
+            veh.relax = veh.relax[:timeind-veh.relax_start]
+            veh.relaxmem.append((veh.relax, veh.relax_start))
+        return
+        
 
     prevlead = veh.leadmem[-2][0]
     if prevlead is None:

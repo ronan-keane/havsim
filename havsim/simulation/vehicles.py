@@ -393,7 +393,7 @@ class Vehicle:
 
         # bounds
         if accbounds is None:
-            self.minacc, self.maxacc = -10, 6
+            self.minacc, self.maxacc = -12, 5
         else:
             self.minacc, self.maxacc = accbounds[0], accbounds[1]
         self.maxspeed = maxspeed
@@ -523,7 +523,7 @@ class Vehicle:
                     currelax = currelax*(ttc/1.5) if currelax > 0 else currelax
                     currelax_v = currelax_v*(ttc/1.5) if currelax_v > 0 else currelax_v
                     acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
-                    acc = max(acc, self.minacc)
+                    # acc = max(acc, self.minacc)
                 else:
                     normal_relax = True
                 
@@ -716,7 +716,9 @@ class Vehicle:
         """Applies bounds and updates a vehicle's longitudinal state/memory."""
         # bounds on acceleration
         # acc = self.acc_bounds(self.acc)
-        acc = self.acc  # no bounds
+        acc = max(self.minacc, self.acc)
+        # acc = self.acc  # no bounds
+        
 
         # bounds on speed
         temp = acc*dt

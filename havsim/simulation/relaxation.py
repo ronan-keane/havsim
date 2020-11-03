@@ -27,6 +27,7 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
     Returns:
         None. Modifies relaxation attributes for vehicle in place.
     """
+    # TODO can add seperate parameters for positive/negative relaxation
     rp = veh.relax_parameters
     if veh.lead is None or rp is None:
         return
@@ -52,7 +53,7 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
 
 
     else:  # relax headway only = list of float of relax values
-        relaxamount = olds-news
+        relaxamount = olds-news  # edge case error here, see update_lane_routes.update_veh_after_lc
         relax_helper(rp, relaxamount, veh, timeind, dt)
 
 

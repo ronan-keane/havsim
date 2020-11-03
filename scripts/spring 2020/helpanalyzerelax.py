@@ -10,7 +10,7 @@ def get_veh(vehid):
         if veh.vehid == vehid:
             break
     return veh
-vehid = 4593
+vehid = 1526
 headway = []
 veh = get_veh(vehid)
 
@@ -48,7 +48,7 @@ plt.plot(headway, veh.speedmem[:-1])
 
 #%% was for simulation code
 for veh in all_vehicles:
-    if veh.vehid == 1660:
+    if veh.vehid == 1526:
         break
 vehtn = veh.starttime
 
@@ -58,11 +58,11 @@ relax = veh.relaxmem[relaxind][0]
 # relax = veh.relax
 relaxstart = veh.relaxmem[relaxind][-1]
 # relaxstart = veh.relax_start
-lead = veh.leadmem[1][0]
+lead = veh.leadmem[3][0]
 leadtn = lead.starttime
 
 # timeinds = list(range(11938, 11948))
-timeinds = list(range(5918, 5921))
+timeinds = list(range(5685, 5688))
 for timeind in timeinds:
     print('-------------- time index '+str(timeind)+' -----------------')
     hd = lead.posmem[timeind - leadtn] - veh.posmem[timeind - vehtn] - lead.len

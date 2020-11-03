@@ -10,7 +10,7 @@ import havsim.simulation as hs
 import matplotlib.pyplot as plt
 
 cf_p, unused = IDM_parameters()
-relaxp = 18
+relaxp = 15
 leadveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
 folveh = hs.Vehicle(0, None, cf_p, None, maxspeed = cf_p[0]-1e-6, relax_parameters=relaxp)
 leadspeed = 29 #speed of 29 and headway of 30 choosen to represent typical merging scenario at maximum capacity for the IDM parameters = [33.5, 1.3, 3, 1.1, 1.5]

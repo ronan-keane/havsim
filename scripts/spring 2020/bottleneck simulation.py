@@ -38,13 +38,13 @@ tempveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
 
 def onramp_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':10,
-              'shift_parameters': [-2, 3], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
+    kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':12,
+              'shift_parameters': [-2, 2], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 
 def mainroad_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':10, 'shift_parameters': [-2, 3],
+    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':12, 'shift_parameters': [-2, 2],
               'hdbounds':(cf_p[2]+1e-6, 1e4)}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 
@@ -84,7 +84,7 @@ def mainroad_newveh(self, vehid, *args):
     
 ### inflow amounts
 onramp_inflow_amount = .09
-mainroad_inflow_amount = .545
+mainroad_inflow_amount = .45
 # deterministic constant inflow
 def onramp_inflow(*args):
     return onramp_inflow_amount
@@ -178,7 +178,7 @@ inflow_lanes = [lane0, lane1, lane2]
 simulation = hs.Simulation(inflow_lanes, merge_lanes, dt = .25)
 
 #call
-timesteps = 25000
+timesteps = 20000
 start = time.time()
 simulation.simulate(timesteps)
 end = time.time()
@@ -200,11 +200,11 @@ sim, siminfo = plot_format(all_vehicles, laneinds)
 #         mylane2list.append(veh)
 #%%
 # platoonplot(sim, None, siminfo, lane = 2, opacity = 0, speed_limit=[0,30])
-platoonplot(sim, None, siminfo, lane = 1, opacity = 0, speed_limit=[0,33.5])
+platoonplot(sim, None, siminfo, lane = 1, opacity = 0, speed_limit=[0,35])
 plt.ylabel('distance (m)')
 plt.xlabel('time index (.25s)')
 # platoonplot(sim, None, siminfo, lane = 0, opacity = 0, speed_limit=[0,33.5])
-# platoonplot(sim, None, siminfo, lane = 1, colorcode = False, opacity=0)
+platoonplot(sim, None, siminfo, lane = 1, colorcode = False, opacity=0)
 # platoonplot(sim, None, siminfo, lane = 1, colorcode = False)
 
 # %%
@@ -216,14 +216,20 @@ plt.xlabel('time index (.25s)')
 
 
 
-plotflows(sim, [[1981, 2000]], [1000,25000], 3000, lane=1, h=.25, MFD=False, Flows=True, method='flow')
+# plotflows(sim, [[1981, 2000]], [4160,20000], 480, lane=1, h=.25, MFD=False, Flows=True, method='flow')
+plotflows(sim, [[1981, 2000]], [9000, 20000], 11000, lane=1, h=.25, MFD=False, Flows=True, method='flow')
 flow_series = plt.gca().lines[0]._y
-plotflows(sim, [[1981, 2000]], [1000,25000], 3000, lane=0, h=.25, MFD=False, Flows=True, method='flow')
+# plotflows(sim, [[1981, 2000]], [4160,20000], 480, lane=0, h=.25, MFD=False, Flows=True, method='flow')
+plotflows(sim, [[1981, 2000]], [9000, 20000], 11000, lane=0, h=.25, MFD=False, Flows=True, method='flow')
 flow_series2 = plt.gca().lines[0]._y
 print(' total inflow is '+str(2*mainroad_inflow_amount+onramp_inflow_amount))
 print('average discharge for lane 1 is '+str(np.mean(flow_series)*4))
 print('average discharge for lane 0 is '+str(np.mean(flow_series2)*4))
 print('total discharge is '+str(np.mean(flow_series)*4+np.mean(flow_series2)*4))
+
+print(np.std(flow_series*4+flow_series2*4))
+print(np.std(flow_series*4))
+print(np.std(flow_series2*4))
 
 
 # plotflows(sim, [[1000,1400],[1400,1800]], [0,10000], 120, lane=0, h=.25, MFD=False, Flows=True)

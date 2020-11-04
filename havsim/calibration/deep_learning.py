@@ -334,7 +334,7 @@ def weighted_masked_MSE_loss(y_true, y_pred, mask_weights):
 
 
 @tf.function
-def train_step(x, y_true, lc_true, sample_weight,  lc_weights, model, loss_fn, optimizer):
+def train_step(x, y_true, lc_true, sample_weight, lc_weights, model, loss_fn, lc_loss_fn, optimizer):
     """Updates parameters for a single batch of examples.
 
     Args:
@@ -344,6 +344,7 @@ def train_step(x, y_true, lc_true, sample_weight,  lc_weights, model, loss_fn, o
         lc_weights: weights for lc output
         model: tf.keras.Model
         loss_fn: function takes in y_true, y_pred, sample_weight, and returns the loss
+        lc_loss_fn: function takes in y_true, y_pred, and returns the loss for lane changing
         optimizer: tf.keras.optimizer
     Returns:
         y_pred: output from model
@@ -357,20 +358,37 @@ def train_step(x, y_true, lc_true, sample_weight,  lc_weights, model, loss_fn, o
         # the ..._on_batch methods use the model.distribute_strategy - see tf.keras source code
         y_pred, lc_pred, cur_speeds, hidden_state = model(x, training=True, lc_weights=lc_weights)
         # use categorical cross entropy or sparse categorical cross entropy to compute loss over y_pred_lc
-        loss = loss_fn(y_true, y_pred, sample_weight) + sum(model.losses) \
-                + tf.keras.losses.SparseCategoricalCrossentropy()(lc_true, lc_pred)
+        lc_loss = lc_loss_fn(lc_true, lc_pred)
+        loss = loss_fn(y_true, y_pred, sample_weight) + sum(model.losses) + 50 * lc_loss
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    return y_pred, lc_pred, cur_speeds, hidden_state, loss
+    return y_pred, lc_pred, cur_speeds, hidden_state, loss, lc_loss
 
+def calculate_class_metric(y_true, y_pred, class_id, metric):
+    metric.reset_states()
+    # y_true_npy = tf.reshape(y_true, (y_true.shape[0] * y_true.shape[1],)).numpy()
+    y_true_npy = y_true.numpy().flatten()
+    y_pred_npy = tf.argmax(y_pred, axis=2).numpy().flatten()
 
-def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100, n=20,
+    sel = y_pred_npy == class_id
+    y_pred_npy[sel] = 1
+    y_pred_npy[~sel] = 0
+
+    sel = y_true_npy == class_id
+    y_true_npy[sel] = 1
+    y_true_npy[~sel] = 0
+
+    metric.update_state(y_true_npy, y_pred_npy)
+    return metric.result().numpy()
+
+def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100, n=20,
                   early_stopping_loss=None):
     """Trains model by repeatedly calling train_step.
 
     Args:
         model: tf.keras.Model instance
         loss: tf.keras.losses or custom loss function
+        lc_loss: tf.keras.losses or custom loss function for lane changing
         optimizer: tf.keras.optimzers instance
         ds: dataset from make_dataset
         nbatches: number of batches to run
@@ -402,27 +420,44 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
     prev_loss = math.inf
     early_stop_counter = 0
 
+    precision_metric = tf.keras.metrics.Precision()
+    recall_metric = tf.keras.metrics.Recall()
+
     for i in range(nbatches):
         # call train_step
-        veh_states, lc_pred, cur_speeds, hidden_states, loss_value = \
+        veh_states, lc_pred, cur_speeds, hidden_states, loss_value, lc_loss = \
             train_step([lead_inputs, cur_state, hidden_states], true_traj, true_lane_action, \
-                        loss_weights, lc_weights, model, loss, optimizer)
+                        loss_weights, lc_weights, model, loss, lc_loss_fn, optimizer)
 
         # print out and early stopping
         if i % m == 0:
+            true_la = true_lane_action.numpy()
+            num_left, num_stay, num_right = np.sum(true_la == 0), np.sum(true_la == 1), np.sum(true_la == 2)
+
+            left_prec = calculate_class_metric(true_lane_action, lc_pred, 0, precision_metric)
+            right_prec = calculate_class_metric(true_lane_action, lc_pred, 2, precision_metric)
+            left_recall = calculate_class_metric(true_lane_action, lc_pred, 0, recall_metric)
+            right_recall = calculate_class_metric(true_lane_action, lc_pred, 2, recall_metric)
             if early_stopping_loss is not None:
                 loss_value = early_stopping_loss(model)
                 if loss_value > prev_loss:
                     early_stop_counter += 1
                     if early_stop_counter >= n:
-                        print('loss for '+str(i)+'th batch is '+str(loss_value))
+                        print(f'loss for {i}th batch is {loss_value:.4f}. LC loss is {lc_loss:.4f}\n' + \
+                                '\t(left prec, right prec, left recall, right recall):' + \
+                                f' {left_prec:.4f}, {right_prec:.4f}, {left_recall:.4f}, {right_recall:.4f}\n' + 
+                                f'\t(num left, num stay, num right): {num_left}, {num_stay}, {num_right}')
                         model.load_weights('prev_weights')  # folder must exist
                         break
                 else:
                     model.save_weights('prev_weights')
                     prev_loss = loss_value
                     early_stop_counter = 0
-            print('loss for '+str(i)+'th batch is '+str(loss_value))
+            # print(f'loss for {i}th batch is {loss_value:.4f}. LC loss is {lc_loss:.4f}')
+            print(f'loss for {i}th batch is {loss_value:.4f}. LC loss is {lc_loss:.4f}\n' + \
+                    '\t(left prec, right prec, left recall, right recall):' + \
+                    f' {left_prec:.4f}, {right_prec:.4f}, {left_recall:.4f}, {right_recall:.4f}\n' + 
+                    f'\t(num left, num stay, num right): {num_left}, {num_stay}, {num_right}')
 
         # update iteration
         cur_state = tf.stack([veh_states[:, -1], cur_speeds], axis=1)  # current state for vehicles in batch
@@ -458,8 +493,26 @@ def training_loop(model, loss, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=
                 make_batch(vehs, vehs_counter, ds, nt)
 
 
+class Trajectory:
+    def __init__(self, cf_pred, cur_speeds, lc_pred, loss=np.nan, lc_loss=np.nan, \
+            true_cf=None, true_lc_action=None):
+        self.cf_pred = cf_pred
+        self.cur_speeds = cur_speeds
+        self.lc_pred = lc_pred
+        self.loss = loss
+        self.lc_loss = lc_loss
+        self.true_cf = true_cf
+        self.true_lc_action = true_lc_action
 
-def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
+    def confusion_matrix(self):
+        conf_mat = np.zeros((3, 3))
+        for true_label in [0, 1, 2]:
+            for pred_label in [0, 1, 2]:
+                conf_mat[true_label, pred_label] = np.sum((np.argmax(self.lc_pred, axis=2) == pred_label) \
+                        & (self.true_lc_action == true_label))
+        return conf_mat
+
+def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
     """Generate a batch of trajectories.
 
     Args:
@@ -467,10 +520,13 @@ def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
         vehs: list of vehicle IDs
         ds: dataset from make_dataset
         loss: if not None, we will call loss function and return the loss
+        lc_loss: if not None, we will call loss function and return the loss (for lane changing)
         kwargs: dictionary of keyword arguments to pass to make_batch
     Returns:
         y_pred: tensor of vehicle trajectories, shape of (number of vehicles, number of timesteps)
         cur_speeds: tensor of current vehicle speeds, shape of (number of vehicles, 1)
+        out_loss: tensor of overall loss, shape of (1,)
+        out_lc_loss: tensor of lane changing loss, shape of (1,)
     """
     # put all vehicles into a single batch, with the number of timesteps equal to the longest trajectory
     nveh = len(vehs)
@@ -483,9 +539,17 @@ def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
     lead_inputs, true_traj, true_lane_action, loss_weights, lc_weights = \
             make_batch(vehs, vehs_counter, ds, nt, **kwargs)
 
-    y_pred, lc_pred, cur_speeds, hidden_state = model([lead_inputs, cur_state, hidden_states])
+    y_pred, lc_pred, cur_speeds, hidden_state = model([lead_inputs, cur_state, hidden_states], \
+            lc_weights=lc_weights)
+
+    args = [y_pred.numpy(), cur_speeds.numpy(), lc_pred.numpy()]
+    kwargs = {'true_cf': true_traj.numpy(), 'true_lc_action': true_lane_action.numpy()}
+
     if loss is not None:
         out_loss = loss(true_traj, y_pred, loss_weights)
-        return y_pred, cur_speeds, out_loss
-    else:
-        return y_pred, cur_speeds
+        kwargs['loss'] = out_loss.numpy()
+        if lc_loss is not None:
+            out_lc_loss = lc_loss(true_lane_action, lc_pred)
+            kwargs['lc_loss'] = out_lc_loss.numpy()
+
+    return Trajectory(*args, **kwargs)

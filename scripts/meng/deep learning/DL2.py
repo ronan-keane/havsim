@@ -41,6 +41,7 @@ testing, unused = deep_learning.make_dataset(all_veh_dict, test_veh)
 
 model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=60)
 loss = deep_learning.masked_MSE_loss
+lc_loss = tf.keras.losses.SparseCategoricalCrossentropy()
 # opt = tf.keras.optimizers.Adam(learning_rate = .0008)
 opt = tf.keras.optimizers.Adam(learning_rate = .00008)
 
@@ -49,26 +50,26 @@ early_stopping = False
 
 # no early stopping -
 if not early_stopping:
-    deep_learning.training_loop(model, loss, opt, training, nbatches = 10000, nveh = 32, nt = 50)
-    deep_learning.training_loop(model, loss, opt, training, nbatches = 1000, nveh = 32, nt = 100)
-    deep_learning.training_loop(model, loss, opt, training, nbatches = 1000, nveh = 32, nt = 200)
-    deep_learning.training_loop(model, loss, opt, training, nbatches = 1000, nveh = 32, nt = 300)
-    deep_learning.training_loop(model, loss, opt, training, nbatches = 2000, nveh = 32, nt = 500)
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 10000, nveh = 32, nt = 50)
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 100)
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 200)
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 300)
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 2000, nveh = 32, nt = 500)
 
 # early stopping -
 if early_stopping:
     def early_stopping_loss(model):
         return deep_learning.generate_trajectories(model, list(testing.keys()), testing,
                                                     loss=deep_learning.weighted_masked_MSE_loss)[-1]
-    deep_learning.training_loop(model, loss, opt, training, nbatches=10000, nveh=32, nt=50, m=100, n=20,
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=10000, nveh=32, nt=50, m=100, n=20,
                                 early_stopping_loss=early_stopping_loss)
-    deep_learning.training_loop(model, loss, opt, training, nbatches=1000, nveh=32, nt=100, m=50, n=10,
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=1000, nveh=32, nt=100, m=50, n=10,
                                 early_stopping_loss=early_stopping_loss)
-    deep_learning.training_loop(model, loss, opt, training, nbatches=1000, nveh=32, nt=200, m=40, n=10,
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=1000, nveh=32, nt=200, m=40, n=10,
                                 early_stopping_loss=early_stopping_loss)
-    deep_learning.training_loop(model, loss, opt, training, nbatches=1000, nveh=32, nt=300, m=30, n=10,
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=1000, nveh=32, nt=300, m=30, n=10,
                                 early_stopping_loss=early_stopping_loss)
-    deep_learning.training_loop(model, loss, opt, training, nbatches=2000, nveh=32, nt=500, m=20, n=10,
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=2000, nveh=32, nt=500, m=20, n=10,
                                 early_stopping_loss=early_stopping_loss)
 
 
@@ -78,12 +79,10 @@ if early_stopping:
 # model.load_weights('trained LSTM')
 
 #%% test by generating entire trajectories
-test = deep_learning.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss)
-test2 = deep_learning.generate_trajectories(model, list(training.keys()), training, loss=deep_learning.weighted_masked_MSE_loss)
+test = deep_learning.generate_trajectories(model, list(testing.keys()), testing, \
+        loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss)
+test2 = deep_learning.generate_trajectories(model, list(training.keys()), training,\
+        loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss)
 
-print(' testing loss was '+str(test[-1]))
-print(' training loss was '+str(test2[-1]))
-
-
-
-
+print(f'testing loss was {test.loss}')
+print(f'training loss was {test2.loss}')

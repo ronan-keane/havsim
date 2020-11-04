@@ -7,6 +7,7 @@ where all the plotting functions go
 import numpy as np
 import copy
 import math
+import seaborn as sns
 
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
@@ -20,6 +21,12 @@ import palettable
 import havsim.helper as helper
 import havsim.calibration as hc
 
+def plotLaneChangingConfMat(traj):
+    sns.heatmap(traj.confusion_matrix())
+    plt.title("Confusion Matrix")
+    plt.xtitle("Predicted Label")
+    plt.ytitle("True Label")
+    plt.show()
 
 def plotColorLines(X, Y, SPEED, speed_limit, colormap = 'speeds', ind = 0):
     """X and Y are x/y data to plot, SPEED gives the color for each data pair."""

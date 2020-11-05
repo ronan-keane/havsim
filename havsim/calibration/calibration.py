@@ -428,6 +428,7 @@ def update_calibration(vehicles, add_events, lc_events, addtime, lctime, timeind
     return addtime, lctime
 
 
+
 class CalibrationLC(Calibration):
     def __init__(self, vehicles, leadvehicles, add_events, lc_events, dt, end=None, run_type='max endtime',
                  parameter_dict=None, ending_position=math.inf):
@@ -445,7 +446,7 @@ class CalibrationLC(Calibration):
         # TODO need add events and lc events. I think add and lc events should be methods of Calibration?
         # we need to have seperate add events and lc events, but the order of updates is exactly the same.
         self.addtime, self.lctime = update_calibration_lc(self.vehicles, self.leadvehicles, self.add_events,
-                                                          self.lc_events, self.addtime, self.lctime, self.timeind, self.dt)
+                                                          self.lc_events, self.addtime, self.lctime, self.timeind, self.dt, self.ending_position)
         # only difference is that when we call veh.update for veh in vehicles, we also need to call
         # veh.update for veh in leadvehicles. Suggest to just write a new update_calibration_lc as it is only
         # like 15 lines of code.
@@ -515,7 +516,7 @@ def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_lis
         addevent_list.append(curevent)
 
 
-    return addevent_list, lcevent_list, leadveh_list
+    return addevent_list, lcevent_list
 
 
 def make_leadvehicles(vehicles, id2obj, vehdict, dt):
@@ -556,10 +557,25 @@ def create_add_events(veh_data, id2obj, curveh, vehdict, vehicles, dt, addevent_
     for count, j in enumerate(veh_data):
         # need a better variable name
         fol_lead_veh, start, end = j
-        # if there is a switch to no veh in this fl_type relationship
+
         if not fol_lead_veh:
-            curevent = (start, 'lc', curveh, None, fl_type)
-            lcevent_list.append(curevent)
+            # if we are looking at followers
+            if fl_tpye == "f" or fl_type == "lf" or fl_type == "rf":
+                # how should we reuse this for all cases?
+                dummy_vec = LeadVehicle(None, None, None, None)
+                curevent = (start, 'lc', curveh, dummy_vec, fl_type)
+                lcevent_list.append(curevent)
+            # if we are looking at leader relationships
+            else:
+                fol_lead_veh = None
+                sorted_lc_event = sorted(lcevent_list, key = lambda x:x[0], reverse=reverse)
+                for event in sorted_lc_event:
+                    if event[1] == fl_type:
+                        if not isinstance(event[2], CalibrationVehicleLC):
+                            curevent = (start, "lc", curveh, fol_lead_veh, fl_type)
+                            lcevent_list.append(curevent)
+                            break
+
         else:
             fol_lead_veh, curlen = id2obj[fol_lead_veh], None
 
@@ -701,7 +717,7 @@ def make_calibration(vehicles, vehdict, dt, vehicle_class=None, calibration_clas
         addevent_list, lcevent_list = event_maker(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list)
     else:
         all_leadvehicles = make_leadvehicles(vehicles, id2obj, vehdict, dt)
-        addevent_list, lcevent_list, leadveh_list = event_maker(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list, all_leadvehicles)
+        addevent_list, lcevent_list = event_maker(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list, all_leadvehicles)
 
     addevent_list.sort(key = lambda x: x[0], reverse = True)
     lcevent_list.sort(key = lambda x: x[0], reverse = True)
@@ -711,7 +727,7 @@ def make_calibration(vehicles, vehdict, dt, vehicle_class=None, calibration_clas
         return calibration_class(vehicle_list, addevent_list, lcevent_list, dt, end=max_end,
                                  lc_event_fun=lc_event_fun, **calibration_kwargs)
     else:
-        return calibration_class(vehicle_list, leadveh_list, addevent_list, lcevent_list, dt, end=max_end)
+        return calibration_class(vehicle_list, all_leadvehicles, addevent_list, lcevent_list, dt, end=max_end)
 
 
 def make_lc_event(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list):

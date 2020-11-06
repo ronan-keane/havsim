@@ -1,267 +1,18 @@
-"""Refactors the functionality of the calibration.opt module.
+"""Calibration objects do simulation with fixed vehicle orders, compute loss on trajectory level.
 
 The simulation module does an entire micro simulation. The calibration module supports simulations where
-the lane changing times and vehicle orders fixed apriori to match trajecotry data. This allows direct
+the lane changing times and vehicle orders fixed apriori to match trajectory data. This allows direct
 comparison with the trajectory data, removing the need to only calibrate to the macroscopic, aggreagted data.
 Either single vehicles, or strings (platoons) of vehicles can be simulated.
 """
 
 import numpy as np
-import havsim.simulation as hs
 from havsim.simulation.road_networks import get_headway
+from havsim.calibration.vehicles import LeadVehicle
 import math
 
 
-class CalibrationVehicle(hs.Vehicle):
-    """Base CalibrationVehicle class for a second order ODE model.
-
-    CalibrationVehicle is the base class for simulated Vehicles in a Calibration. In a Calibration, the
-    order of vehicles is fixed a priori, which allows direct comparison between the simulation and some
-    trajectory data. Fixed vehicle order means lane changes, lead vehicles, and following vehicles are all
-    predetermined. Calibrations can be used to calibrate either just a CF model, just LC model, or both.
-    For simulations which do not have fixed vehicle orders, use the simulation api. Compared to the
-    Vehicle class, CalibrationVehicles have no road, an unchanging lane used for downstream boundary
-    conditions, and have no routes, route events, or lane events. CalibrationVehicle is meant for CF
-    calibration only, whereas CalibrationVehicleLC can be used for both CF and LC calibration.
-
-    Attributes:
-        vehid: unique vehicle ID for hashing (float)
-        lane: A Lane object which has a get_downstream method, used to apply downstream boundary to the
-            Vehicle if it is ever simulated with lead=None
-        road: None
-        cf_parameters: list of float parameters for cf model
-        relax_parameters: float parameter(s) for relaxation model, or None
-        relax: if there is currently relaxation, a list of floats or list of tuples giving the relaxation
-            values.
-        in_relax: bool, True if there is currently relaxation
-        relax_start: time index corresponding to relax[0]. (int)
-        relax_end: The last time index when relaxation is active. (int)
-        minacc: minimum allowed acceleration (float)
-        maxacc: maxmimum allowed acceleration(float)
-        maxspeed: maximum allowed speed (float)
-        hdbounds: tuple of minimum and maximum possible headway.
-        eql_type: If 'v', the vehicle's eqlfun accepts a speed and returns a headway. Otherwise it
-            accepts a headway and returns a speed.
-        lead: leading vehicle, can be either a (subclassed) Vehicle or LeadVehicle
-        start: time index of the first simulated time
-        end: time index of the last simulated time (or None)
-        initpos: position at start
-        initspd: speed at start
-        leadveh: If the Vehicle has it's own LeadVehicle, leadveh is a reference to it. Otherwise None.
-            Only the CalibrationVehicle has a reference to leadveh, and is responsible for updating it.
-        in_leadveh: True if the leadveh attribute is the current leader.
-        leadmem: list of tuples, where each tuple is (lead vehicle, time) giving the time the ego vehicle
-            first begins to follow the lead vehicle.
-        posmem: list of floats giving the position, where the 0 index corresponds to the position at start
-        speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at start
-        relaxmem: list of tuples where each tuple is (first time, last time, relaxation) where relaxation
-            gives the relaxation values for between first time and last time
-        pos: position (float)
-        speed: speed (float)
-        hd: headway (float)
-        len: vehicle length (float)
-        acc: acceleration (float)
-        y: target given to loss function (e.g. the position time series from data)
-    """
-    def __init__(self, vehid, y, initpos, initspd, start, leadstatemem, leadinittime, length=3, lane=None,
-                 accbounds=None, maxspeed=1e4, hdbounds=None, eql_type='v'):
-        """Inits CalibrationVehicle. Cannot be used for simulation until initialize is called.
-
-        Args:
-            vehid: unique vehicle ID for hashing, float
-            y: target for loss function, e.g. a 1d numpy array of np.float64
-            initpos: initial position, float
-            initspd: initial speed, float
-            start: first time of simulation, float
-            leadstatemem: list of tuples of floats. Gives the LeadVehicle state at the corresponding
-                time index.
-            leadinittime: float of time index that 0 index of leadstatemem corresponds to
-            length: float vehicle length
-            lane: Lane object, its get_downstream is used for downstream boundary conditions.
-            accbounds: list of minimum/maximum acceleration. If None, defaults to [-7, 3]
-            maxspeed: float of maximum speed.
-            hdbounds: list of minimum/maximum headway. Defaults to [0, 10000].
-            eql_type: 'v' If eqlfun takes in speed and outputs headway, 's' if vice versa. Defaults to 'v'.
-        """
-        self.vehid = vehid
-        self.len = length
-        self.y = y
-        self.initpos = initpos
-        self.initspd = initspd
-        self.start = start
-
-        self.road = None
-        self.lane = lane
-
-        if accbounds is None:
-            self.minacc, self.maxacc = -7, 3
-        else:
-            self.minacc, self.maxacc = accbounds[0], accbounds[1]
-        self.maxspeed = maxspeed
-        self.hdbounds = (0, 1e4) if hdbounds is None else hdbounds
-        self.eql_type = eql_type
-
-        if leadstatemem is not None:
-            self.leadveh = LeadVehicle(leadstatemem, leadinittime)
-        self.in_leadveh = False
-
-    def set_relax(self, relaxamounts, timeind, dt):
-        """Applies relaxation given the relaxation amounts."""
-        rp = self.relax_parameters
-        if rp is None:
-            return
-        relaxamount_s, relaxamount_v = relaxamounts
-        hs.relaxation.relax_helper_vhd(rp, relaxamount_s, relaxamount_v, self, timeind, dt)
-
-    def update(self, timeind, dt):
-        """Update for longitudinal state. Updates LeadVehicle if applicable."""
-        super().update(timeind, dt)
-        if self.in_leadveh:
-            self.leadveh.update(timeind+1)
-
-    def loss(self):
-        """Calculates loss."""
-        T = self.leadmem[-1][1] if self.leadmem[-1][0] is None else len(self.posmem)+self.start
-        endind = min(T-self.start, len(self.y))
-        return sum(np.square(self.posmem[:endind] - self.y[:endind]))/endind
-
-    def initialize(self, parameters):
-        """Resets memory, applies initial conditions, and sets the parameters for the next simulation."""
-        # initial conditions
-        self.lead = self.fol = None
-        self.pos = self.initpos
-        self.speed = self.initspd
-        # reset relax
-        self.in_relax = False
-        self.relax = None
-        self.relax_start = None
-        # memory
-        self.end = None
-        self.leadmem = []
-        self.posmem = [self.pos]
-        self.speedmem = [self.speed]
-        self.relaxmem = []
-
-        self.set_parameters(parameters)
-
-    def set_parameters(self, parameters):
-        """Set cf_parameters and any other parameters which can change between runs."""
-        self.cf_parameters = parameters[:-1]
-        self.maxspeed = parameters[0]-.1
-        self.relax_parameters = parameters[-1]
-
-    def __repr__(self):
-        return ' vehicle '+str(self.vehid)
-
-
-class CalibrationVehicleLC(CalibrationVehicle):
-    """Base CalibrationVehicle, which calibrates car following and full lane changing model.
-
-    Extra attributes compared to CalibrationVehicle
-    y_lc: used to calculate loss of lane changing actions
-    lcmem: holds lane changing actions
-    folmem: memory for follower, lfol, rfol, llead, rlead
-    lfolmem
-    rfolmem
-    lleadmem
-    rleadmem
-    l_lc: None, 'discretionary' or 'mandatory' - controls what state lane changing model is in
-    r_lc: None, 'discretionary' or 'mandatory' - controls what state lane changing model is in
-    """
-    def __init__(self, vehid, y, y_lc, initpos, initspd, start, length=3, lane=None, accbounds=None,
-                 maxspeed=1e4, hdbounds=None, eql_type='v'):
-        super().__init__(vehid, y, initpos, initspd, start, None, None, length=length, lane=lane,
-                         accbounds=accbounds, maxspeed=maxspeed, hdbounds=hdbounds, eql_type=eql_type)
-        del self.in_leadveh
-        self.y_lc = y_lc
-        self.llane = self.rlane = lane  # give values to rlane/llane for mobil model, not needed in general
-
-    def update(self, timeind, dt):
-        super(CalibrationVehicle, self).update(timeind, dt)
-
-    def loss(self):
-        # TODO do something to calculate the loss over lane changing actions
-        lc_loss = 0
-        return super().loss() + lc_loss
-
-    def initialize(self, parameters):
-        super().initialize(parameters)
-
-        # vehicle orders
-        self.lfol = self.rfol = self.llead = self.rlead = None
-        # memory for lc model
-        self.folmem = []
-        self.lfolmem = []
-        self.rfolmem = []
-        self.lleadmem = []
-        self.rleadmem = []
-        self.lcmem = []
-
-    def set_parameters(self, parameters):
-        self.cf_parameters = parameters[:5]
-        self.relax_parameters = parameters[5]
-        self.maxspeed = parameters[0]-.1
-        self.lc_parameters = parameters[6:15]
-        self.shift_parameters = parameters[15:17]
-        self.coop_parameter = parameters[17]
-
-    def set_lc(self, timeind, dt):
-        """Call Vehicle.set_lc, and append result to lcmem."""
-        # need to set the correct leaders for lfol, rfol
-        self.lfol.lead = self.llead
-        self.rfol.lead = self.rlead
-
-        lc_action = {}
-        super().set_lc(lc_action, timeind, dt)
-        if self in lc_action:
-            self.lcmem.append((lc_action[self], timeind))
-
-
-class LeadVehicle:
-    """Used for simulating a vehicle which follows a predetermined trajectory - it has no models.
-
-    A LeadVehicle acts as a regular Vehicle, but has no models or parameters. It has cf_parameters = None
-    which marks it as a LeadVehicle. Their state is updated from a predfined memory. They are used to hold
-    trajectories which are not simulated, but which interact with simulated Vehicles.
-    """
-    def __init__(self, leadstatemem, start, length=None, initstate=(None, None)):
-        """
-        leadstatemem - list of tuples, each tuple is a pair of (position, speed)
-        start - leadstatemem[0] corresponds to time start
-        length - length of vehicle (can possibly change)
-        initstate - sets the initial state of the vehicle when initialize is called
-        """
-        self.leadstatemem = leadstatemem
-        self.start = start
-        self.end = self.start+len(leadstatemem)-1
-        self.road = None
-        self.lane = None
-        self.cf_parameters = None
-        self.len = length
-        self.initstate = initstate
-
-    def initialize(self, *args):
-        """Sets initial state."""
-        self.pos, self.speed = self.initstate
-
-    def update(self, timeind, *args):
-        """Update position/speed."""
-        self.pos, self.speed = self.leadstatemem[timeind - self.start]
-
-    def set_len(self, length):
-        """Set len so headway can be computed correctly."""
-        self.len = length
-
-    def get_cf(self, *args):
-        """Return 0 for cf model - so you don't have to check for LeadVehicles inside set_lc."""
-        return 0
-
-    def set_relax(self, *args):
-        """Do nothing - so you don't have to check for LeadVehicles when applying relax."""
-        pass
-
-
-class Calibration:
+class CalibrationCF:
     """Does a simulation of a single CalibrationVehicle, and returns the loss.
 
     Attributes:
@@ -277,19 +28,19 @@ class Calibration:
         vehicles: set of all vehicles currently in simulation
         add_events: sorted list of remaining add events
         lc_events: sorted list of remaining lead change events
-        lc_event: function that can apply a lc_events
+        lc_event_fun: function that can apply lc_events (default is apply_calibrationcf_lc_event)
     """
-    def __init__(self, vehicles, add_events, lc_events, dt, lc_event_fun=None, end=None,
+    def __init__(self, vehicles, add_events, lc_events, dt, end=None, lc_event_fun=None,
                  run_type='max endtime', parameter_dict=None, ending_position=math.inf):
-        """Inits Calibration.
+        """Inits CalibrationCF.
 
         Args:
             vehicles: list of all Vehicle objects to be simulated.
             add_events: list of add events, sorted in time
             lc_events: list of lead change (lc) events, sorted in time
             dt: timestep, float
-            lc_event_fun: can give a custom function for handling lc_events, otherwise we use the default
             end: last time index which is simulated. The start is inferred from add_events.
+            lc_event_fun: function which applies lc events, or None if using default.
             run_type: type of calibration we are running. 'max endtime' simulates to the last end while
                 'all vehicles' simulates until all vehs have left the simulation
             parameter_dict: dictionary where keys are indices and values are starting, ending indices
@@ -304,22 +55,19 @@ class Calibration:
         self.all_vehicles = vehicles
         self.all_add_events = add_events
         self.all_lc_events = lc_events
-        if lc_event_fun is None:
-            self.lc_event = lc_event
-        else:
-            self.lc_event = lc_event_fun
+        self.lc_event_fun = apply_calibrationcf_lc_event if lc_event_fun is None else lc_event_fun
 
         self.start = min([add_events[i][0] for i in range(len(add_events))])
         self.end = end
         self.dt = dt
 
     def step(self):
-        """Logic for a single simulation step. Main logics are in update_calibration."""
+        """Logic for a single simulation step. Main logics are in update_calibration_cf."""
         for veh in self.vehicles:
             veh.set_cf(self.timeind, self.dt)
 
 
-        self.addtime, self.lctime = update_calibration(self.vehicles, self.add_events, self.lc_events,
+        self.addtime, self.lctime = update_calibration_cf(self.vehicles, self.add_events, self.lc_events,
                                                        self.addtime, self.lctime, self.timeind, self.dt,
                                                        self.lc_event, self.ending_position)
 
@@ -375,21 +123,42 @@ class Calibration:
         self.addtime = self.add_events[-1][0]
         self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
         self.timeind = self.start
-        self.addtime = update_add_event(self.vehicles, self.add_events, self.addtime, self.timeind-1, self.dt,
-                                        self.lc_event)
-        # TODO
-        # for veh in self.vehicles:  # pretty sure we can remove this?
-        #     if veh.in_leadveh:
-        #         veh.leadveh.update(self.timeind)
-        #     veh.hd = get_headway(veh, veh.lead)
+        self.addtime = self.update_add_event(self.timeind-1, self.dt)
+
+    def update_lc_events(self, timeind, dt):
+        """Check if we need to apply the next lc event, apply it and update lctime if so.
+
+        See function apply_calibrationcf_lc_event.
+        """
+        if self.lctime == timeind+1:
+            self.lc_event_fun(self.lc_events.pop(), timeind, dt)
+            self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
+            if self.lctime == timeind+1:
+                while self.lctime == timeind+1:
+                    self.lc_event_fun(self.lc_events.pop(), timeind, dt)
+            self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
+
+    def update_add_events(self, timeind, dt):
+        """Check if we need to apply the next add event, apply it and update addtime if so.
+
+        See function apply_calibrationcf_add_event.
+        """
+        if self.addtime == timeind+1:
+            apply_calibrationcf_add_event(self.add_events.pop(), self.vehicles, timeind, dt,
+                                          self.lc_event_fun)
+            addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
+            if self.addtime == timeind+1:
+                while addtime == timeind+1:
+                    apply_calibrationcf_add_event(self.add_events.pop(), self.vehicles, timeind, dt,
+                                                  self.lc_event_fun)
+                    self.addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
 
 
-def update_calibration(vehicles, add_events, lc_events, addtime, lctime, timeind, dt, lc_event,
-                       ending_position):
-    """Main logic for a single step of the Calibration simulation.
+def update_calibration_cf(vehicles, update_lc_fun, update_add_fun, timeind, dt, ending_position):
+    """Main logic for a single step of the CalibrationCF simulation.
 
     At the beginning of the timestep, vehicles/states/events are assumed to be fully updated. Then, in order,
-        -call each vehicle's cf model (done in Calibration.step).
+        -call each vehicle's cf model (done in CalibrationCF.step).
         -check for lead change events in the next timestep, and apply them if applicable.
         -update all vehicle's states and headway, for the next timestep.
         -check if any vehicles reach the end of the network, and remove them if so.
@@ -401,15 +170,12 @@ def update_calibration(vehicles, add_events, lc_events, addtime, lctime, timeind
 
     Args:
         vehicles: set of vehicles currently in simulation
-        add_events: sorted list of current add events
-        lc_events: sorted list of current lead change events
-        addtime: next time an add event occurs
-        lctime: next time a lead change event occurs
+        update_lc_fun: CalibrationCF.update_lc_events method, which applies lead change events
+        update_add_fun: CalibrationCF.update_add_events method, which applies add events
         timeind: time index
         dt: timestep
-        lc_event: function to apply a single entry in lc_events
     """
-    lctime = update_lc_event(lc_events, lctime, timeind, dt, lc_event)
+    update_lc_fun(timeind, dt)
 
     for veh in vehicles:
         veh.update(timeind, dt)
@@ -417,19 +183,30 @@ def update_calibration(vehicles, add_events, lc_events, addtime, lctime, timeind
         if veh.lead is not None:
             veh.hd = get_headway(veh, veh.lead)
 
-
     #removing vehs that have an end position above the ending_position attribute
     remove_list = remove_vehicles(vehicles, ending_position, timeind)
     for remove_vec in remove_list:
         vehicles.remove(remove_vec)
 
-    addtime = update_add_event(vehicles, add_events, addtime, timeind, dt, lc_event)
-
-    return addtime, lctime
+    update_add_fun(timeind, dt)
 
 
+def remove_vehicles(vehicles, endpos, timeind):
+    """See if vehicle needs to be removed from simulation."""
+    remove_list = []
+    for veh in vehicles:
+        if veh.pos > endpos:
+            veh.end = timeind+1
+            remove_list.append(veh)
+            if veh.fol is not None:
+                veh.fol.lead = None
+                if not veh.fol.end:  # handles edge case with collisions
+                    veh.fol.leadmem.append([None, timeind+1])
 
-class CalibrationLC(Calibration):
+    return remove_list
+
+
+class Calibration(CalibrationCF):
     def __init__(self, vehicles, leadvehicles, add_events, lc_events, dt, end=None, run_type='max endtime',
                  parameter_dict=None, ending_position=math.inf):
         super().__init__(vehicles, add_events, lc_events, dt, end=end, run_type=run_type,
@@ -443,9 +220,8 @@ class CalibrationLC(Calibration):
         for veh in self.vehicles:
             veh.set_lc(self.timeind, self.dt)
 
-        # TODO need add events and lc events. I think add and lc events should be methods of Calibration?
         # we need to have seperate add events and lc events, but the order of updates is exactly the same.
-        self.addtime, self.lctime = update_calibration_lc(self.vehicles, self.leadvehicles, self.add_events,
+        self.addtime, self.lctime = update_calibration(self.vehicles, self.leadvehicles, self.add_events,
                                                           self.lc_events, self.addtime, self.lctime, self.timeind, self.dt, self.ending_position)
         # only difference is that when we call veh.update for veh in vehicles, we also need to call
         # veh.update for veh in leadvehicles. Suggest to just write a new update_calibration_lc as it is only
@@ -593,90 +369,34 @@ def create_add_events(veh_data, id2obj, curveh, vehdict, vehicles, dt, addevent_
                 curevent = (start, 'lc', curveh, fol_lead_veh, fl_type)
                 lcevent_list.append(curevent)
 
-
-
-def remove_vehicles(vehicles, endpos, timeind):
-    """See if vehicle needs to be removed from simulation."""
-    remove_list = []
-    for veh in vehicles:
-        if veh.pos > endpos:
-            veh.end = timeind+1
-            remove_list.append(veh)
-            if veh.fol is not None:
-                veh.fol.lead = None
-                if not veh.fol.end:  # handles edge case with collisions
-                    veh.fol.leadmem.append([None, timeind+1])
-
-    return remove_list
-
-
-def update_lc_event(lc_events, lctime, timeind, dt, lc_event):
-    """Check if we need to apply the next lc event, apply it and update lctime if so.
-
-    Args:
-        lc_events: sorted list of current lead change events
-        lctime: next time a lead change event occurs
-        timeind: time index
-        dt: timestep
-        lc_event: function to apply an lc_event
-    """
-    if lctime == timeind+1:
-        lc_event(lc_events.pop(), timeind, dt)
-        lctime = lc_events[-1][0] if len(lc_events)>0 else math.inf
-        if lctime == timeind+1:
-            while lctime == timeind+1:
-                lc_event(lc_events.pop(), timeind, dt)
-                lctime = lc_events[-1][0] if len(lc_events)>0 else math.inf
-    return lctime
-
-
-def update_add_event(vehicles, add_events, addtime, timeind, dt, lc_event):
-    """Check if we need to apply the next add event, apply it and update addtime if so.
-
-    Args:
-        add_events: sorted list of current add events
-        addtime: next time an add event occurs
-        timeind: time index
-        dt: timestep
-        lc_event: function to apply an lc_event
-    """
-    if addtime == timeind+1:
-        add_event(add_events.pop(), vehicles, timeind, dt, lc_event)
-        addtime = add_events[-1][0] if len(add_events)>0 else math.inf
-        if addtime == timeind+1:
-            while addtime == timeind+1:
-                add_event(add_events.pop(), vehicles, timeind, dt, lc_event)
-                addtime = add_events[-1][0] if len(add_events)>0 else math.inf
-    return addtime
-
-# TODO What to do for making the new CalibrationLC? Seperate make_calibration function? Refactor this version?
+# TODO Refactor this version into seperate functions for Calibration/CalibrationCF
+# put the make_calibration/make_event functions into a seperate file (make_calibration.py)
 def make_calibration(vehicles, vehdict, dt, vehicle_class=None, calibration_class=None,
                      event_maker=None, lc_event_fun=None, lanes={}, calibration_kwargs={}):
-    """Sets up a Calibration object.
+    """Sets up a CalibrationCF object.
 
     Extracts the relevant quantities (e.g. LeadVehicle, initial conditions, loss) from the data
     and creates the add/lc event.
 
     Args:
-        vehicles: list of vehicles to add to the Calibration
+        vehicles: list of vehicles to add to the CalibrationCF
         vehdict: dictionary of all VehicleData
         dt: timestep
         vehicle_class: subclassed Vehicle to use - if None defaults to CalibrationVehicle
-        calibration_class: subclassed Calibration to use - if None defaults to Calibration
+        calibration_class: subclassed CalibrationCF to use - if None defaults to CalibrationCF
         event_maker: specify a function to create custom (lc) events
         lc_event_fun: specify function which handles custom lc events
         lanes: dictionary with keys as lane indexes, values are Lane objects with call_downstream method.
             Used for downstream boundary.
-        calibration_kwargs: keyword arguments passed to Calibration
+        calibration_kwargs: keyword arguments passed to CalibrationCF
     """
-    if vehicle_class is None:
-        vehicle_class = CalibrationVehicle
-    if calibration_class is None:
-        calibration_class = Calibration
-    if event_maker is None:
-        event_maker = make_lc_event
-    if lc_event_fun is None:
-        lc_event_fun = lc_event
+    #
+    # if vehicle_class is None:
+    #     vehicle_class = CalibrationVehicle
+    # if calibration_class is None:
+    #     calibration_class = CalibrationCF
+    # if event_maker is None:
+    #     event_maker = make_lc_event
 
     # initialize
     vehicle_list = []
@@ -722,8 +442,8 @@ def make_calibration(vehicles, vehdict, dt, vehicle_class=None, calibration_clas
     addevent_list.sort(key = lambda x: x[0], reverse = True)
     lcevent_list.sort(key = lambda x: x[0], reverse = True)
 
-    # make calibration object
-    if calibration_class == Calibration:
+    # make CalibrationCF object
+    if calibration_class == CalibrationCF:
         return calibration_class(vehicle_list, addevent_list, lcevent_list, dt, end=max_end,
                                  lc_event_fun=lc_event_fun, **calibration_kwargs)
     else:
@@ -731,7 +451,7 @@ def make_calibration(vehicles, vehdict, dt, vehicle_class=None, calibration_clas
 
 
 def make_lc_event(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list):
-    """Makes lc and add events for default Calibration, which includes adding relaxation."""
+    """Makes lc and add events for default CalibrationCF, which includes adding relaxation."""
     for veh in vehicles:
         curveh = id2obj[veh]
         t0, t1 = vehdict[veh].longest_lead_times
@@ -780,10 +500,10 @@ def make_lc_event(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list):
     return addevent_list, lcevent_list
 
 
-def add_event(event, vehicles, timeind, dt, lc_event):
+def apply_calibrationcf_add_event(event, vehicles, timeind, dt, lc_event_fun):
     """Adds a vehicle to the simulation and applies the first lead change event.
 
-    Add events occur when a vehicle is added to the Calibration.
+    Add events occur when a vehicle is added to the CalibrationCF.
     Add events are a tuple of
         start (float) - time index of the event
         'add' (str) - identifies event as an add event
@@ -795,21 +515,24 @@ def add_event(event, vehicles, timeind, dt, lc_event):
         vehicles: set of current vehicles in simulation which is modified in place
         timeind: time index
         dt: timestep
+        lc_event_fun: function which applies lc events
     """
     unused, unused, curveh, lcevent = event
     vehicles.add(curveh)
-    lc_event(lcevent, timeind, dt)
+    lc_event_fun(lcevent, timeind, dt)
     if curveh.in_leadveh:
         curveh.leadveh.update(timeind+1)
     if curveh.lead is not None:
         curveh.hd = get_headway(curveh, curveh.lead)
 
 
-def lc_event(event, timeind, dt):
+def apply_calibrationcf_lc_event(event, timeind, dt):
     """Applies lead change event, updating a CalibrationVehicle's leader.
 
-    Lead change events occur when a CalibrationVehicle's leader changes. In a Calibration, it is
+    Lead change events occur when a CalibrationVehicle's leader changes. In a CalibrationCF, it is
     assumed that vehicles have fixed lc times and fixed vehicle orders.
+    Besides updating the leader, this also possibly applies relaxation, and possibly updates the follower
+    attribute.
     Lead change events are a tuple of
         start (float) - time index of the event
         'lc' (str) - identifies event as a lane change event
@@ -850,11 +573,11 @@ def lc_event(event, timeind, dt):
         curveh.set_relax(relaxamounts, timeind, dt)
 
     if not curveh.end:
-        update_lead(curveh, newlead, leadlen, timeind)  # update leader
+        update_lead_calibrationcf(curveh, newlead, leadlen, timeind)  # update leader
 
 
-def update_lead(curveh, newlead, leadlen, timeind):
-    """Updates leader for curveh.
+def update_lead_calibrationcf(curveh, newlead, leadlen, timeind):
+    """Updates leader for curveh. Possibly updates in_leadveh and fol attributes.
 
     Args:
         curveh: Vehicle to update

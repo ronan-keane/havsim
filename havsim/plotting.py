@@ -428,6 +428,11 @@ def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane =
         for count, curq in enumerate(q):
             curmarker = marker_list[count]
             curk = k[count]
+            # print(curq)
+            # print(curk)
+            # curq, curk = np.array(curq)*4*3600, np.array(curk)*1000
+            # print(curq)
+            # print(curk)
             plt.scatter(curk, curq, c=time_sequence_for_line, cmap=cm.get_cmap('viridis'), marker = curmarker)
         # plt.scatter(unzipped_k, unzipped_q, c=time_sequence, cmap=cm.get_cmap('viridis'))
         plt.colorbar()
@@ -438,6 +443,7 @@ def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane =
     if Flows:
         plt.figure()
         for i in range(len(spacea)):
+            q[i] = np.array(q[i])*4*3600
             plt.plot(time_sequence_for_line, q[i])
         plt.xlabel("time")
         plt.ylabel("flow")

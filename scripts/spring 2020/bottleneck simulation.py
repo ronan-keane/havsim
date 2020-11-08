@@ -54,13 +54,13 @@ def mainroad_newveh(self, vehid, *args):
 
 # def onramp_newveh(self, vehid, *args):
 #     cf_p, lc_p  = IDM_parameters()
-#     kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':[1.1, 15],
-#               'shift_parameters': [-2, 3], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
+#     kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':[.6, 15],
+#               'shift_parameters': [-2, 2], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
 #     self.newveh = SKARelaxIDM(vehid, self, cf_p, lc_p, **kwargs)
 
 # def mainroad_newveh(self, vehid, *args):
 #     cf_p, lc_p  = IDM_parameters()
-#     kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':[1.1, 15], 'shift_parameters': [-2, 3],
+#     kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':[.6, 15], 'shift_parameters': [-2, 2],
 #               'hdbounds':(cf_p[2]+1e-6, 1e4)}
 #     self.newveh = SKARelaxIDM(vehid, self, cf_p, lc_p, **kwargs)
 
@@ -83,13 +83,24 @@ def mainroad_newveh(self, vehid, *args):
 #     self.newveh = OVMVehicle(vehid, self, cf_p, lc_p, **kwargs)
     
 ### inflow amounts
-onramp_inflow_amount = .09
-mainroad_inflow_amount = .5675
+onramp_inflow_amount = .1111111*2
+mainroad_inflow_amount = .61
 # deterministic constant inflow
-def onramp_inflow(*args):
-    return onramp_inflow_amount
-def mainroad_inflow(*args):
-    return mainroad_inflow_amount
+# def onramp_inflow(*args):
+#     return onramp_inflow_amount
+# def mainroad_inflow(*args):
+#     return mainroad_inflow_amount
+
+# inflow increases gradually
+mainflow_rampup = 480*11
+ramp_up_timesteps = 480*22
+def onramp_inflow(timeind):
+    temp = timesteps -mainflow_rampup-480*3
+    if temp > 0:
+        return min(temp/ramp_up_timesteps,1)*onramp_inflow_amount
+    return 0
+def mainroad_inflow(timeind):
+    return min(timeind/mainflow_rampup,1)*mainroad_inflow_amount
 
 # stochastic inflow
 # onramp_inflow2 = (M3Arrivals(onramp_inflow_amount, cf_p[1], .3), .25)
@@ -178,7 +189,7 @@ inflow_lanes = [lane0, lane1, lane2]
 simulation = hs.Simulation(inflow_lanes, merge_lanes, dt = .25)
 
 #call
-timesteps = 20000
+timesteps = 28800
 start = time.time()
 simulation.simulate(timesteps)
 end = time.time()
@@ -208,28 +219,28 @@ plt.xlabel('time index (.25s)')
 # platoonplot(sim, None, siminfo, lane = 1, colorcode = False)
 
 # %%
-# plotflows(sim, [[0,700],[1300,2000]], [0,10000], 120, lane=1, h=.25, MFD=True, Flows=False)
-# plotflows(sim, [[0,700],[1300,2000]], [0,10000], 120, lane=0, h=.25, MFD=True, Flows=False)
+# plotflows(sim, [[0,700]], [0,20000], 120, lane=1, h=.25, MFD=True, Flows=False) #[1300,2000]
+# plotflows(sim, [[0,700]], [0,20000], 120, lane=0, h=.25, MFD=True, Flows=False)
 
 # plotflows(sim, [[1400, 2000]], [1000,19960], 120, lane=1, h=.25, MFD=False, Flows=True)
 # plotflows(sim, [[1400, 2000]], [1000,19960], 120, lane=0, h=.25, MFD=False, Flows=True)
 
 
 
-# plotflows(sim, [[1981, 2000]], [4160,20000], 480, lane=1, h=.25, MFD=False, Flows=True, method='flow')
-plotflows(sim, [[1981, 2000]], [9000, 20000], 11000, lane=1, h=.25, MFD=False, Flows=True, method='flow')
-flow_series = plt.gca().lines[0]._y
-# plotflows(sim, [[1981, 2000]], [4160,20000], 480, lane=0, h=.25, MFD=False, Flows=True, method='flow')
-plotflows(sim, [[1981, 2000]], [9000, 20000], 11000, lane=0, h=.25, MFD=False, Flows=True, method='flow')
-flow_series2 = plt.gca().lines[0]._y
-print(' total inflow is '+str(2*mainroad_inflow_amount+onramp_inflow_amount))
-print('average discharge for lane 1 is '+str(np.mean(flow_series)*4))
-print('average discharge for lane 0 is '+str(np.mean(flow_series2)*4))
-print('total discharge is '+str(np.mean(flow_series)*4+np.mean(flow_series2)*4))
+plotflows(sim, [[0,700], [1300, 2000]], [0, 28320], 480, lane=1, h=.25, MFD=False, Flows=True, method='area')
+# plotflows(sim, [[1981, 2000]], [10400, 20000], 9600, lane=1, h=.25, MFD=False, Flows=True, method='flow')
+# flow_series = plt.gca().lines[0]._y
+plotflows(sim, [[0,700], [1300, 2000]], [0, 28320], 480, lane=0, h=.25, MFD=False, Flows=True, method='area')
+# plotflows(sim, [[1981, 2000]], [10400, 20000], 9600, lane=0, h=.25, MFD=False, Flows=True, method='flow')
+# flow_series2 = plt.gca().lines[0]._y
+# print(' total inflow is '+str((2*mainroad_inflow_amount+onramp_inflow_amount)*3600))
+# print('average discharge for lane 1 is '+str(np.mean(flow_series)))
+# print('average discharge for lane 0 is '+str(np.mean(flow_series2)))
+# print('total discharge is '+str(np.mean(flow_series)+np.mean(flow_series2)))
 
-print(np.std(flow_series*4+flow_series2*4))
-print(np.std(flow_series*4))
-print(np.std(flow_series2*4))
+# print(np.std(flow_series*4+flow_series2*4))
+# print(np.std(flow_series*4))
+# print(np.std(flow_series2*4))
 
 
 # plotflows(sim, [[1000,1400],[1400,1800]], [0,10000], 120, lane=0, h=.25, MFD=False, Flows=True)

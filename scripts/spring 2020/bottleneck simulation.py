@@ -4,31 +4,14 @@ Bottleneck simulation
 """
 import havsim.simulation as hs
 from havsim.simulation.road_networks import downstream_wrapper, AnchorVehicle, arrival_time_inflow, M3Arrivals
-from havsim.helper import boundaryspeeds, getentryflows, calculateflows
-from havsim.plotting import plot_format, platoonplot, plotvhd, plotflows
+from havsim.plotting import plot_format, platoonplot, plotflows
 from havsim.simulation.simulation_models import OVMVehicle, SKARelaxIDM
 import math
 import numpy as np
 import matplotlib.pyplot as plt
 from havsim.simulation.models import IDM_parameters
 import time
-#%%get boundary conditions (careful with units)
-# #option 1 -
-# #could get them directly from data
-# entryflows, unused = getentryflows(meas, [3],.1,.25)
-# unused, unused, exitspeeds, unused = boundaryspeeds(meas, [], [3],.1,.1)
 
-# #option 2 - use calculateflows, which has some aggregation in it and uses a different method to compute flows
-# q,k = calculateflows(meas, [[200,600],[1000,1400]], [0, 9900], 30*10, lane = 6)
-
-#option 3 - can also just make boudnary conditions based on what the FD looks like
-# cf_p, unused = IDM_parameters()
-# tempveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
-# spds = np.arange(0,cf_p[0],.01)
-# flows = np.array([tempveh.get_flow(i) for i in spds])
-# density = np.divide(flows,spds)
-# plt.figure()
-# plt.plot(density,flows)
 
 #%%
 
@@ -38,13 +21,13 @@ tempveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
 
 def onramp_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':12,
+    kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':8.7,
               'shift_parameters': [-2, 2], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 
 def mainroad_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':12, 'shift_parameters': [-2, 2],
+    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':8.7, 'shift_parameters': [-2, 2],
               'hdbounds':(cf_p[2]+1e-6, 1e4)}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 
@@ -54,13 +37,13 @@ def mainroad_newveh(self, vehid, *args):
 
 # def onramp_newveh(self, vehid, *args):
 #     cf_p, lc_p  = IDM_parameters()
-#     kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':[1.1, 15],
-#               'shift_parameters': [-2, 3], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
+#     kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':[.6, 15],
+#               'shift_parameters': [-2, 2], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
 #     self.newveh = SKARelaxIDM(vehid, self, cf_p, lc_p, **kwargs)
 
 # def mainroad_newveh(self, vehid, *args):
 #     cf_p, lc_p  = IDM_parameters()
-#     kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':[1.1, 15], 'shift_parameters': [-2, 3],
+#     kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':[.6, 15], 'shift_parameters': [-2, 2],
 #               'hdbounds':(cf_p[2]+1e-6, 1e4)}
 #     self.newveh = SKARelaxIDM(vehid, self, cf_p, lc_p, **kwargs)
 
@@ -83,13 +66,24 @@ def mainroad_newveh(self, vehid, *args):
 #     self.newveh = OVMVehicle(vehid, self, cf_p, lc_p, **kwargs)
     
 ### inflow amounts
-onramp_inflow_amount = .09
-mainroad_inflow_amount = .5675
+onramp_inflow_amount = .1111111*2
+mainroad_inflow_amount = .47
 # deterministic constant inflow
 def onramp_inflow(*args):
     return onramp_inflow_amount
 def mainroad_inflow(*args):
     return mainroad_inflow_amount
+
+# inflow increases gradually
+# mainflow_rampup = 480*12
+# ramp_up_timesteps = 480*12
+# def onramp_inflow(timeind):
+#     temp = timeind -mainflow_rampup-480*5
+#     if temp > 0:
+#         return min(temp/ramp_up_timesteps,1)*onramp_inflow_amount
+#     return 0
+# def mainroad_inflow(timeind):
+#     return min(timeind/mainflow_rampup,1)*mainroad_inflow_amount
 
 # stochastic inflow
 # onramp_inflow2 = (M3Arrivals(onramp_inflow_amount, cf_p[1], .3), .25)
@@ -102,10 +96,8 @@ def mainroad_inflow(*args):
 # inspeedramp, inhd = tempveh.inv_flow(.1, output_type = 'both', congested = True)
 # def mainroad_outflow(*args):
 #     return outspeed
-
 # def speed_inflow(*args):
 #     return inspeed
-
 # def speed_inflow_ramp(*args):
 #     return inspeedramp
 
@@ -178,7 +170,7 @@ inflow_lanes = [lane0, lane1, lane2]
 simulation = hs.Simulation(inflow_lanes, merge_lanes, dt = .25)
 
 #call
-timesteps = 20000
+timesteps = 480*30
 start = time.time()
 simulation.simulate(timesteps)
 end = time.time()
@@ -194,10 +186,6 @@ print('inflow buffers are: '+str([i.inflow_buffer for i in simulation.inflow_lan
 laneinds = {lane0:0, lane1:1, lane2:2}
 sim, siminfo = plot_format(all_vehicles, laneinds)
 
-# mylane2list = []
-# for veh in sim.keys():
-#     if 2 in sim[veh][:,7]:
-#         mylane2list.append(veh)
 #%%
 # platoonplot(sim, None, siminfo, lane = 2, opacity = 0, speed_limit=[0,30])
 platoonplot(sim, None, siminfo, lane = 1, opacity = 0, speed_limit=[0,35])
@@ -208,33 +196,23 @@ plt.xlabel('time index (.25s)')
 # platoonplot(sim, None, siminfo, lane = 1, colorcode = False)
 
 # %%
-# plotflows(sim, [[0,700],[1300,2000]], [0,10000], 120, lane=1, h=.25, MFD=True, Flows=False)
-# plotflows(sim, [[0,700],[1300,2000]], [0,10000], 120, lane=0, h=.25, MFD=True, Flows=False)
-
-# plotflows(sim, [[1400, 2000]], [1000,19960], 120, lane=1, h=.25, MFD=False, Flows=True)
-# plotflows(sim, [[1400, 2000]], [1000,19960], 120, lane=0, h=.25, MFD=False, Flows=True)
-
-
-
-# plotflows(sim, [[1981, 2000]], [4160,20000], 480, lane=1, h=.25, MFD=False, Flows=True, method='flow')
-plotflows(sim, [[1981, 2000]], [9000, 20000], 11000, lane=1, h=.25, MFD=False, Flows=True, method='flow')
+# plotflows(sim, [[0,100],[1300,1400], [1900,2000]], [0, 28800], 480, lane=1, h=.25, MFD=True, Flows=False, method='area')
+# plt.plot(density*1000, flows*3600, '--k',alpha=.1)  # from 'boundary conditions.py'
+plotflows(sim, [[1900,2000]], [480*7, 480*30], 480, lane=1, h=.25, MFD=False, Flows=True, method='area')
 flow_series = plt.gca().lines[0]._y
-# plotflows(sim, [[1981, 2000]], [4160,20000], 480, lane=0, h=.25, MFD=False, Flows=True, method='flow')
-plotflows(sim, [[1981, 2000]], [9000, 20000], 11000, lane=0, h=.25, MFD=False, Flows=True, method='flow')
+# plt.plot((480*17, 480*17), (0, 2300), '--k', alpha=.1)
+# plt.plot((480*29, 480*29), (0, 2300), '--k', alpha=.1)
+
+# plotflows(sim, [[0,100],[1300,1400], [1900,2000]], [0, 28800], 480, lane=1, h=.25, MFD=True, Flows=False, method='area')
+plotflows(sim, [[1900,2000]], [480*7, 480*30], 480, lane=0, h=.25, MFD=False, Flows=True, method='area')
 flow_series2 = plt.gca().lines[0]._y
-print(' total inflow is '+str(2*mainroad_inflow_amount+onramp_inflow_amount))
-print('average discharge for lane 1 is '+str(np.mean(flow_series)*4))
-print('average discharge for lane 0 is '+str(np.mean(flow_series2)*4))
-print('total discharge is '+str(np.mean(flow_series)*4+np.mean(flow_series2)*4))
+# plt.plot((480*17, 480*17), (0, 2300), '--k', alpha=.1)
+# plt.plot((480*29, 480*29), (0, 2300), '--k', alpha=.1)
 
-print(np.std(flow_series*4+flow_series2*4))
-print(np.std(flow_series*4))
-print(np.std(flow_series2*4))
-
-
-# plotflows(sim, [[1000,1400],[1400,1800]], [0,10000], 120, lane=0, h=.25, MFD=False, Flows=True)
-
-# %%
-# plotspacetime(sim, siminfo, lane = 2)
-# plotspacetime(sim, siminfo, lane = 1)
-# plotspacetime(sim, siminfo, lane = 0)
+print(' total inflow is '+str((2*mainroad_inflow_amount+onramp_inflow_amount)*3600))
+print('average discharge for lane 1 is '+str(np.mean(flow_series)))
+print('average discharge for lane 0 is '+str(np.mean(flow_series2)))
+print('total discharge is '+str(np.mean(flow_series)+np.mean(flow_series2)))
+print(np.std(flow_series+flow_series2))
+print(np.std(flow_series))
+print(np.std(flow_series2))

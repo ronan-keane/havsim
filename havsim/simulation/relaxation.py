@@ -27,7 +27,6 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
     Returns:
         None. Modifies relaxation attributes for vehicle in place.
     """
-    # TODO can add seperate parameters for positive/negative relaxation
     rp = veh.relax_parameters
     if rp is None:  # no relax -> do nothing
         return
@@ -66,15 +65,43 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
 
 def relax_helper_vhd(rp, relaxamount_s, relaxamount_v, veh, timeind, dt):
     """Helper function for headway + speed relaxation."""
-    #rp = parameter, relaxamount_s = headway relaxation, _v = velocity relaxation
+    #rp = parameter(s), relaxamount_s = headway relaxation, _v = velocity relaxation
+    
+    ### 1 parameter - positive/negative or positive only 
     relaxlen = math.ceil(rp/dt) - 1
     if relaxlen == 0:
         return
     tempdt = -dt/rp*relaxamount_s
     tempdt2 = -dt/rp*relaxamount_v
+    ### positive/negative 1 parameter
     temp = [relaxamount_s + tempdt*i for i in range(1,relaxlen+1)]
     temp2 = [relaxamount_v + tempdt2*i for i in range(1, relaxlen+1)]
+    ### positive relax only
+    # temp = [relaxamount_s + tempdt*i for i in range(1,relaxlen+1)] if relaxamount_s > 0 else [0]*relaxlen
+    # temp2 = [relaxamount_v + tempdt2*i for i in range(1, relaxlen+1)] if relaxamount_v > 0 else [0]*relaxlen
+    
     curr = list(zip(temp,temp2))
+    
+    ### 2 parameter - seperate for negative
+    # posr, negr = rp
+    # rp = posr if relaxamount_s > 0 else negr
+    # relaxlen = math.ceil(rp/dt) - 1
+    # tempdt = -dt/rp*relaxamount_s
+    # temp = [relaxamount_s + tempdt*i for i in range(1,relaxlen+1)]
+    # # make velocity relax
+    # rp2 = posr if relaxamount_v > 0 else negr
+    # relaxlen2 = math.ceil(rp2/dt) - 1
+    # tempdt = -dt/rp2*relaxamount_v
+    # temp2 = [relaxamount_v + tempdt*i for i in range(1,relaxlen2+1)]
+    # if max(relaxlen, relaxlen2) == 0:
+    #     return
+    # # pad relax if necessary
+    # if relaxlen < relaxlen2:
+    #     temp.extend([0]*(relaxlen2-relaxlen))
+    #     relaxlen = relaxlen2
+    # elif relaxlen2 < relaxlen:
+    #     temp2.extend([0]*(relaxlen-relaxlen2))
+    # curr = list(zip(temp, temp2))
 
     if veh.in_relax:  # add to existing relax
         # find indexes with overlap - need to combine relax values for those

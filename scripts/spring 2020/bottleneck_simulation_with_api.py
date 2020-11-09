@@ -84,11 +84,10 @@ endmerge = 1300
 onramplen = 200
 
 main_road = Road(num_lanes=2, length=mainroadlen, name='main road')
-main_road.connects('exit', is_exit=True)
+main_road.connect('exit', is_exit=True)
 onramp_road = Road(num_lanes=1, length=[(startmerge - 100, endmerge)], name='on ramp')
-onramp_road[0].connects(main_road[1], connect_type='merge',
-                        self_pos=(startmerge, endmerge),
-                        new_lane_pos=(startmerge, endmerge))
+onramp_road.merge(main_road, self_index=0, new_lane_index=1,
+                  self_pos=(startmerge, endmerge), new_lane_pos=(startmerge, endmerge))
 for i in range(2):
     lane = main_road[i]
     lane.call_downstream = downstream_wrapper(**downstream1).__get__(lane, Lane)

@@ -1,4 +1,65 @@
-from havsim.simulation.road_networks import Lane, connect_lane_left_right
+from havsim.simulation.road_networks import Lane
+
+
+def add_merge_anchor(lane, pos):
+    """
+    Add a merge anchor at pos if needed, return the index of the merge anchor
+    """
+    lane.merge_anchors.append([lane.anchor, None if pos == lane.start else pos])
+    return len(lane.merge_anchors) - 1
+
+
+def connect_lane_left_right(left_lane, right_lane, left_connection, right_connection):
+    if left_lane is None or right_lane is None:
+        return
+
+    if left_connection[0] == left_lane.start:
+        if not left_lane.connect_right:
+            left_lane.connect_right.append((left_lane.start, right_lane))
+        else:
+            assert left_lane.connect_right[0] == (left_lane.start, None)
+            left_lane.connect_right[0] = (left_lane.start, right_lane)
+    else:
+        assert left_connection[0] > left_lane.start
+        if not left_lane.connect_right:
+            left_lane.connect_right.append((left_lane.start, None))
+        left_lane.connect_right.append((left_connection[0], right_lane))
+        merge_anchor_ind = add_merge_anchor(right_lane, right_connection[0])
+        left_lane.events.append(
+            {'event': 'update lr', 'right': 'add', 'left': None, 'right anchor': merge_anchor_ind,
+             'pos': left_connection[0]})
+
+    if left_connection[1] < left_lane.end:
+        left_lane.connect_right.append((left_connection[1], None))
+        left_lane.events.append(
+            {'event': 'update lr', 'right': 'remove', 'left': None,
+             'pos': left_connection[1]})
+
+    if right_connection[0] == right_lane.start:
+        if not right_lane.connect_left:
+            right_lane.connect_left.append((right_lane.start, left_lane))
+        else:
+            assert right_lane.connect_left[0] == (right_lane.start, None)
+            right_lane.connect_left[0] = (right_lane.start, left_lane)
+    else:
+        assert right_connection[0] > right_lane.start
+        if not right_lane.connect_left:
+            right_lane.connect_left.append((right_lane.start, None))
+        right_lane.connect_left.append((right_connection[0], left_lane))
+        merge_anchor_ind = add_merge_anchor(left_lane, left_connection[0])
+        right_lane.events.append(
+            {'event': 'update lr', 'left': 'add', 'right': None, 'left anchor': merge_anchor_ind,
+             'pos': right_connection[0]})
+
+    if right_connection[1] < right_lane.end:
+        right_lane.connect_left.append((right_connection[1], None))
+        right_lane.events.append(
+            {'event': 'update lr', 'left': 'remove', 'right': None,
+             'pos': right_connection[1]})
+
+    # Sort lane events by position
+    left_lane.events.sort(key=lambda d: d['pos'])
+    right_lane.events.sort(key=lambda d: d['pos'])
 
 
 class Road:
@@ -49,13 +110,13 @@ class Road:
                     max(left_lane.start, right_lane.start), min(left_lane.end, right_lane.end))
             connect_lane_left_right(left_lane, right_lane, left_connection, right_connection)
 
-    def connects(self, new_road, self_indices=None, new_road_indices=None, is_exit=False):
+    def connect(self, new_road, self_indices=None, new_road_indices=None, is_exit=False):
         """
         new_road: road object to make the connection to. If passing in a string, it's assumed
             to be the name of the exit road (need to mark is_exit as True)
         self_indices: a list of indices of the current road for making the connection
         new_road_indices: a list of indices of the new road to connect to
-        is_exit: whether the new road is an exit. An exit road won't have an road object.
+        is_exit: whether the new road is an exit. An exit road won't have a road object.
         """
 
         if self_indices is None:
@@ -70,7 +131,7 @@ class Road:
             self.connect_to[new_road] = (all_lanes_end[0], 'continue', self_indices, None, None)
             # We don't need to update roadlen for exit type roads
             for i in self_indices:
-                self.lanes[i].connects(new_lane=new_road, connect_type='exit')
+                self.lanes[i].events.append({'event': 'exit', 'pos': self.lanes[i].end})
         else:
             if new_road_indices is None:
                 new_road_indices = list(range(new_road.num_lanes))
@@ -89,7 +150,42 @@ class Road:
             # the lanes
             self.lanes[0].roadlen[new_road.name] = all_new_lanes_start[0] - all_self_lanes_end[0]
             for self_ind, new_road_ind in zip(self_indices, new_road_indices):
-                self.lanes[self_ind].connects(new_road.lanes[new_road_ind], connect_type='continue')
+                # TODO: finish the impl for lane's connection
+                self.lanes[self_ind].events.append({'event': 'new lane', 'pos': self.lanes[self_ind].end})
+
+    def merge(self, new_road, self_index, new_lane_index, self_pos, new_lane_pos, side=None):
+        """
+        new_road: new road to be merged into
+        self_index: index of the self road's lane
+        new_lane_index: index of the new road's lane
+        self_pos: a tuple indicating the start/end position of the merge connection for the current lane
+        new_lane_pos: a tuple indicating the start/end position of the merge connection for the new lane
+        side: 'l' or 'r', if not specified a side, will infer it automatically
+        """
+        if side == 'l':
+            change_side = 'l_lc'
+        elif side == 'r':
+            change_side = 'r_lc'
+        else:
+            assert side is None
+            change_side = 'l_lc' if self_index == 0 else 'r_lc'
+        # Update self road's connect_to
+        self.connect_to[new_road.name] = (self_pos, 'merge', self_index, change_side, new_road)
+        assert isinstance(self_pos, tuple) and isinstance(new_lane_pos, tuple)
+        # Update roadlen
+        self.lanes[0].roadlen[new_road.name] = new_lane_pos[0] - self_pos[0]
+        new_road.lanes[0].roadlen[self.name] = self_pos[0] - new_lane_pos[0]
+        # Update lane events and connect_left/connect_right for both lanes
+        if change_side == 'l_lc':
+            connect_lane_left_right(new_road[new_lane_index], self.lanes[self_index], new_lane_pos, self_pos)
+        else:
+            connect_lane_left_right(self.lanes[self_index], new_road[new_lane_index], self_pos, new_lane_pos)
+
+    def diverge(self):
+        """
+        TODO: implement it
+        """
+        pass
 
     def __getitem__(self, index):
         if isinstance(index, str):

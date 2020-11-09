@@ -1,10 +1,15 @@
 from havsim.simulation.road_networks import Lane
 
 
-def add_merge_anchor(lane, pos):
+def add_or_get_merge_anchor_index(lane, pos):
     """
     Add a merge anchor at pos if needed, return the index of the merge anchor
     """
+    if not hasattr(lane, "merge_anchors"):
+        lane.merge_anchors = []
+    for ind, e in enumerate(lane.merge_anchors):
+        if (e[1] is None and pos == lane.start) or e[1] == pos:
+            return ind
     lane.merge_anchors.append([lane.anchor, None if pos == lane.start else pos])
     return len(lane.merge_anchors) - 1
 
@@ -24,7 +29,7 @@ def connect_lane_left_right(left_lane, right_lane, left_connection, right_connec
         if not left_lane.connect_right:
             left_lane.connect_right.append((left_lane.start, None))
         left_lane.connect_right.append((left_connection[0], right_lane))
-        merge_anchor_ind = add_merge_anchor(right_lane, right_connection[0])
+        merge_anchor_ind = add_or_get_merge_anchor_index(right_lane, right_connection[0])
         left_lane.events.append(
             {'event': 'update lr', 'right': 'add', 'left': None, 'right anchor': merge_anchor_ind,
              'pos': left_connection[0]})
@@ -46,7 +51,7 @@ def connect_lane_left_right(left_lane, right_lane, left_connection, right_connec
         if not right_lane.connect_left:
             right_lane.connect_left.append((right_lane.start, None))
         right_lane.connect_left.append((right_connection[0], left_lane))
-        merge_anchor_ind = add_merge_anchor(left_lane, left_connection[0])
+        merge_anchor_ind = add_or_get_merge_anchor_index(left_lane, left_connection[0])
         right_lane.events.append(
             {'event': 'update lr', 'left': 'add', 'right': None, 'left anchor': merge_anchor_ind,
              'pos': right_connection[0]})
@@ -150,8 +155,59 @@ class Road:
             # the lanes
             self.lanes[0].roadlen[new_road.name] = all_new_lanes_start[0] - all_self_lanes_end[0]
             for self_ind, new_road_ind in zip(self_indices, new_road_indices):
-                # TODO: finish the impl for lane's connection
-                self.lanes[self_ind].events.append({'event': 'new lane', 'pos': self.lanes[self_ind].end})
+                self_lane = self.lanes[self_ind]
+                new_lane = new_road[new_road_ind]
+                # Update connect_to attribute the self_lane
+                self_lane.connect_to = new_lane
+
+                # Update merge anchors for current track
+                add_or_get_merge_anchor_index(new_lane, new_lane.start)
+                new_anchor = self_lane.anchor
+                lane_to_update = new_lane
+                while lane_to_update is not None:
+                    for merge_anchor in lane_to_update.merge_anchors:
+                        merge_anchor[0] = new_anchor
+                        if merge_anchor[1] is None:
+                            merge_anchor[1] = lane_to_update.start
+                    if hasattr(lane_to_update, "connect_to"):
+                        lane_to_update = lane_to_update.connect_to
+                        # Assert that connect_to won't store an exit lane
+                        assert not isinstance(lane_to_update, str)
+                    else:
+                        lane_to_update = None
+
+                # Create lane events to be added for self_lane
+                event_to_add = {'event': 'new lane', 'pos': self_lane.end}
+
+                # Update left side
+                self_lane_left = self_lane.get_connect_left(self_lane.end)
+                new_lane_left = new_lane.get_connect_left(new_lane.end)
+                if self_lane_left == new_lane_left:
+                    event_to_add['left'] = None
+                elif new_lane_left is None:
+                    event_to_add['left'] = 'remove'
+                elif self_lane_left is None:
+                    event_to_add['left'] = 'add'
+                    merge_anchor_ind = add_or_get_merge_anchor_index(new_lane_left, new_lane_left.start)
+                    event_to_add['left anchor'] = merge_anchor_ind
+                else:
+                    event_to_add['left'] = 'update'
+
+                # Update right side
+                self_lane_right = self_lane.get_connect_right(self_lane.end)
+                new_lane_right = new_lane.get_connect_right(new_lane.end)
+                if self_lane_right == new_lane_right:
+                    event_to_add['right'] = None
+                elif new_lane_right is None:
+                    event_to_add['right'] = 'remove'
+                elif self_lane_right is None:
+                    event_to_add['right'] = 'add'
+                    merge_anchor_ind = add_or_get_merge_anchor_index(new_lane_right, new_lane_right.start)
+                    event_to_add['right anchor'] = merge_anchor_ind
+                else:
+                    event_to_add['right'] = 'update'
+
+                self_lane.events.append(event_to_add)
 
     def merge(self, new_road, self_index, new_lane_index, self_pos, new_lane_pos, side=None):
         """

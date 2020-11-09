@@ -95,7 +95,7 @@ mainroad_inflow_amount = .61
 mainflow_rampup = 480*11
 ramp_up_timesteps = 480*22
 def onramp_inflow(timeind):
-    temp = timesteps -mainflow_rampup-480*3
+    temp = timeind -mainflow_rampup-480*3
     if temp > 0:
         return min(temp/ramp_up_timesteps,1)*onramp_inflow_amount
     return 0
@@ -227,10 +227,10 @@ plt.xlabel('time index (.25s)')
 
 
 
-plotflows(sim, [[0,700], [1300, 2000]], [0, 28320], 480, lane=1, h=.25, MFD=False, Flows=True, method='area')
+plotflows(sim, [[100,300], [1700, 1900]], [0, 28800], 480, lane=1, h=.25, MFD=True, Flows=True, method='area')
 # plotflows(sim, [[1981, 2000]], [10400, 20000], 9600, lane=1, h=.25, MFD=False, Flows=True, method='flow')
 # flow_series = plt.gca().lines[0]._y
-plotflows(sim, [[0,700], [1300, 2000]], [0, 28320], 480, lane=0, h=.25, MFD=False, Flows=True, method='area')
+plotflows(sim, [[100,300], [1700, 1900]], [0, 28800], 480, lane=0, h=.25, MFD=True, Flows=True, method='area')
 # plotflows(sim, [[1981, 2000]], [10400, 20000], 9600, lane=0, h=.25, MFD=False, Flows=True, method='flow')
 # flow_series2 = plt.gca().lines[0]._y
 # print(' total inflow is '+str((2*mainroad_inflow_amount+onramp_inflow_amount)*3600))

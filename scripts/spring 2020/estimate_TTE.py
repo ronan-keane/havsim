@@ -1,9 +1,6 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Oct 26 18:58:29 2020
 
-@author: rlk268
+"""
+Script for measuring time to equilibrium for different LC situations
 """
 from havsim.simulation.models import IDM_parameters
 import havsim.simulation as hs

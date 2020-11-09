@@ -74,12 +74,12 @@ def relax_helper_vhd(rp, relaxamount_s, relaxamount_v, veh, timeind, dt):
     tempdt = -dt/rp*relaxamount_s
     tempdt2 = -dt/rp*relaxamount_v
     ### positive/negative 1 parameter
-    # temp = [relaxamount_s + tempdt*i for i in range(1,relaxlen+1)]
-    # temp2 = [relaxamount_v + tempdt2*i for i in range(1, relaxlen+1)]
-    
+    temp = [relaxamount_s + tempdt*i for i in range(1,relaxlen+1)]
+    temp2 = [relaxamount_v + tempdt2*i for i in range(1, relaxlen+1)]
     ### positive relax only
-    temp = [relaxamount_s + tempdt*i for i in range(1,relaxlen+1)] if relaxamount_s > 0 else [0]*relaxlen
-    temp2 = [relaxamount_v + tempdt2*i for i in range(1, relaxlen+1)] if relaxamount_v > 0 else [0]*relaxlen
+    # temp = [relaxamount_s + tempdt*i for i in range(1,relaxlen+1)] if relaxamount_s > 0 else [0]*relaxlen
+    # temp2 = [relaxamount_v + tempdt2*i for i in range(1, relaxlen+1)] if relaxamount_v > 0 else [0]*relaxlen
+    
     curr = list(zip(temp,temp2))
     
     ### 2 parameter - seperate for negative

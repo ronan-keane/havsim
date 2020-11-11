@@ -3,10 +3,11 @@
 import math
 import havsim.simulation.models as hm
 import havsim.calibration.calibration as hc
+import havsim.calibration.vehicles as vc
 import havsim.simulation as hs
 from havsim import helper
 
-class OVMCalibrationVehicle(hc.CalibrationVehicle):
+class OVMCalibrationVehicle(vc.CalibrationVehicle):
     """Optimal Velocity Model Implementation."""
     def cf_model(self, p, state):
         return hm.OVM(p, state)
@@ -53,7 +54,7 @@ class OVMCalibrationVehicle(hc.CalibrationVehicle):
 
 
 # for Newell
-class NewellCalibrationVehicle(hc.CalibrationVehicle):
+class NewellCalibrationVehicle(vc.CalibrationVehicle):
     """Implementation of Newell model in Differential form, example of 1st order ODE implementation."""
     def cf_model(self, p, state):
         """p = parameters (time shift, space shift), state = headway"""
@@ -114,7 +115,7 @@ class NewellCalibrationVehicle(hc.CalibrationVehicle):
         self.maxspeed = parameters[2]
 
 
-class SKA_IDM(hc.CalibrationVehicle):
+class SKA_IDM(vc.CalibrationVehicle):
     """IDM with a relaxation model based on Schakel, Knoop, van Arem (2012).
 
     In the original paper, they give a full microsimulation model, and the relaxation is integrated in the
@@ -148,7 +149,7 @@ class SKA_IDM(hc.CalibrationVehicle):
             temp = dt/self.relax_parameters[1]
             self.cf_parameters[1] += (self.max_relax-self.cf_parameters[1])*temp
 
-class RelaxExpIDM(hc.CalibrationVehicle):
+class RelaxExpIDM(vc.CalibrationVehicle):
     """Implements relaxation with an exponential adjustment rate."""
     def get_cf(self, hd, spd, lead, curlane, timeind, dt, userelax):
         if lead is None:
@@ -178,7 +179,7 @@ class RelaxExpIDM(hc.CalibrationVehicle):
             temp = 1 - dt/self.relax_parameters
             self.currelax = (self.currelax[0]*temp, self.currelax[1]*temp)
 
-class Relax2IDM(hc.CalibrationVehicle):
+class Relax2IDM(vc.CalibrationVehicle):
     """Implements relaxation with 2 seperate parameters for positive/negative relaxation amounts."""
     def initialize(self, parameters):
         super().initialize(parameters)
@@ -226,7 +227,7 @@ class Relax2IDM(hc.CalibrationVehicle):
             self.relax = curr
             self.relax_end = timeind + relaxlen
 
-class Relax2vhdIDM(hc.CalibrationVehicle):
+class Relax2vhdIDM(vc.CalibrationVehicle):
     """Implements relaxation with 2 seperate parameters for headway/velocity relaxation amounts."""
     def initialize(self, parameters):
         super().initialize(parameters)
@@ -275,7 +276,7 @@ class Relax2vhdIDM(hc.CalibrationVehicle):
             self.relax_end = timeind + relaxlen
 
 
-class RelaxShapeIDM(hc.CalibrationVehicle):
+class RelaxShapeIDM(vc.CalibrationVehicle):
     """Implements 2 parameter relaxation where the second parameter controls the shape."""
     def initialize(self, parameters):
         super().initialize(parameters)
@@ -315,7 +316,7 @@ class RelaxShapeIDM(hc.CalibrationVehicle):
             self.relax_end = timeind + relaxlen
 
 
-class NewellTT(hc.CalibrationVehicle):
+class NewellTT(vc.CalibrationVehicle):
     """Implements Newell model in trajectory translation form, based on Laval, Leclerq (2008).
 
     3 parameters (4 with relaxation) like the model in differential form, but this form is different. It
@@ -542,7 +543,7 @@ def ll_lc_event(event, timeind, dt):
     hc.update_lead(curveh, newlead, leadlen, timeind)  # update leader
 
 
-class NoRelaxIDM(hc.CalibrationVehicle):
+class NoRelaxIDM(vc.CalibrationVehicle):
     def set_relax(self, *args):
         pass
 
@@ -567,4 +568,3 @@ class NoRelaxNewell(NewellCalibrationVehicle):
     def initialize(self, parameters):
         super().initialize(parameters)
         self.cf_parameters = parameters
-

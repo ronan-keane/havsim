@@ -9,18 +9,18 @@ import time
 import havsim.helper as helper
 from havsim import simulation
 import scipy.optimize as sc
-import havsim.calibration.calibration as calibration
+import havsim.calibration.make_calibration as mc
 #%%
 # please put pickle loading stuff in a seperate file not on github. Also note that recon-ngsim-old is
 # what holds meas/platooninfo (still needed as not everything is converted)
 #recon-ngsim now holds the same data in the updated format.
 #also, recon-ngsim is in units of meters now instead of feet.
-# try:
-#     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
-#         meas, platooninfo = pickle.load(f) #load data
-# except:
-#     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
-#         meas, platooninfo = pickle.load(f) #load data
+try:
+    with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
+        meas, platooninfo = pickle.load(f) #load data
+except:
+    with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
+        meas, platooninfo = pickle.load(f) #load data
 
 # try:
 #     with open('/Users/nathanbala/Downloads/platoonlist.pkl', 'rb') as f:
@@ -31,12 +31,12 @@ import havsim.calibration.calibration as calibration
 
 # # print(meas)
 
-# try:
-#     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim.pkl', 'rb') as f:
-#         data = pickle.load(f) #load data
-# except:
-#     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim.pkl', 'rb') as f:
-#         data = pickle.load(f) #load data
+try:
+    with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim.pkl', 'rb') as f:
+        data = pickle.load(f) #load data
+except:
+    with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim.pkl', 'rb') as f:
+        data = pickle.load(f) #load data
 
 
 
@@ -56,31 +56,30 @@ lanes[7] = lanes[6]
 
 
 #%%
-# curplatoon = [1013, 1023, 1030, 1037, 1045]
-# calibration_args = {"parameter_dict" : None, "ending_position" : 1475/3.28084}
-# cal = calibration.make_calibration(curplatoon, data, .1, calibration.CalibrationVehicleLC,
-# calibration.CalibrationLC, calibration.make_lc_events_new, lanes=lanes, calibration_kwargs = calibration_args)
+curplatoon = [525, 530, 537, 545] 
+calibration_args = {"parameter_dict" : None, "ending_position" : 1475/3.28084}
+cal = mc.make_calibration(curplatoon, data, .1, mc.make_lc_events_new, lanes=lanes, calibration_kwargs = calibration_args)
 
 # curplatoon = [1013, 1023, 1030, 1037, 1045]
 # platoon_list = [[977.0, 3366.0, 774.0, 788.0]]
-for curplatoon in platoon_list:
-    # average_end_position = 0
-    # for i in curplatoon:
-    #     average_end_position += (meas[i][-1][2])
-    # average_end_position = average_end_position/len(curplatoon)
-    # print(average_end_position)
-    calibration_args = {"parameter_dict" : None, "ending_position" : 1475/3.28084}
-    pguess =  [40/3.28084, 1, 1, 3/3.28084, 10/3.28084, 25]*len(curplatoon)
-    mybounds = [(20,120), (.1,5), (.1,35), (.1,20), (.1,20), (.1,75)]*len(curplatoon)
-    start = time.time()
-    cal = calibration.make_calibration(curplatoon, vehdict, .1, calibration.CalibrationVehicle, lanes=lanes, **calibration_args)
-    print(curplatoon)
-    print('time to make calibrate is '+str(time.time()-start))
-    start = time.time()
-    cal.simulate(pguess)
-    print('time to simulate once is '+'{:2.2f}'.format(time.time()-start)+' for '+'{:2.2f}'.format(sum([len(veh.posmem) for veh in cal.all_vehicles]))+\
-          ' timesteps = '+'{:2.2f}'.format(sum([len(veh.posmem) for veh in cal.all_vehicles])/(time.time()-start))+' updates per second')
-    print("\n")
+# for curplatoon in platoon_list:
+#     # average_end_position = 0
+#     # for i in curplatoon:
+#     #     average_end_position += (meas[i][-1][2])
+#     # average_end_position = average_end_position/len(curplatoon)
+#     # print(average_end_position)
+#     calibration_args = {"parameter_dict" : None, "ending_position" : 1475/3.28084}
+#     pguess =  [40/3.28084, 1, 1, 3/3.28084, 10/3.28084, 25]*len(curplatoon)
+#     mybounds = [(20,120), (.1,5), (.1,35), (.1,20), (.1,20), (.1,75)]*len(curplatoon)
+#     start = time.time()
+#     cal = calibration.make_calibration(curplatoon, vehdict, .1, calibration.CalibrationVehicle, lanes=lanes, **calibration_args)
+#     print(curplatoon)
+#     print('time to make calibrate is '+str(time.time()-start))
+#     start = time.time()
+#     cal.simulate(pguess)
+#     print('time to simulate once is '+'{:2.2f}'.format(time.time()-start)+' for '+'{:2.2f}'.format(sum([len(veh.posmem) for veh in cal.all_vehicles]))+\
+#           ' timesteps = '+'{:2.2f}'.format(sum([len(veh.posmem) for veh in cal.all_vehicles])/(time.time()-start))+' updates per second')
+#     print("\n")
 
 
 

@@ -21,12 +21,32 @@ import palettable
 import havsim.helper as helper
 import havsim.calibration as hc
 
-def plotLaneChangingConfMat(traj):
-    sns.heatmap(traj.confusion_matrix())
+def plotLaneChangingConfMat(traj, save=False, output_fn=None):
+    """
+    This plots the confusion matrix for the lane changing model.
+    Args:
+        traj: (Trajectories object) which is generated from deep_learning.generate_trajectories
+        save: (bool) whether or not we should save the image or just show
+        output_fn: the path to the output filename (only used if saved=True)
+    """
+    plt.clf() # clear figure
+    sns.heatmap(traj.confusion_matrix(), annot=True)
     plt.title("Confusion Matrix")
-    plt.xtitle("Predicted Label")
-    plt.ytitle("True Label")
-    plt.show()
+    plt.xlabel("Predicted Label")
+    plt.ylabel("True Label")
+    if save and output_fn:
+        plt.savefig(output_fn)
+    else:
+        plt.show()
+
+def plotPredictedLC(traj, idx):
+    pred, true = traj.compressed_trajectory(idx)
+    if pred:
+        plt.clf()
+        sns.heatmap(pred)
+        plt.ylabel("Frame ID")
+        plt.title("Predicted LC (Single Trajectory)")
+        plt.show()
 
 def plotColorLines(X, Y, SPEED, speed_limit, colormap = 'speeds', ind = 0):
     """X and Y are x/y data to plot, SPEED gives the color for each data pair."""

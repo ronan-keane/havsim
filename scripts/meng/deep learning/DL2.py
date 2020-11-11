@@ -1,5 +1,6 @@
 # imports and load data
 from havsim.calibration import deep_learning
+from havsim.plotting import plotLaneChangingConfMat
 import pickle
 import numpy as np
 import tensorflow as tf
@@ -50,7 +51,9 @@ early_stopping = False
 
 # no early stopping -
 if not early_stopping:
-    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 10000, nveh = 32, nt = 50)
+    # deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 10000, nveh = 32, nt = 50)
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 5000, nveh = 32, nt = 50)
+
     deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 100)
     deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 200)
     deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 300)

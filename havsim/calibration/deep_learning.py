@@ -131,6 +131,54 @@ def make_dataset(veh_dict, veh_list, dt=.1):
                 'lc_weights': np.array(lc_weights)}
     return ds, (maxheadway, maxspeed, minacc, maxacc)
 
+def scaled_headway(veh_pos, neighbor_pos, max_hd=1):
+    """
+    Calculates the headway for lfol, rfol, llead, and rlead given their corresponding positions
+    and the position of the current vehicle
+    Args:
+        veh_pos: position of current vehicle
+        neighbor_pos: list of tensors of lfol, rfol, llead, rlead in that order
+            each tensor has shape (nveh, )
+        max_hd: the maximum headway possible (we utilize this float to scale the headway)
+    Returns:
+        scaled_hds: list of scaled headways
+    """
+    scaled_hds = []
+    for neighbor_idx, pos in enumerate(neighbor_pos):
+        if neighbor_idx <= 1: # lfol, rfol
+            scaled_hds.append((veh_pos - pos) / max_hd)
+        else: # llead, rlead
+            scaled_hds.append((pos - veh_pos) / max_hd)
+    return scaled_hds
+
+def calculate_lc_loss_weights(true_scaled_hd, pred_scaled_hd, c=0.01):
+    """
+    Calculates lc loss weights utilizing the true headways vs the predicted headways.
+        lc loss weight = exp(-c(r_lfol + r_llead + r_rfol + r_rllead)), where
+        r_lfol = (true_lfol_hd - pred_lfol_hd) / true_lfol_hd
+    Args:
+        true_scaled_hd: list of tensors representing the true headway of lfol, rfol, llead, rlead
+            in that order. Each tensor has shape (nveh, )
+        pred_scaled_hd: list of tensors representing the predicted headway (from the model) of lfol,
+            rfol, llead, rlead in that order. Each tensor has shape (nveh, )
+        c: int/float, the scaling factor
+    Returns:
+        tensor of the lc loss weights, with a shape of (nveh, )
+    """
+    loss_weight_arr = zip(pred_scaled_hd, true_scaled_hd)
+    loss_weight = 0.0
+    zeros_tf = tf.zeros((true_scaled_hd[0].shape[0],))
+    for pred, true in loss_weight_arr:
+        curr = tf.math.abs(true - pred) / tf.math.abs(true)
+
+        # deal with nans/infinities
+        curr = tf.where(tf.math.is_nan(curr), zeros_tf, curr)
+        curr = tf.where(curr == np.inf, zeros_tf, curr)
+        curr = tf.where(curr == -np.inf, zeros_tf, curr)
+
+        loss_weight -= curr
+
+    return tf.math.exp(c * loss_weight) + 0.1
 
 class RNNCFModel(tf.keras.Model):
     """Simple RNN based CF model."""
@@ -165,7 +213,7 @@ class RNNCFModel(tf.keras.Model):
         self.dt = dt
         self.lstm_units = lstm_units
 
-    def call(self, inputs, lc_weights, training=False):
+    def call(self, inputs, lc_weights, true_traj, training=False):
         """Updates states for a batch of vehicles.
 
         Args:
@@ -176,6 +224,10 @@ class RNNCFModel(tf.keras.Model):
                     starting timestep.
                 hidden_states - list of the two hidden states, each hidden state is a tensor with shape
                     of (nveh, lstm_units). Initialized as all zeros for the first timestep.
+            lc_weights: tensor of weights that indicate whether or not the vehicle is allowed to move left,
+                stay in the same lane, or move right. Has a shape of (nveh, nt, 3). A 1 indicates they are
+                allowed to move in that particular direction, and a 0 indicates they are not.
+            true_traj: tensor of true trajectories of the vehicle. Has a shape of (nveh, nt)
             training: Whether to run in training or inference mode. Need to pass training=True if training
                 with dropout.
 
@@ -188,45 +240,48 @@ class RNNCFModel(tf.keras.Model):
             curspeed: tensor of current vehicle speeds, shape of (number of vehicles, 1)
             hidden_states: last hidden states for LSTM. Tuple of tensors, where each tensor has shape of
                 (number of vehicles, number of LSTM units)
+            lc_loss_weights: tensor of lane changing loss weights. These weights are calculated via the
+                error in headway calculations (predicted headways vs true headway). Has shape of
+                (nveh, nt)
         """
         # prepare data for call
         lead_inputs, init_state, hidden_states = inputs
         lead_inputs = tf.unstack(lead_inputs, axis=1)  # unpacked over time dimension
         cur_pos, cur_speed = tf.unstack(init_state, axis=1)
         lc_weights = tf.unstack(lc_weights, axis=1)
-        acc_outputs, lc_outputs = [], []
-        for cur_lead_input, lc_w in zip(lead_inputs, lc_weights):
-            # normalize data for current timestep
-            cur_lead_pos, cur_lead_speed, lfol_pos, lfol_speed, rfol_pos, rfol_speed, \
-                    llead_pos, llead_speed, rlead_pos, rlead_speed = \
-                    tf.unstack(cur_lead_input, axis=1)
+        true_traj = tf.unstack(true_traj, axis=1)
+
+        acc_outputs, lc_outputs, loss_weights = [], [], []
+        for cur_lead_input, lc_w, true_pos in zip(lead_inputs, lc_weights, true_traj):
+            # extract data for current timestep
+            inputs = tf.unstack(cur_lead_input, axis=1)
+            lead_info = inputs[:2] # lead pos/spd
+            neighbor_info = inputs[2:] # neighbor pos/spd
+            neighbor_pos = [neighbor_info[x] for x in range(len(neighbor_info)) if x % 2 == 0]
+
+            # normalize speed
+            spds = [inputs[1]] + [neighbor_info[x] for x in range(len(neighbor_info)) if x % 2 == 1]
+            spds = [x / self.maxv for x in spds]
 
             # headway
-            curhd = cur_lead_pos-cur_pos
+            curhd = inputs[0] - cur_pos
             curhd = curhd/self.maxhd
-            cur_lfol_hd = (cur_pos - lfol_pos)/self.maxhd
-            cur_rfol_hd = (cur_pos - rfol_pos)/self.maxhd
-            cur_llead_hd = (llead_pos - cur_pos)/self.maxhd
-            cur_rlead_hd = (rlead_pos - cur_pos)/self.maxhd
 
-            # speed
-            cur_lead_speed = cur_lead_speed/self.maxv
-            norm_veh_speed = cur_speed/self.maxv
-            cur_lfol_speed = lfol_speed/self.maxv
-            cur_rfol_speed = rfol_speed/self.maxv
-            cur_llead_speed = llead_speed/self.maxv
-            cur_rlead_speed = rlead_speed/self.maxv
+            # neighbor headway calculations
+            pred_scaled_hd = scaled_headway(cur_pos, neighbor_pos, max_hd=self.maxhd)
+            true_scaled_hd = scaled_headway(true_pos, neighbor_pos, max_hd=self.maxhd)
 
-            cur_inputs = tf.stack([curhd, norm_veh_speed, cur_lead_speed, cur_lfol_hd, \
-                    cur_lfol_speed, cur_rfol_hd, cur_rfol_speed, cur_llead_hd, cur_llead_speed, \
-                    cur_rlead_hd, cur_rlead_speed], axis=1)
+            # generate weights for lane changing
+            loss_weights.append(calculate_lc_loss_weights(true_scaled_hd, pred_scaled_hd))
+
+            cur_inputs = tf.stack([curhd] + spds + pred_scaled_hd, axis=1)
 
             # call to model
             self.lstm_cell.reset_dropout_mask()
             x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
             x = self.dense2(x)
             cur_lc = self.lc_actions(x)  # get outputed probabilities for LC
-            cur_lc = cur_lc * lc_w 
+            cur_lc = cur_lc * lc_w # if you're not allowed to turn, multiply output probs by 0
 
             lc_outputs.append(cur_lc)
             x = self.dense1(x)  # output of the model is current acceleration for the batch
@@ -240,7 +295,9 @@ class RNNCFModel(tf.keras.Model):
 
         acc_outputs = tf.stack(acc_outputs, 1)
         lc_outputs = tf.stack(lc_outputs, 1)
-        return acc_outputs, lc_outputs, cur_speed, hidden_states
+        loss_weights = tf.transpose(tf.convert_to_tensor(loss_weights, dtype='float32'))
+
+        return acc_outputs, lc_outputs, cur_speed, hidden_states, loss_weights
 
 
 def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
@@ -356,10 +413,22 @@ def train_step(x, y_true, lc_true, sample_weight, lc_weights, model, loss_fn, lc
     with tf.GradientTape() as tape:
         # would using model.predict_on_batch instead of model.call be faster to evaluate?
         # the ..._on_batch methods use the model.distribute_strategy - see tf.keras source code
-        y_pred, lc_pred, cur_speeds, hidden_state = model(x, training=True, lc_weights=lc_weights)
+        y_pred, lc_pred, cur_speeds, hidden_state, loss_weights = \
+                model(x, training=True, lc_weights=lc_weights, true_traj=y_true)
+
         # use categorical cross entropy or sparse categorical cross entropy to compute loss over y_pred_lc
-        lc_loss = lc_loss_fn(lc_true, lc_pred)
-        loss = loss_fn(y_true, y_pred, sample_weight) + sum(model.losses) + 50 * lc_loss
+
+        # utilize class weights
+        ones = tf.ones(loss_weights.shape)
+        tens = tf.zeros(loss_weights.shape) + 100
+        weights = tf.where(lc_true == 0, tens, ones)
+        # weights = tf.where(lc_true == 2, tens, weights)
+
+        # lc_loss = lc_loss_fn(lc_true, lc_pred, sample_weight=loss_weights)
+        lc_loss = lc_loss_fn(lc_true, lc_pred, sample_weight=weights * sample_weight)
+        cf_loss = loss_fn(y_true, y_pred, sample_weight)
+
+        loss = cf_loss + sum(model.losses) + 10 * lc_loss
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     return y_pred, lc_pred, cur_speeds, hidden_state, loss, lc_loss
@@ -428,16 +497,16 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
         veh_states, lc_pred, cur_speeds, hidden_states, loss_value, lc_loss = \
             train_step([lead_inputs, cur_state, hidden_states], true_traj, true_lane_action, \
                         loss_weights, lc_weights, model, loss, lc_loss_fn, optimizer)
-
-        # print out and early stopping
         if i % m == 0:
             true_la = true_lane_action.numpy()
             num_left, num_stay, num_right = np.sum(true_la == 0), np.sum(true_la == 1), np.sum(true_la == 2)
 
+            # calculate precision/recall of changing to the left and right lanes
             left_prec = calculate_class_metric(true_lane_action, lc_pred, 0, precision_metric)
             right_prec = calculate_class_metric(true_lane_action, lc_pred, 2, precision_metric)
             left_recall = calculate_class_metric(true_lane_action, lc_pred, 0, recall_metric)
             right_recall = calculate_class_metric(true_lane_action, lc_pred, 2, recall_metric)
+
             if early_stopping_loss is not None:
                 loss_value = early_stopping_loss(model)
                 if loss_value > prev_loss:
@@ -453,11 +522,12 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
                     model.save_weights('prev_weights')
                     prev_loss = loss_value
                     early_stop_counter = 0
-            # print(f'loss for {i}th batch is {loss_value:.4f}. LC loss is {lc_loss:.4f}')
             print(f'loss for {i}th batch is {loss_value:.4f}. LC loss is {lc_loss:.4f}\n' + \
                     '\t(left prec, right prec, left recall, right recall):' + \
                     f' {left_prec:.4f}, {right_prec:.4f}, {left_recall:.4f}, {right_recall:.4f}\n' + 
                     f'\t(num left, num stay, num right): {num_left}, {num_stay}, {num_right}')
+
+        # embed()
 
         # update iteration
         cur_state = tf.stack([veh_states[:, -1], cur_speeds], axis=1)  # current state for vehicles in batch
@@ -493,7 +563,7 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
                 make_batch(vehs, vehs_counter, ds, nt)
 
 
-class Trajectory:
+class Trajectories:
     def __init__(self, cf_pred, cur_speeds, lc_pred, loss=np.nan, lc_loss=np.nan, \
             true_cf=None, true_lc_action=None):
         self.cf_pred = cf_pred
@@ -504,13 +574,50 @@ class Trajectory:
         self.true_cf = true_cf
         self.true_lc_action = true_lc_action
 
-    def confusion_matrix(self):
+    def confusion_matrix(self, remove_zeros=True):
+        if remove_zeros:
+            three_zeros = np.zeros((3,))
+            sel = ~np.apply_along_axis(lambda x: np.array_equal(x, three_zeros), 2, self.lc_pred)
+        else:
+            sel = np.ones(self.lc_pred.shape[:2])
+
+        pred_idx = np.argmax(self.lc_pred, axis=2)
+
+        pred_idx = pred_idx[sel]
+        true_idx = self.true_lc_action[sel]
+
         conf_mat = np.zeros((3, 3))
         for true_label in [0, 1, 2]:
             for pred_label in [0, 1, 2]:
-                conf_mat[true_label, pred_label] = np.sum((np.argmax(self.lc_pred, axis=2) == pred_label) \
-                        & (self.true_lc_action == true_label))
+                conf_mat[true_label, pred_label] = np.sum((pred_idx == pred_label) \
+                        & (true_idx == true_label))
         return conf_mat
+
+    def compressed_trajectory(self, idx):
+        return compress_traj(self.lc_pred[idx], self.true_lc_action[idx])
+
+def compress_traj(pred, true):
+    # remove all-zero rows (predictions we multiply by zero b/c it's not allowed to change lanes/etc.)
+    three_zeros = np.zeros((3,))
+    nonzero_sel = ~np.apply_along_axis(lambda x: np.array_equal(x, three_zeros), 1, pred)
+
+    pred = pred[nonzero_sel]
+    true = true[nonzero_sel]
+
+    pred_idx = np.argmax(pred, axis = 1)
+    num_stay_preds = np.sum(pred_idx != 1)
+
+    all_ones = np.ones((pred_idx.shape[0],))
+    incorrect_preds = np.maximum(np.abs(pred_idx - true), all_ones)
+    num_inc_preds = np.sum(incorrect_preds)
+
+    incorrect_or_notstay = (incorrect_preds.astype(bool) | (pred_idx != 1)).astype(bool)
+
+    # no incorrect predictions and all the predictions are stay in the same lane
+    if num_inc_preds == 0 and num_stay_preds:
+        return None, None
+    else:
+        return pred[incorrect_or_notstay], true[incorrect_or_notstay]
 
 def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
     """Generate a batch of trajectories.
@@ -539,8 +646,8 @@ def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
     lead_inputs, true_traj, true_lane_action, loss_weights, lc_weights = \
             make_batch(vehs, vehs_counter, ds, nt, **kwargs)
 
-    y_pred, lc_pred, cur_speeds, hidden_state = model([lead_inputs, cur_state, hidden_states], \
-            lc_weights=lc_weights)
+    y_pred, lc_pred, cur_speeds, hidden_state, loss_weights = model([lead_inputs, cur_state, hidden_states], \
+            lc_weights, true_traj)
 
     args = [y_pred.numpy(), cur_speeds.numpy(), lc_pred.numpy()]
     kwargs = {'true_cf': true_traj.numpy(), 'true_lc_action': true_lane_action.numpy()}
@@ -552,4 +659,4 @@ def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
             out_lc_loss = lc_loss(true_lane_action, lc_pred)
             kwargs['lc_loss'] = out_lc_loss.numpy()
 
-    return Trajectory(*args, **kwargs)
+    return Trajectories(*args, **kwargs)

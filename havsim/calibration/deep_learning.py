@@ -251,53 +251,68 @@ class RNNCFModel(tf.keras.Model):
         lc_weights = tf.unstack(lc_weights, axis=1)
         true_traj = tf.unstack(true_traj, axis=1)
 
-        acc_outputs, lc_outputs, loss_weights = [], [], []
+        # pos_outputs, lc_outputs, loss_weights = [], [], []
+        pos_outputs, lc_outputs = [], []
         for cur_lead_input, lc_w, true_pos in zip(lead_inputs, lc_weights, true_traj):
             # extract data for current timestep
-            inputs = tf.unstack(cur_lead_input, axis=1)
-            lead_info = inputs[:2] # lead pos/spd
-            neighbor_info = inputs[2:] # neighbor pos/spd
-            neighbor_pos = [neighbor_info[x] for x in range(len(neighbor_info)) if x % 2 == 0]
+            lead_hd = (cur_lead_input[:,:3] - cur_pos)/self.maxhd
+            fol_hd = (cur_pos - cur_lead_input[:,3:6])/self.maxhd
+            spds = cur_lead_input[:,6:]/self.maxv
 
-            # normalize speed
-            spds = [inputs[1]] + [neighbor_info[x] for x in range(len(neighbor_info)) if x % 2 == 1]
-            spds = [x / self.maxv for x in spds]
-
-            # headway
-            curhd = inputs[0] - cur_pos
-            curhd = curhd/self.maxhd
-
-            # neighbor headway calculations
-            pred_scaled_hd = scaled_headway(cur_pos, neighbor_pos, max_hd=self.maxhd)
-            true_scaled_hd = scaled_headway(true_pos, neighbor_pos, max_hd=self.maxhd)
-
-            # generate weights for lane changing
-            loss_weights.append(calculate_lc_loss_weights(true_scaled_hd, pred_scaled_hd))
-
-            cur_inputs = tf.stack([curhd] + spds + pred_scaled_hd, axis=1)
+            cur_inputs = tf.stack([lead_hd, fol_hd, spds], axis=1)
 
             # call to model
             self.lstm_cell.reset_dropout_mask()
             x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
             x = self.dense2(x)
-            cur_lc = self.lc_actions(x)  # get outputed probabilities for LC
-            cur_lc = cur_lc * lc_w # if you're not allowed to turn, multiply output probs by 0
-
-            lc_outputs.append(cur_lc)
+            cur_lc = self.lc_actions(x)  # get outputed batch probabilities for LC
             x = self.dense1(x)  # output of the model is current acceleration for the batch
+
+            # inputs = tf.unstack(cur_lead_input, axis=1)
+            # lead_info = inputs[:2] # lead pos/spd
+            # neighbor_info = inputs[2:] # neighbor pos/spd
+            # neighbor_pos = [neighbor_info[x] for x in range(len(neighbor_info)) if x % 2 == 0]
+
+            # # normalize speed
+            # spds = [inputs[1]] + [neighbor_info[x] for x in range(len(neighbor_info)) if x % 2 == 1]
+            # spds = [x / self.maxv for x in spds]
+
+            # # headway
+            # curhd = inputs[0] - cur_pos
+            # curhd = curhd/self.maxhd
+
+            # # neighbor headway calculations
+            # pred_scaled_hd = scaled_headway(cur_pos, neighbor_pos, max_hd=self.maxhd)
+            # true_scaled_hd = scaled_headway(true_pos, neighbor_pos, max_hd=self.maxhd)
+
+            # # generate weights for lane changing
+            # loss_weights.append(calculate_lc_loss_weights(true_scaled_hd, pred_scaled_hd))
+
+            # cur_inputs = tf.stack([curhd] + spds + pred_scaled_hd, axis=1)
+
+            # # call to model
+            # self.lstm_cell.reset_dropout_mask()
+            # x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
+            # x = self.dense2(x)
+            # cur_lc = self.lc_actions(x)  # get outputed probabilities for LC
+            # cur_lc = cur_lc * lc_w # if you're not allowed to turn, multiply output probs by 0
+
+            # lc_outputs.append(cur_lc)
+            # x = self.dense1(x)  # output of the model is current acceleration for the batch
 
             # update vehicle states
             x = tf.squeeze(x, axis=1)
             cur_acc = (self.maxa-self.mina)*x + self.mina
             cur_pos = cur_pos + self.dt*cur_speed
             cur_speed = cur_speed + self.dt*cur_acc
-            acc_outputs.append(cur_pos)
+            pos_outputs.append(cur_pos)
+            lc_outputs.append(cur_lc)
 
-        acc_outputs = tf.stack(acc_outputs, 1)
+        pos_outputs = tf.stack(pos_outputs, 1)
         lc_outputs = tf.stack(lc_outputs, 1)
-        loss_weights = tf.transpose(tf.convert_to_tensor(loss_weights, dtype='float32'))
+        # loss_weights = tf.transpose(tf.convert_to_tensor(loss_weights, dtype='float32'))
 
-        return acc_outputs, lc_outputs, cur_speed, hidden_states, loss_weights
+        return pos_outputs, lc_outputs, cur_speed, hidden_states  # loss_weights
 
 
 def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
@@ -514,7 +529,7 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
                     if early_stop_counter >= n:
                         print(f'loss for {i}th batch is {loss_value:.4f}. LC loss is {lc_loss:.4f}\n' + \
                                 '\t(left prec, right prec, left recall, right recall):' + \
-                                f' {left_prec:.4f}, {right_prec:.4f}, {left_recall:.4f}, {right_recall:.4f}\n' + 
+                                f' {left_prec:.4f}, {right_prec:.4f}, {left_recall:.4f}, {right_recall:.4f}\n' +
                                 f'\t(num left, num stay, num right): {num_left}, {num_stay}, {num_right}')
                         model.load_weights('prev_weights')  # folder must exist
                         break
@@ -524,7 +539,7 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
                     early_stop_counter = 0
             print(f'loss for {i}th batch is {loss_value:.4f}. LC loss is {lc_loss:.4f}\n' + \
                     '\t(left prec, right prec, left recall, right recall):' + \
-                    f' {left_prec:.4f}, {right_prec:.4f}, {left_recall:.4f}, {right_recall:.4f}\n' + 
+                    f' {left_prec:.4f}, {right_prec:.4f}, {left_recall:.4f}, {right_recall:.4f}\n' +
                     f'\t(num left, num stay, num right): {num_left}, {num_stay}, {num_right}')
 
         # embed()

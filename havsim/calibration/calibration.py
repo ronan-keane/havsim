@@ -327,8 +327,9 @@ def apply_calibrationcf_add_event(event, vehicles, timeind, dt, lc_event_fun):
         curveh.hd = get_headway(curveh, curveh.lead)
 
 def apply_calibration_lc_event(event, timeind, dt, lane_dict):
-    # Do we need an option to use relax or do we always use relax/how to use relax?
+    # Apply relaxation if leader changes, apply relax.
 
+    # if changing into 1 from 2 it is discretionary, but if not l_lc is None
     # individual veh lane changing event
     if len(event) == 6:
         unused, unused, curveh, last_lane, new_lane, unused = event
@@ -337,7 +338,7 @@ def apply_calibration_lc_event(event, timeind, dt, lane_dict):
             curveh.l_lc = "mandatory"
         elif last_lane == 1:
             # does this have to be true? or could it just be an hov veh
-            curveh.r_lc = "mandatory"
+            curveh.r_lc = "discretionary"
             curveh.l_lc = None
         else:
             curveh.r_lc = "discretionary"
@@ -347,13 +348,12 @@ def apply_calibration_lc_event(event, timeind, dt, lane_dict):
         else:
             lc = "r"
 
-        # need to update the actual lane attribute as well?
         veh.lane = lane_dict[new_lane]
 
         veh.lcmem.append([new_lane, timeind + 1])
         veh.update_lc_state(timeind, lc)
 
-        # need to put relax after this, not sure how to do inputs
+        veh.set_relax(timdind, dt)
 
     else:
         unused, unused, curveh, fol_lead_veh, fl_type = event
@@ -367,6 +367,7 @@ def lc_event_helper(fl_type, veh, fol_lead_veh):
             veh.leadmem.append([None, timeind+1])
         else:
             veh.leadmem.append([fol_lead_veh, timeind+1])
+        veh.set_relax(timdind, dt)
     elif fl_type == "f":
         veh.fol = fol_lead_veh
         if not fol_lead_veh:

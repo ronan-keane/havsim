@@ -173,7 +173,7 @@ def make_calibration(vehicles, vehdict, dt, event_maker=None, lc_event_fun=None,
     addevent_list.sort(key = lambda x: x[0], reverse = True)
     lcevent_list.sort(key = lambda x: x[0], reverse = True)
 
-    return Calibration(vehicle_list, all_leadvehicles, addevent_list, lcevent_list, dt, end=max_end)
+    return Calibration(vehicle_list, all_leadvehicles, addevent_list, lcevent_list, dt, lanes, end=max_end)
 
 
 def make_calibration_CF(vehicles, vehdict, dt, vehicle_class=None, calibration_class=None, event_maker=None, lc_event_fun=None, lanes={}, calibration_kwargs={}):

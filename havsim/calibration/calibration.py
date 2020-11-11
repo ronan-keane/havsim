@@ -208,11 +208,12 @@ def remove_vehicles(vehicles, endpos, timeind):
 
 
 class Calibration(CalibrationCF):
-    def __init__(self, vehicles, leadvehicles, add_events, lc_events, dt, end=None, run_type='max endtime',
+    def __init__(self, vehicles, leadvehicles, add_events, lc_events, dt, lane_dict, end=None, run_type='max endtime',
                  parameter_dict=None, ending_position=math.inf):
         super().__init__(vehicles, add_events, lc_events, dt, end=end, run_type=run_type,
                          parameter_dict=parameter_dict, ending_position=ending_position)
         self.all_leadvehicles = leadvehicles
+        self.lanes = lane_dict
 
     def step(self):
         for veh in self.vehicles:
@@ -242,11 +243,11 @@ class Calibration(CalibrationCF):
         See function apply_calibration_lc_event.
         """
         if self.lctime == timeind+1:
-            self.apply_calibration_lc_event(self.lc_events.pop(), timeind, dt)
+            self.apply_calibration_lc_event(self.lc_events.pop(), timeind, dt, self.lane_dict)
             self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
             if self.lctime == timeind+1:
                 while self.lctime == timeind+1:
-                    self.apply_calibration_lc_event(self.lc_events.pop(), timeind, dt)
+                    self.apply_calibration_lc_event(self.lc_events.pop(), timeind, dt, self.lane_dict)
             self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
 
     def update_add_events(self, timeind, dt):
@@ -325,7 +326,7 @@ def apply_calibrationcf_add_event(event, vehicles, timeind, dt, lc_event_fun):
     if curveh.lead is not None:
         curveh.hd = get_headway(curveh, curveh.lead)
 
-def apply_calibration_lc_event(event, timeind, dt):
+def apply_calibration_lc_event(event, timeind, dt, lane_dict):
     # Do we need an option to use relax or do we always use relax/how to use relax?
 
     # individual veh lane changing event
@@ -347,6 +348,7 @@ def apply_calibration_lc_event(event, timeind, dt):
             lc = "r"
 
         # need to update the actual lane attribute as well?
+        veh.lane = lane_dict[new_lane]
 
         veh.lcmem.append([new_lane, timeind + 1])
         veh.update_lc_state(timeind, lc)

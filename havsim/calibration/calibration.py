@@ -191,6 +191,7 @@ def update_calibration_cf(vehicles, update_lc_fun, update_add_fun, timeind, dt, 
     update_add_fun(timeind, dt)
 
 
+
 def remove_vehicles(vehicles, endpos, timeind):
     """See if vehicle needs to be removed from simulation."""
     remove_list = []
@@ -234,6 +235,35 @@ class Calibration(CalibrationCF):
         for veh in self.all_leadvehicles:
             veh.initialize
 
+
+    def update_lc_events(self, timeind, dt):
+        """Check if we need to apply the next lc event, apply it and update lctime if so.
+
+        See function apply_calibration_lc_event.
+        """
+        if self.lctime == timeind+1:
+            self.apply_calibration_lc_event(self.lc_events.pop(), timeind, dt)
+            self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
+            if self.lctime == timeind+1:
+                while self.lctime == timeind+1:
+                    self.apply_calibration_lc_event(self.lc_events.pop(), timeind, dt)
+            self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
+
+    def update_add_events(self, timeind, dt):
+        """Check if we need to apply the next add event, apply it and update addtime if so.
+
+        See function apply_calibration_add_event.
+        """
+        if self.addtime == timeind+1:
+            apply_calibration_add_event(self.add_events.pop(), self.vehicles, self.leadvehicles, timeind, dt,
+                                          self.lc_event_fun)
+            addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
+            if self.addtime == timeind+1:
+                while addtime == timeind+1:
+                    apply_calibration_add_event(self.add_events.pop(), self.vehicles, self.leadvehicles, timeind, dt,
+                                                  self.lc_event_fun)
+                    self.addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
+
 ######### List of requirements for new add and lc events
 # add events, in addition to adding vehicles, now need to also add and remove leadvehicles as necessary.
 # lc events should keep ALL the vehicle orders updated (currently only update a vehicle's lead, sometimes update fol)
@@ -254,6 +284,19 @@ class Calibration(CalibrationCF):
 # find anytime a vehicle order changes, - make a lc event for all of them. Should a single lc event
 # be able to update several vehicle orders (e.g. update lead, lfol, rfol, llead, rlead in the same event)?
 # maybe there should be seperate events for each update.
+
+
+def apply_calibration_add_event(event, vehicles, leadvehicles, timeind, dt, lc_event_fun):
+    if len(event) = 3:
+        unused, type, fol_lead_veh = event
+        if type == "remove":
+            leadvehicles.remove(fol_lead_veh)
+        else:
+            leadvehicles.add(fol_lead_veh)
+    else:
+        unused, unused, curveh, lcevent = event
+        vehicles.add(curveh)
+        lc_event_fun(curveh)
 
 
 
@@ -282,6 +325,76 @@ def apply_calibrationcf_add_event(event, vehicles, timeind, dt, lc_event_fun):
     if curveh.lead is not None:
         curveh.hd = get_headway(curveh, curveh.lead)
 
+def apply_calibration_lc_event(event, timeind, dt):
+    # Do we need an option to use relax or do we always use relax/how to use relax?
+
+    # individual veh lane changing event
+    if len(event) == 6:
+        unused, unused, curveh, last_lane, new_lane, unused = event
+        if last_lane == 7:
+            curveh.r_lc = None
+            curveh.l_lc = "mandatory"
+        elif last_lane == 1:
+            # does this have to be true? or could it just be an hov veh
+            curveh.r_lc = "mandatory"
+            curveh.l_lc = None
+        else:
+            curveh.r_lc = "discretionary"
+            curveh.l_lc = "discretionary"
+        if last_lane > new_lane:
+            lc = "l"
+        else:
+            lc = "r"
+
+        # need to update the actual lane attribute as well?
+
+        veh.lcmem.append([new_lane, timeind + 1])
+        veh.update_lc_state(timeind, lc)
+
+        # need to put relax after this, not sure how to do inputs
+
+    else:
+        unused, unused, curveh, fol_lead_veh, fl_type = event
+        lc_event_helper(fl_type, curveh, fol_lead_veh)
+
+# must be a better way to do this then hardcode?
+def lc_event_helper(fl_type, veh, fol_lead_veh):
+    if fl_type == "l":
+        veh.lead = fol_lead_veh
+        if not fol_lead_veh:
+            veh.leadmem.append([None, timeind+1])
+        else:
+            veh.leadmem.append([fol_lead_veh, timeind+1])
+    elif fl_type == "f":
+        veh.fol = fol_lead_veh
+        if not fol_lead_veh:
+            veh.folmem.append([None, timeind+1])
+        else:
+            veh.folmem.append([fol_lead_veh, timeind+1])
+    elif fl_type == "rf":
+        veh.rfol = fol_lead_veh
+        if not fol_lead_veh:
+            veh.rfolmem.append([None, timeind+1])
+        else:
+            veh.rfolmem.append([fol_lead_veh, timeind+1])
+    elif fl_type == "lf":
+        veh.lfol = fol_lead_veh
+        if not fol_lead_veh:
+            veh.lfolmem.append([None, timeind+1])
+        else:
+            veh.lfolmem.append([fol_lead_veh, timeind+1])
+    elif fl_type == "ll":
+        veh.llead = fol_lead_veh
+        if not fol_lead_veh:
+            veh.lleadmem.append([None, timeind+1])
+        else:
+            veh.lleadmem.append([fol_lead_veh, timeind+1])
+    elif fl_type == "rl":
+        veh.rlead = fol_lead_veh
+        if not fol_lead_veh:
+            veh.rleadmem.append([None, timeind+1])
+        else:
+            veh.rleadmem.append([fol_lead_veh, timeind+1])
 
 def apply_calibrationcf_lc_event(event, timeind, dt):
     """Applies lead change event, updating a CalibrationVehicle's leader.

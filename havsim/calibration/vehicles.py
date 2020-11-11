@@ -184,7 +184,7 @@ class CalibrationVehicle(CalibrationVehicleCF):
         super().initialize(parameters)
 
         # vehicle orders
-        self.lfol = self.rfol = self.llead = self.rlead = None
+        self.lfol = self.rfol = self.llead = self.rlead = self.fol = None
         # memory for lc model
         self.folmem = []
         self.lfolmem = []

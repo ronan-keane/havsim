@@ -133,10 +133,7 @@ class CalibrationCF:
         if self.lctime == timeind+1:
             self.lc_event_fun(self.lc_events.pop(), timeind, dt)
             self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
-            if self.lctime == timeind+1:
-                while self.lctime == timeind+1:
-                    self.lc_event_fun(self.lc_events.pop(), timeind, dt)
-            self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
+            self.update_lc_events(timeind, dt)
 
     def update_add_events(self, timeind, dt):
         """Check if we need to apply the next add event, apply it and update addtime if so.
@@ -147,11 +144,7 @@ class CalibrationCF:
             apply_calibrationcf_add_event(self.add_events.pop(), self.vehicles, timeind, dt,
                                           self.lc_event_fun)
             addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
-            if self.addtime == timeind+1:
-                while addtime == timeind+1:
-                    apply_calibrationcf_add_event(self.add_events.pop(), self.vehicles, timeind, dt,
-                                                  self.lc_event_fun)
-                    self.addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
+            self.update_add_events(timeind, dt)
 
 
 def update_calibration_cf(vehicles, update_lc_fun, update_add_fun, timeind, dt, ending_position):
@@ -245,10 +238,7 @@ class Calibration(CalibrationCF):
         if self.lctime == timeind+1:
             self.apply_calibration_lc_event(self.lc_events.pop(), timeind, dt, self.lane_dict)
             self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
-            if self.lctime == timeind+1:
-                while self.lctime == timeind+1:
-                    self.apply_calibration_lc_event(self.lc_events.pop(), timeind, dt, self.lane_dict)
-            self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
+            self.update_lc_events(timeind, dt)
 
     def update_add_events(self, timeind, dt):
         """Check if we need to apply the next add event, apply it and update addtime if so.
@@ -259,11 +249,7 @@ class Calibration(CalibrationCF):
             apply_calibration_add_event(self.add_events.pop(), self.vehicles, self.leadvehicles, timeind, dt,
                                           self.lc_event_fun)
             addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
-            if self.addtime == timeind+1:
-                while addtime == timeind+1:
-                    apply_calibration_add_event(self.add_events.pop(), self.vehicles, self.leadvehicles, timeind, dt,
-                                                  self.lc_event_fun)
-                    self.addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
+            self.update_add_events(timeind, dt)
 
 ######### List of requirements for new add and lc events
 # add events, in addition to adding vehicles, now need to also add and remove leadvehicles as necessary.

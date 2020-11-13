@@ -722,8 +722,8 @@ class Lane:
         self.end = end
         # connect_left/right has format of list of (pos (float), lane (object)) tuples where lane
         # is the connection starting at pos
-        self.connect_left = connect_left if connect_left is not None else [(0, None)]
-        self.connect_right = connect_right if connect_right is not None else [(0, None)]
+        self.connect_left = connect_left if connect_left is not None else [(start, None)]
+        self.connect_right = connect_right if connect_right is not None else [(start, None)]
         self.connect_to = connect_to
 
         self.roadlen = {self.roadname: 0}

@@ -1,5 +1,5 @@
 # imports and load data
-from havsim.calibration import deep_learning
+from havsim.calibration import deep_learning, dl_model
 import pickle
 import numpy as np
 import tensorflow as tf
@@ -59,10 +59,13 @@ tuned_params = nni.get_next_parameter()
 
 params = tuned_params if tuned_params else default_params
 
-model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=params['lstm_units'], params=params)
-loss = deep_learning.masked_MSE_loss
+# model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=params['lstm_units'], params=params)
+model = dl_model.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=128, params=params)
+#loss = deep_learning.masked_MSE_loss
+loss = dl_model.masked_MSE_loss
 opt = tf.keras.optimizers.Adam(learning_rate=params['learning_rate'])
 
+dl_model.training_loop(model, loss, opt, training, epochs=10, nveh=16, nt=50)
 #%% train and save results
 early_stopping = False
 

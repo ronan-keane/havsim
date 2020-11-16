@@ -1150,7 +1150,8 @@ def getentryflows(meas, entrylanes,  timeind, outtimeind):
     return entryflows, entrytimes
 
 
-def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .1):
+def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .1,
+                   time_units=3600, space_units=1000):
     #meas = measurements, in usual format (dictionary where keys are vehicle IDs, values are numpy arrays
  	#spacea - reads as ``space A'' (where A is the region where the macroscopic quantities are being calculated).
         #list of lists, each nested list is a length 2 list which ... represents the starting and ending location on road.
@@ -1202,7 +1203,7 @@ def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .
 
         #if lane is given we need to find the segments of data inside the lane
         if lane is not None:
-            # e.g. if data is in lane 2 for times (0-10), lane 1 for times (11-20), and we want lane 1 data, 
+            # e.g. if data is in lane 2 for times (0-10), lane 1 for times (11-20), and we want lane 1 data,
             # we want to look at the times (10-20), so we don't lose the interval (10-11)
             temp = alldata[alldata[:,7]==lane] #boolean mask selects data inside lane
             if len(temp)==0:
@@ -1218,7 +1219,7 @@ def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .
                 temp_start, temp_end = temp[i[0],1], temp[i[1]-1,1]
                 temp_start = max(temp_start-1, mint)
                 indlist.append([int(temp_start-mint), int(temp_end-mint+1)])
-                
+
         else: #otherwise can just use everything
             indlist = [[0,len(alldata)]]
 
@@ -1238,7 +1239,7 @@ def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .
                 curdata = data[start:end]
                 if len(curdata)==0:
                     continue
-                
+
 
                 for j in range(len(spacea)):
                     minspace, maxspace = spacea[j][0], spacea[j][1]
@@ -1266,7 +1267,7 @@ def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .
                         interp = (maxspace-left)/(right-left)
                         curspacedata[-1,0] = curspacedata[-2,0] + interp
                         curspacedata[-1,1] = maxspace
-                        
+
 
                     regions[j][i][0].append(curspacedata[-1,1] - curspacedata[0,1])
                     regions[j][i][1].append((curspacedata[-1,0] - curspacedata[0,0]))
@@ -1279,8 +1280,8 @@ def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .
         for i in range(len(spacea)):
             for j in range(len(intervals)):
                 area = (spacea[i][1] - spacea[i][0]) * (intervals[j][1] - intervals[j][0])
-                q[i].append(sum(regions[i][j][0]) / area / h * 3600)
-                k[i].append(sum(regions[i][j][1]) / area * 1000)
+                q[i].append(sum(regions[i][j][0]) / area / h * time_units)
+                k[i].append(sum(regions[i][j][1]) / area * space_units)
     elif method == 'flow':
         for i in range(len(spacea)):
             for j in range(len(intervals)):

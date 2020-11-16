@@ -358,7 +358,8 @@ def generate_changetimes(veh, col_index):
     return ind
 
 
-def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane = None, method = 'area', h = .1):
+def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane = None, method = 'area',
+              h = .1, time_units=3600, space_units=1000):
     """
 	aggregates microscopic data into macroscopic quantities based on Edie's generalized definitions of traffic variables
 
@@ -400,7 +401,8 @@ def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane =
         temp2 += agg
     intervals.append((temp1, end))
 
-    q, k = helper.calculateflows(meas, spacea, timea, agg, lane = lane, method = method, h = h)
+    q, k = helper.calculateflows(meas, spacea, timea, agg, lane = lane, method = method, h = h,
+                                 time_units=time_units, space_units=space_units)
     time_sequence = []
     time_sequence_for_line = []
 

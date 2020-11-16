@@ -38,10 +38,8 @@ t_nstar, t_n = platooninfo[veh][:2]
 plt.plot(meas[veh][0:t_n-t_nstar,3])
 
 #%%
-plt.figure()
-hp.plotflows(meas,[[600,1400]],[0,10*60*14.5],30*10,lane = 6, method = 'area')
-plt.figure()
-hp.plotflows(meas,[[600,1400]],[0,10*60*14.5],30*10,lane = 5, method = 'area')
+hp.plotflows(meas,[[670,870],[1200,1400]],[0,10*60*14.5],30*10, method = 'area', space_units=3280.84)
+hp.plotflows(meas,[[670,770]],[0,10*60*14.5],30*10,lane = 6, method = 'area', space_units=3280.84)
 #%%
 hp.platoonplot(meas, None, platooninfo, lane = 5, opacity = 0)
 hp.platoonplot(meas, None, platooninfo, lane = 6, opacity = 0)

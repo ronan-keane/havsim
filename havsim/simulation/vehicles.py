@@ -327,6 +327,7 @@ class Vehicle:
         lane_events: list of lane events for current lane
     """
     # TODO implementation of adjoint method for cf, relax, shift parameters
+    # TODO set_route_events should be a method of vehicle?
 
     def __init__(self, vehid, curlane, cf_parameters, lc_parameters, lead=None, fol=None, lfol=None,
                  rfol=None, llead=None, rlead=None, length=3, eql_type='v', relax_parameters=15,
@@ -392,7 +393,7 @@ class Vehicle:
 
         # bounds
         if accbounds is None:
-            self.minacc, self.maxacc = -7, 3
+            self.minacc, self.maxacc = -12, 5
         else:
             self.minacc, self.maxacc = accbounds[0], accbounds[1]
         self.maxspeed = maxspeed
@@ -506,20 +507,37 @@ class Vehicle:
 
         else:
             if userelax:
-                # accident free formulation of relaxation
-                ttc = hd / (self.speed - lead.speed + 1e-6)
-                if ttc < 1.2 and ttc > 0:
-                # if False:  # disable accident free
-                    temp = (ttc/1.5)**2
-                    currelax, currelax_v = self.relax[timeind-self.relax_start]  # hd + v relax
-                    currelax, currelax_v = currelax*temp, currelax_v*temp
-                    # currelax = self.relax[timeind - self.relax_start]*temp
+                ### relaxation formulations
+                # always use vanilla - can potentially lead to collisions
+                # normal_relax=True
+                
+                # safeguard for relaxation
+                ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)
+                if ttc < 1.5 and ttc > 0:
+                    normal_relax = False
+                    currelax, currelax_v = self.relax[timeind-self.relax_start]
+                    # safeguard based on equilibrium
+                    # if currelax > 0:
+                    #     eql_hd = self.get_eql(lead.speed, input_type='v')
+                    #     currelax = min(currelax, eql_hd - hd)
+                    currelax = currelax*(ttc/1.5) if currelax > 0 else currelax
+                    currelax_v = currelax_v*(ttc/1.5) if currelax_v > 0 else currelax_v
+                    acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
+                    # acc = max(acc, self.minacc)
                 else:
+                    normal_relax = True
+                
+                # alternative formulation applies control to ttc (not recommended)
+                # v_sens = .3+(timeind-self.relax_start)*dt/self.relax_parameters
+                # acc, normal_relax = models.relaxation_model_ttc([1.5, 2, v_sens, 1],
+                #                                                 [hd, spd, lead.speed], dt)
+                ###
+                if normal_relax:
                     currelax, currelax_v = self.relax[timeind-self.relax_start]
                     # currelax = self.relax[timeind - self.relax_start]
 
-                acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
-                # acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed])
+                    acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
+                    # acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed])
             else:
                 acc = self.cf_model(self.cf_parameters, [hd, spd, lead.speed])
 
@@ -594,7 +612,7 @@ class Vehicle:
             return x / (s + leadlen)
         elif input_type == 's':
             v = self.get_eql(x, input_type=input_type)
-            return v / (s + leadlen)
+            return v / (x + leadlen)
 
     def inv_flow(self, x, leadlen=None, output_type='v', congested=True):
         """Get equilibrium solution corresponding to the provided flow."""
@@ -708,7 +726,9 @@ class Vehicle:
         """Applies bounds and updates a vehicle's longitudinal state/memory."""
         # bounds on acceleration
         # acc = self.acc_bounds(self.acc)
-        acc = self.acc  # no bounds
+        acc = max(self.minacc, self.acc)
+        # acc = self.acc  # no bounds
+        
 
         # bounds on speed
         temp = acc*dt

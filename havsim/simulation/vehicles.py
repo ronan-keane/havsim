@@ -373,7 +373,7 @@ class Vehicle:
         self.vehid = vehid
         self.len = length
         self.lane = curlane
-        self.road = curlane.road['name'] if curlane is not None else None
+        self.road = curlane.road.name if curlane is not None else None
         # model parameters
         self.cf_parameters = cf_parameters
         self.lc_parameters = lc_parameters

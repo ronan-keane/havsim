@@ -242,14 +242,5 @@ class Road:
         pass
 
     def __getitem__(self, index):
-        if isinstance(index, str):
-            if index == 'name':
-                return self.name
-            elif index == 'connect to':
-                return self.connect_to
-            elif index == 'laneinds':
-                return self.num_lanes
-            else:
-                assert 0
         assert isinstance(index, int) and 0 <= index < self.num_lanes
         return self.lanes[index]

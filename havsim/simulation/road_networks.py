@@ -609,7 +609,7 @@ class AnchorVehicle:
         """Inits for Anchor."""
         self.cf_parameters = None
         self.lane = curlane
-        self.road = curlane.road['name']
+        self.road = curlane.road.name
 
         self.lfol = None  # anchor vehicles just need the lead/llead/rlead attributes. no need for (l/r)fol
         self.rfol = None
@@ -716,7 +716,7 @@ class Lane:
         """
         self.laneind = laneind
         self.road = road
-        self.roadname = road['name']
+        self.roadname = road.name
         # starting position/end (float)
         self.start = start
         self.end = end

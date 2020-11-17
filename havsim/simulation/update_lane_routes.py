@@ -112,8 +112,10 @@ def update_lane_events(veh, timeind, remove_vehicles):
         'new lane' - occurs when a vehicle reaches the end of its current lane and transitions to a new lane
         'update lr' - occurs when the current lane's left or right connections change
         'exit' - occurs when a vehicle reaches the end of its current lane and exits the road network
-    'left': for 'new lane' or 'update lr', if the left connection changes, 'left' needs a value of either
-        'add' if there is a new left lane, or 'remove' if the current left connection is no longer possible
+    'left': for 'new lane' or 'update lr', if the left connection changes, 'left' has a value of either
+        'add' - if there is a new left lane
+        'remove' -  if the current left connection is no longer possible
+        'update' - if there is still a left connection but it is now a new lane
     'left anchor': if 'left' is 'add', 'left anchor' is an index giving the merge anchor for the
         new left lane
     'right': same as left, for right side
@@ -215,6 +217,15 @@ def update_lane_lr(veh, curlane, curevent):
             veh.l_lc = None
         veh.llane = newllane
 
+    elif curevent['left'] == 'update':
+        newllane = curlane.get_connect_left(curevent['pos'])
+
+        if newllane.roadname == curlane.roadname:
+            veh.l_lc = 'discretionary'
+        else:
+            veh.l_lc = None
+        veh.llane = newllane
+
     # same thing for right
     if curevent['right'] == 'remove':
 
@@ -232,6 +243,15 @@ def update_lane_lr(veh, curlane, curevent):
 
         veh.rfol = newfol
         newfol.llead.append(veh)
+        if newrlane.roadname == curlane.roadname:
+            veh.r_lc = 'discretionary'
+        else:
+            veh.r_lc = None
+        veh.rlane = newrlane
+
+    elif curevent['right'] == 'update':
+        newrlane = curlane.get_connect_right(curevent['pos'])
+
         if newrlane.roadname == curlane.roadname:
             veh.r_lc = 'discretionary'
         else:
@@ -322,7 +342,7 @@ def make_cur_route(p, curlane, nextroadname):
     Upon entering a new road, we create a cur_route which stores the list of route events for several lanes,
     specifically the lanes we will ultimately end up on, as well as all lanes which we will need to cross
     to reach those lanes we want to be on. We do not create the routes for every single lane on a road.
-    Roads have a 'connect to' key whose value is a tuple of:
+    Roads have a connect_to attribute whose keys are road names and value is a tuple of:
         pos: for 'continue' change_type, a float which gives the position that the current road
             changes to the desired road.
             for 'merge' type, a tuple of the first position that changing into the desired road
@@ -360,6 +380,8 @@ def make_cur_route(p, curlane, nextroadname):
         cur_route: dictionary where keys are lanes, value is a list of route event dictionaries which
             defines the route a vehicle with parameters p needs to take on that lane
     """
+    # TODO refactor route code, including how to implement diverges
+
     # TODO we only get the route for the current road - no look ahead to take into account
     # future roads. This modification may be needed if roads are short.
     # Should only have to look forward one road at a time.
@@ -374,14 +396,11 @@ def make_cur_route(p, curlane, nextroadname):
     # and in that case you would need to be given a new route.
     # another option other simulators use is they simply remove a vehicle if it fails to follow its route.
 
-    # TODO suggest that we also have some code which can generate routes given the entry and exit point of the
-    # network
-
     curroad = curlane.road
     curlaneind = curlane.laneind
     # position or tuple of positions, str, tuple of 2 ints or single int, str, dict for the next road
-    pos, change_type, laneind, side, nextroad = curroad['connect to'][nextroadname][:]  # nextroad unused?
-    # roads also have 'name', 'len', 'laneinds', all lanes are values with their indexes as keys
+    pos, change_type, laneind, side, nextroad = curroad.connect_to[nextroadname][:]  # nextroad unused?
+    # roads also have name, len, num_lanes, index lanes using their lane index (0 - num_lanes-1)
 
     cur_route = {}
     if change_type == 'continue':  # -> vehicle needs to reach end of lane
@@ -397,7 +416,7 @@ def make_cur_route(p, curlane, nextroadname):
             cur_route[templane].append({'pos': curpos - p[0] - p[1],
                                         'event': 'end discretionary', 'side': 'l_lc'})
 
-        if rightind < curroad['laneinds']-1:
+        if rightind < curroad.num_lanes-1:
             templane = curroad[rightind]
             curpos = min(templane.end, curroad[rightind+1].end)
             cur_route[templane].append({'pos': curpos - p[0] - p[1],
@@ -420,7 +439,7 @@ def make_cur_route(p, curlane, nextroadname):
 
         # determine end discretionary event if necessary
         if side == 'l_lc':
-            if laneind < curroad['laneinds']-1:
+            if laneind < curroad.num_lanes-1:
                 enddisc = min(pos, curroad[laneind+1].end)
                 cur_route[templane].append({'pos': enddisc - p[0] - p[1],
                                             'event': 'end discretionary', 'side': 'r_lc'})
@@ -518,7 +537,7 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
             curpos += -p[0] - p[1]
             curpos = max(prevtemplane.start, curpos)
 
-            if curind < curroad['laneinds'] - 1:
+            if curind < curroad.num_lanes - 1:
                 nexttemplane = curroad[curind + 1]
                 enddiscpos = min(curpos, nexttemplane.end)
                 enddiscpos = enddiscpos - p[0] - p[1]

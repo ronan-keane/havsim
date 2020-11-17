@@ -53,7 +53,6 @@ early_stopping = False
 if not early_stopping:
     # deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 10000, nveh = 32, nt = 50)
     deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 5000, nveh = 32, nt = 50)
-
     deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 100)
     deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 200)
     deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 300)
@@ -84,6 +83,7 @@ if early_stopping:
 #%% test by generating entire trajectories
 test = deep_learning.generate_trajectories(model, list(testing.keys()), testing, \
         loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss)
+
 test2 = deep_learning.generate_trajectories(model, list(training.keys()), training,\
         loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss)
 

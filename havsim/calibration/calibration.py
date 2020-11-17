@@ -119,10 +119,11 @@ class CalibrationCF:
         self.vehicles = set()
         self.add_events = self.all_add_events.copy()
         self.lc_events = self.all_lc_events.copy()
-        self.addtime = self.add_events[-1][0]
-        self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
+        self.addtime = self.add_events[-1][0] + 1
+        self.lctime = self.lc_events[-1][0] + 1 if len(self.lc_events)>0 else math.inf
         self.timeind = self.start
-        self.addtime = self.update_add_events(self.timeind-1, self.dt)
+        self.update_add_events(self.timeind-1, self.dt)
+
 
     def update_lc_events(self, timeind, dt):
         """Check if we need to apply the next lc event, apply it and update lctime if so.
@@ -142,7 +143,7 @@ class CalibrationCF:
         if self.addtime == timeind+1:
             apply_calibrationcf_add_event(self.add_events.pop(), self.vehicles, timeind, dt,
                                           self.lc_event_fun)
-            addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
+            self.addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
             self.update_add_events(timeind, dt)
 
 
@@ -199,19 +200,22 @@ def remove_vehicles(vehicles, endpos, timeind):
     return remove_list
 
 def update_calibration(vehicles, leadvehicles, update_lc_fun, update_add_fun, timeind, dt, ending_position):
-
     update_lc_fun(timeind, dt)
 
     for veh in vehicles:
         veh.update(timeind, dt)
+
     for veh in leadvehicles:
         veh.update(timeind, dt)
+
 
     remove_list = remove_vehicles(vehicles, ending_position, timeind)
     for remove_vec in remove_list:
         vehicles.remove(remove_vec)
 
     update_add_fun(timeind, dt)
+
+
 
 
 class Calibration(CalibrationCF):
@@ -228,7 +232,11 @@ class Calibration(CalibrationCF):
         for veh in self.vehicles:
             veh.set_lc(self.timeind, self.dt)
 
-        vehicles, leadvehicles, update_lc_fun, update_add_fun, timeind, dt, ending_position
+        # print(len(self.lc_events))
+        # print(self.timeind)
+        # print(self.lctime)
+        # print("next")
+
         # we need to have seperate add events and lc events, but the order of updates is exactly the same.
         update_calibration(self.vehicles, self.leadvehicles, self.update_lc_events, self.update_add_events, self.timeind, self.dt, self.ending_position)
         # only difference is that when we call veh.update for veh in vehicles, we also need to call
@@ -243,12 +251,12 @@ class Calibration(CalibrationCF):
             # do we need seprate parameters for leadvehicles?
             veh.initialize(parameters)
 
+
     def simulate(self, parameters):
         self.initialize(parameters)
 
         # do we simulate until we done with all vehicles? No max_endtime?
-        while self.vehicles and self.add_events:
-            print("we are going to step")
+        while self.vehicles or self.add_events:
             self.step()
 
         loss = 0
@@ -263,7 +271,7 @@ class Calibration(CalibrationCF):
         See function apply_calibration_lc_event.
         """
         if self.lctime == timeind+1:
-            self.apply_calibration_lc_event(self.lc_events.pop(), timeind, dt, self.lane_dict)
+            apply_calibration_lc_event(self.lc_events.pop(), timeind, dt)
             self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
             self.update_lc_events(timeind, dt)
 
@@ -273,11 +281,10 @@ class Calibration(CalibrationCF):
 
         See function apply_calibration_add_event.
         """
-        print(self.add_events)
         if self.addtime == timeind+1:
             apply_calibration_add_event(self.add_events.pop(), self.vehicles, self.leadvehicles, timeind, dt,
                                           self.lc_event_fun)
-            addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
+            self.addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
             self.update_add_events(timeind, dt)
 
 
@@ -342,7 +349,7 @@ def apply_calibrationcf_add_event(event, vehicles, timeind, dt, lc_event_fun):
     if curveh.lead is not None:
         curveh.hd = get_headway(curveh, curveh.lead)
 
-def apply_calibration_lc_event(event, timeind, dt, lane_dict):
+def apply_calibration_lc_event(event, timeind, dt):
     # Apply relaxation if leader changes, apply relax.
     if len(event) == 5:
         start, curveh, r_lc, l_lc, lc = event

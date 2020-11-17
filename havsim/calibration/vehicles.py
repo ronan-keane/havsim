@@ -115,7 +115,6 @@ class CalibrationVehicleCF(hs.Vehicle):
 
     def loss(self):
         """Calculates loss."""
-        print(self.leadmem)
         T = self.leadmem[-1][1] if self.leadmem[-1][0] is None else len(self.posmem)+self.start
         endind = min(T-self.start, len(self.y))
         return sum(np.square(self.posmem[:endind] - self.y[:endind]))/endind

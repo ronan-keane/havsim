@@ -66,7 +66,6 @@ class CalibrationCF:
         for veh in self.vehicles:
             veh.set_cf(self.timeind, self.dt)
 
-
         self.addtime, self.lctime = update_calibration_cf(self.vehicles, self.add_events, self.lc_events,
                                                        self.addtime, self.lctime, self.timeind, self.dt,
                                                        self.lc_event, self.ending_position)
@@ -123,7 +122,7 @@ class CalibrationCF:
         self.addtime = self.add_events[-1][0]
         self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
         self.timeind = self.start
-        self.addtime = self.update_add_event(self.timeind-1, self.dt)
+        self.addtime = self.update_add_events(self.timeind-1, self.dt)
 
     def update_lc_events(self, timeind, dt):
         """Check if we need to apply the next lc event, apply it and update lctime if so.
@@ -206,6 +205,21 @@ def remove_vehicles(vehicles, endpos, timeind):
 
     return remove_list
 
+def update_calibration(vehicles, leadvehicles, update_lc_fun, update_add_fun, timeind, dt, ending_position):
+
+    update_lc_fun(timeind, dt)
+
+    for veh in vehicles:
+        veh.update(timeind, dt)
+    for veh in leadvehicles:
+        veh.update(timeind, dt)
+
+    remove_list = remove_vehicles(vehicles, ending_position, timeind)
+    for remove_vec in remove_list:
+        vehicles.remove(remove_vec)
+
+    update_add_fun(timeind, dt)
+
 
 class Calibration(CalibrationCF):
     def __init__(self, vehicles, leadvehicles, add_events, lc_events, dt, lane_dict, end=None, run_type='max endtime',
@@ -213,7 +227,7 @@ class Calibration(CalibrationCF):
         super().__init__(vehicles, add_events, lc_events, dt, end=end, run_type=run_type,
                          parameter_dict=parameter_dict, ending_position=ending_position)
         self.all_leadvehicles = leadvehicles
-        self.lanes = lane_dict
+        self.leadvehicles = set()
 
     def step(self):
         for veh in self.vehicles:
@@ -221,9 +235,9 @@ class Calibration(CalibrationCF):
         for veh in self.vehicles:
             veh.set_lc(self.timeind, self.dt)
 
+        vehicles, leadvehicles, update_lc_fun, update_add_fun, timeind, dt, ending_position
         # we need to have seperate add events and lc events, but the order of updates is exactly the same.
-        self.addtime, self.lctime = update_calibration(self.vehicles, self.leadvehicles, self.add_events,
-                                                          self.lc_events, self.addtime, self.lctime, self.timeind, self.dt, self.ending_position)
+        update_calibration(self.vehicles, self.leadvehicles, self.update_lc_events, self.update_add_events, self.timeind, self.dt, self.ending_position)
         # only difference is that when we call veh.update for veh in vehicles, we also need to call
         # veh.update for veh in leadvehicles. Suggest to just write a new update_calibration_lc as it is only
         # like 15 lines of code.
@@ -232,9 +246,22 @@ class Calibration(CalibrationCF):
 
     def initialize(self, parameters):
         super().initialize(parameters)  # don't actually call update_add_event as we need its own add events
-        self.leadvehicles = set()
         for veh in self.all_leadvehicles:
-            veh.initialize
+            # do we need seprate parameters for leadvehicles?
+            veh.initialize(parameters)
+
+    def simulate(self, parameters):
+        self.initialize(parameters)
+
+        # do we simulate until we done with all vehicles? No max_endtime?
+        while self.vehicles and self.add_events:
+            print("we are going to step")
+            self.step()
+
+        loss = 0
+        for veh in self.all_vehicles:
+            loss += veh.loss()
+        return loss
 
 
     def update_lc_events(self, timeind, dt):
@@ -250,17 +277,19 @@ class Calibration(CalibrationCF):
                     self.apply_calibration_lc_event(self.lc_events.pop(), timeind, dt, self.lane_dict)
             self.lctime = self.lc_events[-1][0] if len(self.lc_events)>0 else math.inf
 
+
     def update_add_events(self, timeind, dt):
         """Check if we need to apply the next add event, apply it and update addtime if so.
 
         See function apply_calibration_add_event.
         """
+        print(self.add_events)
         if self.addtime == timeind+1:
             apply_calibration_add_event(self.add_events.pop(), self.vehicles, self.leadvehicles, timeind, dt,
                                           self.lc_event_fun)
             addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
             if self.addtime == timeind+1:
-                while addtime == timeind+1:
+                while self.addtime == timeind+1:
                     apply_calibration_add_event(self.add_events.pop(), self.vehicles, self.leadvehicles, timeind, dt,
                                                   self.lc_event_fun)
                     self.addtime = self.add_events[-1][0] if len(self.add_events)>0 else math.inf
@@ -288,16 +317,16 @@ class Calibration(CalibrationCF):
 
 
 def apply_calibration_add_event(event, vehicles, leadvehicles, timeind, dt, lc_event_fun):
-    if len(event) = 3:
-        unused, type, fol_lead_veh = event
-        if type == "remove":
-            leadvehicles.remove(fol_lead_veh)
-        else:
+    if not event[3]:
+        unused, fol_lead_veh, is_add, unused = event
+        if is_add:
             leadvehicles.add(fol_lead_veh)
+        else:
+            leadvehicles.remove(fol_lead_veh)
     else:
-        unused, unused, curveh, lcevent = event
+        unused, curveh, unused, unused, lcevent = event
         vehicles.add(curveh)
-        lc_event_fun(curveh)
+        lc_event_fun(lcevent)
 
 
 
@@ -328,76 +357,21 @@ def apply_calibrationcf_add_event(event, vehicles, timeind, dt, lc_event_fun):
 
 def apply_calibration_lc_event(event, timeind, dt, lane_dict):
     # Apply relaxation if leader changes, apply relax.
-
-    # if changing into 1 from 2 it is discretionary, but if not l_lc is None
-    # individual veh lane changing event
-    if len(event) == 6:
-        unused, unused, curveh, last_lane, new_lane, unused = event
-        if last_lane == 7:
-            curveh.r_lc = None
-            curveh.l_lc = "mandatory"
-        elif last_lane == 1:
-            # does this have to be true? or could it just be an hov veh
-            curveh.r_lc = "discretionary"
-            curveh.l_lc = None
-        else:
-            curveh.r_lc = "discretionary"
-            curveh.l_lc = "discretionary"
-        if last_lane > new_lane:
-            lc = "l"
-        else:
-            lc = "r"
-
-        veh.lane = lane_dict[new_lane]
-
-        veh.lcmem.append([new_lane, timeind + 1])
-        veh.update_lc_state(timeind, lc)
-
-        veh.set_relax(timdind, dt)
+    if len(event) == 5:
+        start, curveh, r_lc, l_lc, lc = event
+        curveh.r_lc = r_lc
+        curveh.l_lc = l_lc
+        curveh.update_lc_state(timeind, lc)
+        curveh.set_relax(timdind, dt)
 
     else:
-        unused, unused, curveh, fol_lead_veh, fl_type = event
-        lc_event_helper(fl_type, curveh, fol_lead_veh)
+        start, curveh, fol_lead_veh, fl_type = event
+        setattr(curveh, fl_type, fol_lead_veh)
+        vehmem = fl_type + 'mem'
+        vehmem = getattr(curveh, vehmem)
+        vehmem.append([fol_lead_veh, timeind + 1])
 
-# must be a better way to do this then hardcode?
-def lc_event_helper(fl_type, veh, fol_lead_veh):
-    if fl_type == "l":
-        veh.lead = fol_lead_veh
-        if not fol_lead_veh:
-            veh.leadmem.append([None, timeind+1])
-        else:
-            veh.leadmem.append([fol_lead_veh, timeind+1])
-        veh.set_relax(timdind, dt)
-    elif fl_type == "f":
-        veh.fol = fol_lead_veh
-        if not fol_lead_veh:
-            veh.folmem.append([None, timeind+1])
-        else:
-            veh.folmem.append([fol_lead_veh, timeind+1])
-    elif fl_type == "rf":
-        veh.rfol = fol_lead_veh
-        if not fol_lead_veh:
-            veh.rfolmem.append([None, timeind+1])
-        else:
-            veh.rfolmem.append([fol_lead_veh, timeind+1])
-    elif fl_type == "lf":
-        veh.lfol = fol_lead_veh
-        if not fol_lead_veh:
-            veh.lfolmem.append([None, timeind+1])
-        else:
-            veh.lfolmem.append([fol_lead_veh, timeind+1])
-    elif fl_type == "ll":
-        veh.llead = fol_lead_veh
-        if not fol_lead_veh:
-            veh.lleadmem.append([None, timeind+1])
-        else:
-            veh.lleadmem.append([fol_lead_veh, timeind+1])
-    elif fl_type == "rl":
-        veh.rlead = fol_lead_veh
-        if not fol_lead_veh:
-            veh.rleadmem.append([None, timeind+1])
-        else:
-            veh.rleadmem.append([fol_lead_veh, timeind+1])
+
 
 def apply_calibrationcf_lc_event(event, timeind, dt):
     """Applies lead change event, updating a CalibrationVehicle's leader.

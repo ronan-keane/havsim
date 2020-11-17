@@ -11,12 +11,12 @@ def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_lis
         curveh = id2obj[veh]
         t0, t1 = vehdict[veh].longest_lead_times
 
-        info_list = [(vehdict[veh].leadmem.intervals(t0, t1), "l"),
-        (vehdict[veh].rleadmem.intervals(t0, t1), "rl"),
-        (vehdict[veh].lleadmem.intervals(t0, t1), "ll"),
-        (vehdict[veh].folmem.intervals(t0, t1), "f"),
-        (vehdict[veh].lfolmem.intervals(t0, t1), "lf"),
-        (vehdict[veh].rfolmem.intervals(t0, t1), "rl"),
+        info_list = [(vehdict[veh].leadmem.intervals(t0, t1), "lead"),
+        (vehdict[veh].rleadmem.intervals(t0, t1), "rlead"),
+        (vehdict[veh].lleadmem.intervals(t0, t1), "llead"),
+        (vehdict[veh].folmem.intervals(t0, t1), "fol"),
+        (vehdict[veh].lfolmem.intervals(t0, t1), "lfol"),
+        (vehdict[veh].rfolmem.intervals(t0, t1), "rfol"),
         ]
 
         # add/lc events for lead veh relationships
@@ -35,8 +35,22 @@ def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_lis
                 last_lane = lc_intervals[i-1][0]
                 start = lc_intervals[i][1]
                 new_lane = lc_intervals[i][0]
-                lc_event = (start, 'lc', curveh, last_lane, new_lane, "currveh_lc")
-                print(lc_event)
+
+                if last_lane == 7:
+                    r_lc = None
+                    l_lc = "mandatory"
+                elif last_lane == 1:
+                    r_lc = "discretionary"
+                    l_lc = None
+                else:
+                    r_lc = "discretionary"
+                    l_lc = "discretionary"
+                if last_lane > new_lane:
+                    lc = "l"
+                else:
+                    lc = "r"
+
+                lc_event = (start, curveh, r_lc, l_lc, lc)
                 lcevent_list.append(lc_event)
 
 
@@ -46,10 +60,10 @@ def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_lis
         end = all_leadvehicles[leadveh_id][1]
         fol_lead_veh = id2obj[leadveh_id]
 
-        curevent = (start, 'add', fol_lead_veh)
+        curevent = (start, fol_lead_veh, True, False)
         addevent_list.append(curevent)
 
-        curevent = (end, 'remove', fol_lead_veh)
+        curevent = (end, fol_lead_veh, False, False)
         addevent_list.append(curevent)
 
 
@@ -98,10 +112,10 @@ def create_add_events(veh_data, id2obj, curveh, vehdict, vehicles, dt, addevent_
 
         if not fol_lead_veh:
             # if we are looking at followers
-            if fl_type == "f" or fl_type == "lf" or fl_type == "rf":
+            if fl_type == "fol" or fl_type == "lfol" or fl_type == "rfol":
                 # how should we reuse this for all cases?
                 dummy_vec = LeadVehicle([], 0)
-                curevent = (start, 'lc', curveh, dummy_vec, fl_type)
+                curevent = (start, curveh, dummy_vec, fl_type)
                 lcevent_list.append(curevent)
             # if we are looking at leader relationships
             else:
@@ -110,25 +124,32 @@ def create_add_events(veh_data, id2obj, curveh, vehdict, vehicles, dt, addevent_
                 for event in sorted_lc_event:
                     if event[1] == fl_type:
                         if not isinstance(event[2], CalibrationVehicle):
-                            curevent = (start, "lc", curveh, fol_lead_veh, fl_type)
+                            curevent = (start, curveh, fol_lead_veh, fl_type)
                             lcevent_list.append(curevent)
                             break
 
         else:
             fol_lead_veh, curlen = id2obj[fol_lead_veh], None
 
+            # curevent = (start, fol_lead_veh, True, False)
+            # addevent_list.append(curevent)
+            #
+            # curevent = (end, fol_lead_veh, False, False)
+            # addevent_list.append(curevent)
 
             if count == 0:
                 # lc event for first tims
-                curevent = (start, 'lc', curveh, fol_lead_veh, fl_type)
+                curevent = (start, curveh, fol_lead_veh, fl_type)
                 # only needed for the first time to create the add cur_veh event
                 if first_call:
-                    curevent = (start, 'add', curveh, curevent)
-                addevent_list.append(curevent)
+                    curevent = (start, curveh, True, True, curevent)
+                    addevent_list.append(curevent)
+                else:
+                    lcevent_list.append(curevent)
 
             else:
                 # lc event for fol_lead_veh with respect to curveh
-                curevent = (start, 'lc', curveh, fol_lead_veh, fl_type)
+                curevent = (start, curveh, fol_lead_veh, fl_type)
                 lcevent_list.append(curevent)
 
 # TODO Refactor this version into seperate functions for Calibration/CalibrationCF
@@ -170,10 +191,14 @@ def make_calibration(vehicles, vehdict, dt, event_maker=None, lc_event_fun=None,
     all_leadvehicles = make_leadvehicles(vehicles, id2obj, vehdict, dt)
     addevent_list, lcevent_list = event_maker(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list, all_leadvehicles)
 
+    leadvehicle_list = []
+    for i in all_leadvehicles:
+        leadvehicle_list.append(id2obj[i])
+
     addevent_list.sort(key = lambda x: x[0], reverse = True)
     lcevent_list.sort(key = lambda x: x[0], reverse = True)
 
-    return Calibration(vehicle_list, all_leadvehicles, addevent_list, lcevent_list, dt, lanes, end=max_end)
+    return Calibration(vehicle_list, leadvehicle_list, addevent_list, lcevent_list, dt, lanes, end=max_end)
 
 
 def make_calibration_CF(vehicles, vehdict, dt, vehicle_class=None, calibration_class=None, event_maker=None, lc_event_fun=None, lanes={}, calibration_kwargs={}):

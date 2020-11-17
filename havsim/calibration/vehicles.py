@@ -20,7 +20,8 @@ class CalibrationVehicleCF(hs.Vehicle):
     Attributes:
         vehid: unique vehicle ID for hashing (float)
         lane: A Lane object which has a get_downstream method, used to apply downstream boundary to the
-            Vehicle if it is ever simulated with lead=None
+            Vehicle if it is ever simulated with lead=None. Only ever used for the get_downstream method,
+            it does not need to be updated and does not describe the road network in any way.
         road: None
         cf_parameters: list of float parameters for cf model
         relax_parameters: float parameter(s) for relaxation model, or None
@@ -161,6 +162,7 @@ class CalibrationVehicle(CalibrationVehicleCF):
     rleadmem
     l_lc: None, 'discretionary' or 'mandatory' - controls what state lane changing model is in
     r_lc: None, 'discretionary' or 'mandatory' - controls what state lane changing model is in
+    llane/rlane: need to give some value for left lane/right lane, even though they aren't used
     """
     def __init__(self, vehid, y, y_lc, initpos, initspd, start, length=3, lane=None, accbounds=None,
                  maxspeed=1e4, hdbounds=None, eql_type='v'):

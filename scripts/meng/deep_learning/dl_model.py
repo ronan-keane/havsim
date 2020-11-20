@@ -113,23 +113,49 @@ class RNNCFModel(tf.keras.Model):
                 (number of vehicles, number of LSTM units)
         """
         # prepare data for call
-        lead_states, cur_states = inputs
-        lead_pos, lead_speeds = tf.unstack(lead_states, axis=2) #shape(nveh, nt)
-        cur_pos, cur_speeds = tf.unstack(cur_states, axis=2) #shape(nveh, nt)
-        cur_hds = (lead_pos - cur_pos)/self.maxhd
-        x = tf.stack([cur_hds, cur_speeds/self.maxv, lead_speeds/self.maxv], axis=2)
-        # print('input shape ', x.shape)
-        self.lstm1.reset_dropout_mask()
-        x = self.lstm1(x, training=training)
-        x = self.dense2(x)
-        x = self.dense1(x)
-        # print('model output shape', x.shape)  #should be batch_size * 1?
-        pred_accs = (self.maxa-self.mina)*x + self.mina
-        prev_pos = cur_pos[:, -1:]  #shape (nveh, 1)
-        prev_speeds = cur_speeds[:, -1:]  #shape (nveh, 1)
-        pred_pos =  prev_pos + self.dt*prev_speeds  #shape (nveh, 1)
-        pred_speeds = prev_speeds + self.dt*pred_accs  #shape (nveh, 1)
-        output = tf.stack([pred_pos, pred_speeds], axis=2) #shape (nveh, 1, 2)
+        lead_states, cur_states, mask, past, nt = inputs #shape(nveh, nt+past, 2), (nveh,past,2)
+        lead_pos, lead_speeds = tf.unstack(lead_states, axis=2) #shape(nveh, past+nt)
+        cur_pos, cur_speeds = tf.unstack(cur_states, axis=2) #shape(nveh, past)
+        past = len(past) #history len
+        nt = len(nt)
+        past_ts = cur_pos.shape[1] #init cur history
+        cur_lead_pos = lead_pos[:, :past_ts]
+        cur_lead_speeds = lead_speeds[:, :past_ts]
+
+        for t in range(nt):
+            cur_lead_pos = cur_lead_pos[:, -past:]
+            cur_lead_speeds = cur_lead_speeds[:, -past:]
+            cur_fol_pos = cur_pos[:, -past:]
+            cur_fol_speeds = cur_speeds[:, -past:]
+            cur_hds = cur_lead_pos - cur_fol_pos
+
+            cur_mask = mask[:, t:t+1]
+            cur_mask = tf.tile(cur_mask, tf.constant([1, cur_hds.shape[1]]))
+
+            x = tf.stack([cur_hds/self.maxhd, cur_fol_speeds/self.maxv, cur_lead_speeds/self.maxv], axis=2)
+            self.lstm1.reset_dropout_mask()
+            x = self.lstm1(x, training=training, mask=cur_mask)
+            x = self.dense2(x)
+            x = self.dense1(x)
+            # print('model output shape', x.shape)  #should be batch_size * 1?
+            pred_accs = (self.maxa-self.mina)*x + self.mina
+            prev_pos = cur_pos[:, -1:]  #shape (nveh, 1)
+            prev_speeds = cur_speeds[:, -1:]  #shape (nveh, 1)
+            pred_pos =  prev_pos + self.dt*prev_speeds  #shape (nveh, 1)
+            pred_speeds = prev_speeds + self.dt*pred_accs  #shape (nveh, 1)
+            cur_pos = tf.concat([cur_pos, pred_pos], axis=1) #shape(nveh, past_ts+t+1)
+            cur_speeds = tf.concat([cur_speeds, pred_speeds], axis=1) #shape(nveh, past_ts+t+1)
+
+            next_lead_pos = lead_pos[:, past_ts+t:past_ts+t+1] #shape(nveh,1)
+            next_lead_speed = lead_speeds[:, past_ts+t:past_ts+t+1] #shape(nveh,1)
+            cur_lead_pos = tf.concat([cur_lead_pos, next_lead_pos], axis=1) #shape(nveh, past_ts+t+1)
+            cur_lead_speeds = tf.concat([cur_lead_speeds, next_lead_speed], axis=1) #shape(nveh, past_ts+t+1)
+
+        assert cur_pos.shape[1] == (nt+past_ts)
+        tf.debugging.assert_equal(cur_lead_pos[:, -1],lead_pos[:, -1])
+        pos_preds = cur_pos[:, -nt:]
+        speed_preds = cur_speeds[:, -nt:]
+        output = tf.stack([pos_preds, speed_preds], axis=2) #shape (nveh, nt, 2)
         return output
 
     def get_config(self):
@@ -234,7 +260,7 @@ def train_step(x, y_true, sample_weight, model, loss_fn, optimizer):
     return pred_state, loss
 
 
-def training_loop(model, loss, optimizer, ds, epochs=100, nbatches=10000, nveh=32, nt=10, m=100, n=20,
+def training_loop(model, loss, optimizer, ds, epochs=100, nbatches=10000, nveh=32, nt=25, past=10, m=100, n=20,
                   early_stopping_loss=None):
     """Trains model by repeatedly calling train_step.
 
@@ -270,27 +296,79 @@ def training_loop(model, loss, optimizer, ds, epochs=100, nbatches=10000, nveh=3
             cur_states = [ds[veh]['IC'] for veh in vehs]
             cur_states = tf.convert_to_tensor(cur_states, dtype='float32')  #shape (nveh, 2)
             cur_states = tf.expand_dims(cur_states, axis=1) #shape (nveh, 1, 2)
-            lead_states, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, 1) #lead_states shape (nveh,nt,2)
+            lead_states, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt) #lead_states shape (nveh,nt,2)
             batch_loss = 0
-            for t in range(1, tmax+1): #loop over the longest trajectory
-                #when selecting cur_state to pass to model, if t > nt then select the last nt
-                #this means some vehicles have been simulated fully. and shouldn;t contribute to 
-                #pred_sate should have shape (nveh, 1, 2)
+            for t in range(math.ceil(tmax/nt)): #loop over the longest trajectory
+                #pred_sate should have shape (nveh, nt, 2)
+                mask = (loss_weights == 1)
                 pred_state, loss_value = \
-                    train_step([lead_states, cur_states], true_traj, loss_weights, model,loss, optimizer)
+                    train_step([lead_states, cur_states, mask, tf.range(past), tf.range(nt)], true_traj, loss_weights, model,loss, optimizer)
                 batch_loss += loss_value
                 # if i == 0:
                 #     print(loss_value)
                 for count, veh in enumerate(vehs):
-                    vehs_counter[count][0] += 1
+                    vehs_counter[count][0] += nt
                 #add pred_pos and speed to cur_state
                 cur_states = tf.concat([cur_states, pred_state], axis=1)
-                cur_states = cur_states[:, -nt:, :]  #shape(nveh, nt, 2)
+                cur_states = cur_states[:, -past:, :]  #shape(nveh, past, 2)
                 
-                lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, 1)
+                lead_inputs, true_traj, loss_weights = make_batch(vehs, vehs_counter, ds, nt)
                 lead_states = tf.concat([lead_states, lead_inputs], axis=1)
-                lead_states = lead_states[:, -nt:, :]  #shape(nveh, nt, 2)
-            batch_loss /= tmax
+                lead_states = lead_states[:, -(nt+past):, :]  #shape(nveh, nt+past, 2)
+            batch_loss /= (t+1)
             epoch_loss += batch_loss
             print('Loss for current batch: ', batch_loss)
         print('EPOCH {0} LOSS: {1:.2f}'.format(epoch, epoch_loss/(i+1)))
+
+
+def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
+    """Generate a batch of trajectories.
+
+    Args:
+        model: tf.keras.Model
+        vehs: list of vehicle IDs
+        ds: dataset from make_dataset
+        loss: if not None, we will call loss function and return the loss
+        kwargs: dictionary of keyword arguments to pass to make_batch
+    Returns:
+        y_pred: tensor of vehicle trajectories, shape of (number of vehicles, number of timesteps)
+        cur_speeds: tensor of current vehicle speeds, shape of (number of vehicles, 1)
+    """
+    # put all vehicles into a single batch, with the number of timesteps equal to the longest trajectory
+    total_vehs = len(vehs)
+    vehs_list = tf.data.Dataset.from_tensor_slices(vehs)
+    veh_batches = vehs_list.batch(64)
+
+    out_loss = 0
+    cur_pos, cur_speeds = [], []
+    for b, veh_batch in enumerate(veh_batches.as_numpy_iterator()):
+        vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0]] for count, veh in enumerate(veh_batch)}
+        tmax = max([times[1] for times in vehs_counter.values()])
+        cur_states = [ds[veh]['IC'] for veh in veh_batch]
+        cur_states = tf.convert_to_tensor(cur_states, dtype='float32')  #shape (nveh, 2)
+        cur_states = tf.expand_dims(cur_states, axis=1) #shape (nveh, 1, 2)
+        lead_states, true_traj, loss_weights = make_batch(veh_batch, vehs_counter, ds, tmax) #lead_states shape (nveh,nt,2)
+        
+        mask = (loss_weights == 1)
+        pred_states = model([lead_states, cur_states, mask, tf.range(25), tf.range(tmax)]) 
+        pred_pos, pred_speeds = tf.unstack(pred_states, axis=2)
+        cur_pos.append(pred_pos)
+        cur_speeds.append(pred_speeds)
+
+        if loss is not None:
+            cur_loss = loss(true_traj, pred_pos, loss_weights)
+            wt_cur_loss = cur_loss * (len(veh_batch)/total_vehs)
+            out_loss += wt_cur_loss
+
+    max_nt = max([t.shape[1] for t in cur_pos])
+    
+    def add_padding(t):
+        paddings = [[0,0], [0, (max_nt-t.shape[1])]]
+        return tf.pad(t, paddings=paddings)
+
+    pad_pos = [add_padding(t) for t in cur_pos]
+    pad_speeds = [add_padding(t) for t in cur_speeds]
+    if loss is None:
+       return tf.concat(pad_pos, 0), tf.concat(pad_speeds,0) 
+    else:
+        return tf.concat(pad_pos, 0), tf.concat(pad_speeds, 0), out_loss

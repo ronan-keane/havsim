@@ -1,4 +1,4 @@
-from havsim.simulation.road_networks import Lane
+from havsim.simulation.road_networks import Lane, downstream_wrapper, get_inflow_wrapper, increment_inflow_wrapper
 
 
 def add_or_get_merge_anchor_index(lane, pos):
@@ -234,6 +234,43 @@ class Road:
             connect_lane_left_right(new_road[new_lane_index], self.lanes[self_index], new_lane_pos, self_pos)
         else:
             connect_lane_left_right(self.lanes[self_index], new_road[new_lane_index], self_pos, new_lane_pos)
+
+    def set_downstream(self, downstream, self_indices=None):
+        """
+        downstream: dictionary of keyword args which defines call_downstream method
+        self_indices: a list of lane indices to set downstream condition to
+        """
+        if downstream is not None:
+            if self_indices is None:
+                self_indices = list(range(self.num_lanes))
+            else:
+                assert isinstance(self_indices, list)
+            for ind in self_indices:
+                self.lanes[ind].call_downstream = downstream_wrapper(**downstream).__get__(self.lanes[ind], Lane)
+
+    def set_upstream(self, increment_inflow=None, get_inflow=None, new_vehicle=None, self_indices=None):
+        """
+        increment_inflow: dictionary of keyword args which defines increment_inflow method, or None
+        get_inflow: dictionary of keyword args which defines increment_inflow method, or None
+        new_vehicle: new_vehicle method, or None
+        self_indices: a list of lane indices to set downstream condition to
+        """
+        if self_indices is None:
+            self_indices = list(range(self.num_lanes))
+        else:
+            assert isinstance(self_indices, list)
+        for ind in self_indices:
+            lane = self.lanes[ind]
+            if get_inflow is not None:
+                lane.get_inflow = get_inflow_wrapper(**get_inflow).__get__(lane, Lane)
+            if new_vehicle is not None:
+                lane.new_vehicle = new_vehicle.__get__(lane, Lane)
+            if increment_inflow is not None:
+                lane.inflow_buffer = 0
+                lane.newveh = None
+                # cf_parameters, lc_parameters, kwargs = self.new_vehicle()  # done in Simulation.__init__
+                # self.newveh = vehicle(vehid, self, cf_parameters, lc_parameters, **kwargs)
+                lane.increment_inflow = increment_inflow_wrapper(**increment_inflow).__get__(lane, Lane)
 
     def diverge(self):
         """

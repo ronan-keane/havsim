@@ -88,24 +88,11 @@ main_road.connect('exit', is_exit=True)
 onramp_road = Road(num_lanes=1, length=[(startmerge - 100, endmerge)], name='on ramp')
 onramp_road.merge(main_road, self_index=0, new_lane_index=1,
                   self_pos=(startmerge, endmerge), new_lane_pos=(startmerge, endmerge))
-for i in range(2):
-    lane = main_road[i]
-    lane.call_downstream = downstream_wrapper(**downstream1).__get__(lane, Lane)
-    lane.get_inflow = get_inflow_wrapper(**get_inflow2).__get__(lane, Lane)
-    lane.inflow_buffer = 0
-    lane.newveh = None
-    lane.increment_inflow = increment_inflow_wrapper(**increment_inflow).__get__(lane, Lane)
-    lane.new_vehicle = mainroad_newveh.__get__(lane, Lane)
 
-onramp_lane = onramp_road[0]
-onramp_lane.get_inflow = get_inflow_wrapper(**get_inflow1).__get__(onramp_lane, Lane)
-onramp_lane.inflow_buffer = 0
-onramp_lane.newveh = None
-onramp_lane.increment_inflow = increment_inflow_wrapper(**increment_inflow_ramp).__get__(onramp_lane, Lane)
-onramp_lane.new_vehicle = onramp_newveh.__get__(onramp_lane, Lane)
-# downstream2 = {'method':'merge', 'merge_anchor_ind':0, 'target_lane': lane1, 'self_lane':lane2, 'stopping':'ballistic'}
-downstream2 = {'method': 'free merge', 'self_lane':onramp_lane, 'stopping':'car following'}
-onramp_lane.call_downstream = downstream_wrapper(**downstream2).__get__(onramp_lane, Lane)
+main_road.set_upstream(increment_inflow=increment_inflow, get_inflow=get_inflow2, new_vehicle=mainroad_newveh)
+downstream2 = {'method': 'free merge', 'self_lane':onramp_road[0], 'stopping':'car following'}
+onramp_road.set_downstream(downstream2)
+onramp_road.set_upstream(increment_inflow=increment_inflow_ramp, get_inflow=get_inflow1, new_vehicle=onramp_newveh)
 
 #make simulation
 merge_lanes = [main_road[1], onramp_road[0]]

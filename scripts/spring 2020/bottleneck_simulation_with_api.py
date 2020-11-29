@@ -88,7 +88,7 @@ main_road.connect('exit', is_exit=True)
 onramp_road = Road(num_lanes=1, length=[(startmerge - 100, endmerge)], name='on ramp')
 onramp_road.merge(main_road, self_index=0, new_lane_index=1,
                   self_pos=(startmerge, endmerge), new_lane_pos=(startmerge, endmerge))
-
+main_road.set_downstream(downstream1)
 main_road.set_upstream(increment_inflow=increment_inflow, get_inflow=get_inflow2, new_vehicle=mainroad_newveh)
 downstream2 = {'method': 'free merge', 'self_lane':onramp_road[0], 'stopping':'car following'}
 onramp_road.set_downstream(downstream2)

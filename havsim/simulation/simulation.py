@@ -131,8 +131,8 @@ class Simulation:
         dt: constant float. timestep for the simulation.
     """
 
-    def __init__(self, inflow_lanes, merge_lanes, vehicles=None, prev_vehicles=None, vehid=0,
-                 timeind=0, dt=.25):
+    def __init__(self, inflow_lanes=None, merge_lanes=None, vehicles=None, prev_vehicles=None, vehid=0,
+                 timeind=0, dt=.25, roads=None):
         """Inits simulation.
 
         Args:
@@ -143,20 +143,33 @@ class Simulation:
             vehid: vehicle ID used for the next vehicle to be created.
             timeind): starting time index (int) for the simulation.
             dt: float for how many time units pass for each timestep. Defaults to .25.
+            roads: optional, list of all the roads in the simulation, if this field is specified,
+              inflow_lanes and merge_lanes will be deduced using roads.
 
         Returns:
             None. Note that we keep references to all vehicles through vehicles and prev_vehicles,
             a Vehicle stores its own memory.
         """
-        self.inflow_lanes = inflow_lanes
-        self.merge_lanes = merge_lanes
+        if roads is None:
+            self.inflow_lanes = inflow_lanes
+            self.merge_lanes = merge_lanes
+        else:
+            assert isinstance(roads, list)
+            self.inflow_lanes = []
+            self.merge_lanes = []
+            for road in roads:
+                for lane in road.lanes:
+                    if hasattr(lane, "get_inflow"):
+                        self.inflow_lanes.append(lane)
+                    if hasattr(lane, "merge_anchors") and lane.merge_anchors:
+                        self.merge_lanes.append(lane)
         self.vehicles = set() if vehicles is None else vehicles
         self.prev_vehicles = [] if prev_vehicles is None else prev_vehicles
         self.vehid = vehid
         self.timeind = timeind
         self.dt = dt
 
-        for curlane in inflow_lanes:  # need to generate parameters of the next vehicles
+        for curlane in self.inflow_lanes:  # need to generate parameters of the next vehicles
             if curlane.newveh is None:
                 # cf_parameters, lc_parameters, kwargs = curlane.new_vehicle()
                 # curlane.newveh = Vehicle(self.vehid, curlane, cf_parameters, lc_parameters, **kwargs)

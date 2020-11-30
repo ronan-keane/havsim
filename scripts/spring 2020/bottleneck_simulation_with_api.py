@@ -63,7 +63,6 @@ increment_inflow = {'method': 'seql', 'kwargs':{'c':.8}}
 # increment_inflow = {'method': 'speed', 'accel_bound':-.1, 'speed_series':speed_inflow}
 # increment_inflow_ramp = {'method': 'speed', 'accel_bound':-.1, 'speed_series':speed_inflow_ramp}
 increment_inflow_ramp=increment_inflow
-downstream1 ={'method':'free', }
 # downstream1 = {'method': 'speed', 'time_series':mainroad_outflow}
 
 #make road network with boundary conditions - want to make an api for this in the future
@@ -74,33 +73,36 @@ startmerge = 1100
 endmerge = 1300
 onramplen = 200
 
+# Construct the road network
 main_road = Road(num_lanes=2, length=mainroadlen, name='main road')
 main_road.connect('exit', is_exit=True)
 onramp_road = Road(num_lanes=1, length=[(startmerge - 100, endmerge)], name='on ramp')
 onramp_road.merge(main_road, self_index=0, new_lane_index=1,
                   self_pos=(startmerge, endmerge), new_lane_pos=(startmerge, endmerge))
+
+# Define the newveh method for both roads
 def onramp_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
     kwargs = {'route': compute_route(start_road=onramp_road, start_pos=startmerge-100, exit='exit'),
               'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15,
               'shift_parameters': [-1.5, 1.5]}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
-
 def mainroad_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
     kwargs = {'route': compute_route(start_road=main_road, start_pos=0, exit='exit'),
               'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15, 'shift_parameters': [-1.5, 1.5]}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
+
+# Set boundary conditions for both roads
+downstream1 ={'method':'free', }
 main_road.set_downstream(downstream1)
 main_road.set_upstream(increment_inflow=increment_inflow, get_inflow=get_inflow2, new_vehicle=mainroad_newveh)
 downstream2 = {'method': 'free merge', 'self_lane':onramp_road[0], 'stopping':'car following'}
 onramp_road.set_downstream(downstream2)
 onramp_road.set_upstream(increment_inflow=increment_inflow_ramp, get_inflow=get_inflow1, new_vehicle=onramp_newveh)
 
-#make simulation
-merge_lanes = [main_road[1], onramp_road[0]]
-inflow_lanes = [main_road[0], main_road[1], onramp_road[0]]
-simulation = hs.Simulation(inflow_lanes, merge_lanes, dt = .25)
+# Make simulation
+simulation = hs.Simulation(roads=[main_road, onramp_road], dt = .25)
 
 #call
 timesteps = 10000

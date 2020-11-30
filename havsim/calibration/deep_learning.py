@@ -336,7 +336,7 @@ def calculate_lc_hd_weights(inputs, y_true, y_pred, c=1):
     # predicted headway calculation
     lead_pred_hd = inputs[:,:,:3] - tf.expand_dims(y_pred, axis=2)
     fol_pred_hd = tf.expand_dims(y_pred, axis=2) - inputs[:,:,3:6]
-    pred_hd = tf.concat([lead_true_hd, fol_true_hd], axis=2)
+    pred_hd = tf.concat([lead_pred_hd, fol_pred_hd], axis=2)
 
     div = (true_hd - pred_hd) / (true_hd + 1e-5)
     div = -c * tf.math.reduce_sum(div, axis=2)
@@ -598,13 +598,14 @@ class Trajectories:
     def compressed_trajectory(self, idx):
         return compress_traj(self.lc_pred[idx], self.true_lc_action[idx], self.lc_weights[idx])
 
-def compress_traj(pred, true, lc_weights):
-    # remove all-zero rows (predictions we multiply by zero b/c it's not allowed to change lanes/etc.)
-    three_zeros = np.zeros((3,))
-    nonzero_sel = ~np.apply_along_axis(lambda x: np.array_equal(x, three_zeros), 1, pred)
+def compress_traj(pred, true, lc_weights, remove_zeros=False):
+    if remove_zeros:
+        # remove all-zero rows (predictions we multiply by zero b/c it's not allowed to change lanes/etc.)
+        three_zeros = np.zeros((3,))
+        nonzero_sel = ~np.apply_along_axis(lambda x: np.array_equal(x, three_zeros), 1, lc_weights)
 
-    pred = pred[nonzero_sel]
-    true = true[nonzero_sel]
+        pred = pred[nonzero_sel]
+        true = true[nonzero_sel]
 
     pred_idx = np.argmax(pred, axis = 1)
     num_stay_preds = np.sum(pred_idx != 1)

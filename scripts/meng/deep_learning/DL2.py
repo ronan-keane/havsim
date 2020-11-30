@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import nni
 import dl_model
 import random
+from tensorflow.python.profiler import profiler_v2 as profiler
 
 try:
     with open('/Users/nkluke/Documents/Cornell/CS5999/havsim/data/recon-ngsim.pkl', 'rb') as f:
@@ -60,34 +61,43 @@ tuned_params = nni.get_next_parameter()
 
 params = tuned_params if tuned_params else default_params
 
-# model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=params['lstm_units'], params=params)
-model = dl_model.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=128, params=params)
-#loss = deep_learning.masked_MSE_loss
-loss = dl_model.masked_MSE_loss
+old_model = False
+if old_model:
+    model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=params['lstm_units'], params=params)
+    loss = deep_learning.masked_MSE_loss
+else:
+    model = dl_model.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=128, past=15, params=params)
+    loss = dl_model.masked_MSE_loss
 opt = tf.keras.optimizers.Adam(learning_rate=params['learning_rate'])
 
 
-old_model = False
+
 #%% train and save results
 early_stopping = False
 
 def test_loss():
-    return dl_model.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+    if old_model:
+        return deep_learning.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+    else:
+        return dl_model.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss)[-1]
 
 def valid_loss():
-    return dl_model.generate_trajectories(model, list(validation.keys()), validation, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+    if old_model:
+        return deep_learning.generate_trajectories(model, list(validation.keys()), validation, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+    else:
+        return dl_model.generate_trajectories(model, list(validation.keys()), validation, loss=deep_learning.weighted_masked_MSE_loss)[-1]
 
 def train_loss():
-    return dl_model.generate_trajectories(model, list(training.keys()), training, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+    if old_model:
+        return deep_learning.generate_trajectories(model, list(training.keys()), training, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+    else:
+        return dl_model.generate_trajectories(model, list(training.keys()), training, loss=deep_learning.weighted_masked_MSE_loss)[-1]
 
-print('validation loss', valid_loss())
-
-dl_model.training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=50, past=10)
 
 if old_model:
     # no early stopping -
     if not early_stopping:
-        epochs = 6
+        epochs = 1
         batches = [10000, 1000, 1000, 1000, 1000, 5000]
         timesteps = [50, 100, 200, 300, 500, 750]   #go up to 750
         veh = params['batch_size']
@@ -129,6 +139,23 @@ if old_model:
         deep_learning.training_loop(model, loss, opt, training, nbatches=2000, nveh=32, nt=500, m=20, n=10,
                                     early_stopping_loss=early_stopping_loss)
 
+else:
+    dl_model.training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=25)
+    # profiler.warmup()
+    # profiler.start(logdir='logs')
+    # dl_model.training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=25, past=10)
+    # print('val loss', valid_loss())
+    # profiler.stop()
+    # dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=50, past=15)
+    # print('val loss', valid_loss())
+    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=100, past=15)
+    # print('val loss', valid_loss())
+    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=200, past=15)
+    # print('val loss', valid_loss())
+    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=400, past=15)
+    # print('val loss', valid_loss())
+    # dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=800, past=15)
+    # print('val loss', valid_loss())
 
 
 # model.save_weights('trained LSTM no relax')
@@ -138,8 +165,8 @@ if old_model:
 #%% test by generating entire trajectories
 
 
-print(' validation loss was '+str(valid_loss()))
-print(' training loss was '+str(train_loss()))
+# print(' validation loss was '+str(valid_loss()))
+# print(' training loss was '+str(train_loss()))
 
 
 

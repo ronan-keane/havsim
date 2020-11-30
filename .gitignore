@@ -135,3 +135,7 @@ scripts/spring 2020/relaxanalysis2.nb
 #mac
 .DS_Store
 scripts/spring 2020/testaccidentfree.nb
+
+
+#DL logs
+scripts/meng/deep_learning/logs

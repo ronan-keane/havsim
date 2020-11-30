@@ -204,12 +204,18 @@ def update_calibration(vehicles, leadvehicles, update_lc_fun, update_add_fun, ti
 
     for veh in vehicles:
         veh.update(timeind, dt)
+<<<<<<< HEAD
     for veh in vehicles:
         if veh.lead is not None:
             veh.hd = get_headway(veh, veh.lead)
 
+=======
+>>>>>>> 7273f3a79286b20f2a249f481aafe5cd91db590d
     for veh in leadvehicles:
         veh.update(timeind, dt)
+    for veh in vehicles:
+        if veh.lead is not None:
+            veh.hd = get_headway(veh, veh.lead)
 
     update_add_fun(timeind, dt)
 

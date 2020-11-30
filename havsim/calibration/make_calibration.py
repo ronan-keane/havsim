@@ -78,7 +78,7 @@ def make_leadvehicles(vehicles, id2obj, vehdict, dt):
             vehmem = getattr(vehdict[veh], curvehmem)
             for i in vehmem.intervals():
                 curveh, curstart, curend = i
-                if curveh:
+                if curveh not in vehicles:
                     if curveh in all_leadvehicles:
                         start, end = all_leadvehicles[curveh]
                         all_leadvehicles[curveh] = (min(curstart, start), max(curend, end))

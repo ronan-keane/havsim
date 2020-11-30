@@ -188,7 +188,7 @@ class Road:
             # have the same start position
             assert all_self_lanes_end and min(all_self_lanes_end) == max(all_self_lanes_end)
             assert all_new_lanes_start and min(all_new_lanes_start) == max(all_new_lanes_start)
-            self.connect_to[new_road] = (all_self_lanes_end[0], 'continue', self_indices, None, None)
+            self.connect_to[new_road.name] = (all_self_lanes_end[0], 'continue', self_indices, None, new_road)
             # Since roadlen dict is shared across all lanes, we only need to update it via one of
             # the lanes
             self.lanes[0].roadlen[new_road.name] = all_new_lanes_start[0] - all_self_lanes_end[0]

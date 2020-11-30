@@ -847,6 +847,8 @@ class Lane:
 
     def __eq__(self, other):
         """Comparison for Lanes using ==."""
+        if type(other) != Lane:
+            return False
         return self.roadname == other.roadname and self.laneind == other.laneind
         # return self is other
 

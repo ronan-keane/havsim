@@ -464,7 +464,10 @@ def tactical_model(veh, lcsidefol, lcsidefolsafe, vehsafe, safe, coop_veh_is_lcs
         # if both lcsidefol and lcsidelead are blocking, look at lcsidelead speed
         if lcsidefolsafe < safe:
             if vehsafe < safe:  # both unsafe
-                if lcsidefol.lead.speed > veh.speed:  # edge case where lcsidefol.lead is None?
+                # making a change here
+                if lcsidefol.lead is None:
+                    tactstate = None
+                elif lcsidefol.lead.speed > veh.speed:  # edge case where lcsidefol.lead is None?
                     tactstate = 'decel'
                 else:
                     tactstate = 'accel'

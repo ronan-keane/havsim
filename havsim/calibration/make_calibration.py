@@ -23,7 +23,7 @@ def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_lis
         for tup_index in range(len(info_list)):
             tup = info_list[tup_index]
             info, fl_type = tup[0], tup[1]
-            if info == 0:
+            if tup_index == 0:
                 create_add_events(info, id2obj, curveh, vehdict, vehicles, dt, addevent_list, lcevent_list, all_leadvehicles, fl_type, True)
             else:
                 create_add_events(info, id2obj, curveh, vehdict, vehicles, dt, addevent_list, lcevent_list, all_leadvehicles, fl_type)
@@ -52,7 +52,6 @@ def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_lis
 
                 lc_event = (start, curveh, r_lc, l_lc, lc)
                 lcevent_list.append(lc_event)
-
 
     #Remove and add events for lead_vehicles
     for leadveh_id in all_leadvehicles:
@@ -98,7 +97,10 @@ def make_leadvehicles(vehicles, id2obj, vehdict, dt):
         else:
             initstate = (curleaddata.posmem[start-1], curleaddata.speedmem[start-1])
 
-        id2obj[curlead] = LeadVehicle(leadstatemem, start, length=length, initstate = initstate)
+        if curlead in id2obj and id2obj[curlead].start > start:
+            id2obj[curlead + 0.1] = LeadVehicle(leadstatemem, start, length=length, initstate = initstate)
+        elif curlead not in id2obj:
+            id2obj[curlead] = LeadVehicle(leadstatemem, start, length=length, initstate = initstate)
 
     return all_leadvehicles
 
@@ -115,27 +117,34 @@ def create_add_events(veh_data, id2obj, curveh, vehdict, vehicles, dt, addevent_
             if fl_type == "fol" or fl_type == "lfol" or fl_type == "rfol":
                 # how should we reuse this for all cases?
                 dummy_vec = LeadVehicle([], 0)
+                dummy_vec.pos = 0
+                dummy_vec.acc = 1
+                dummy_vec.speed = 1
                 curevent = (start, curveh, dummy_vec, fl_type)
                 lcevent_list.append(curevent)
             # if we are looking at leader relationships
             else:
                 fol_lead_veh = None
-                sorted_lc_event = sorted(lcevent_list, key = lambda x:x[0], reverse=True)
-                for event in sorted_lc_event:
-                    if event[1] == fl_type:
-                        if not isinstance(event[2], CalibrationVehicle):
-                            curevent = (start, curveh, fol_lead_veh, fl_type)
-                            lcevent_list.append(curevent)
-                            break
+                curevent = (start, curveh, None, fl_type)
+                lcevent_list.append(curevent)
+
 
         else:
-            fol_lead_veh, curlen = id2obj[fol_lead_veh], None
+            # check who if we have both versions for fol_lead_veh
+            if fol_lead_veh in id2obj and fol_lead_veh + 0.1 in id2obj:
+                cal_veh = id2obj[fol_lead_veh]
+                lead_veh = id2obj[fol_lead_veh + 0.1]
+                if start < cal_veh.start:
+                    fol_lead_veh = lead_veh
+                elif start >= cal_veh.start:
+                    fol_lead_veh = cal_veh
+                if start < cal_veh.start and end >= cal_veh.start:
+                    # case where we need to switch between lead -> calibration vehicle
+                    curevent = (start, curveh, cal_veh, fl_type)
+                    lcevent_list.append(curevent)
+            else:
+                fol_lead_veh = id2obj[fol_lead_veh]
 
-            # curevent = (start, fol_lead_veh, True, False)
-            # addevent_list.append(curevent)
-            #
-            # curevent = (end, fol_lead_veh, False, False)
-            # addevent_list.append(curevent)
 
             if count == 0:
                 # lc event for first tims

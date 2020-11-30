@@ -94,6 +94,8 @@ class CalibrationVehicleCF(hs.Vehicle):
         self.maxspeed = maxspeed
         self.hdbounds = (0, 1e4) if hdbounds is None else hdbounds
         self.eql_type = eql_type
+        # where did our headway go?
+        self.hd = 1
 
         if leadstatemem is not None:
             self.leadveh = LeadVehicle(leadstatemem, leadinittime)
@@ -171,6 +173,12 @@ class CalibrationVehicle(CalibrationVehicleCF):
         self.y_lc = y_lc
         self.llane = self.rlane = lane  # give values to rlane/llane for mobil model, not needed in general
 
+        # do we need all of these?
+        self.coop_parameters=.2
+        self.chk_lc = None
+        self.disc_cooldown = float("-inf")
+        self.coop_veh = None
+
     def update(self, timeind, dt):
         super(CalibrationVehicleCF, self).update(timeind, dt)
 
@@ -237,6 +245,10 @@ class LeadVehicle:
         self.cf_parameters = None
         self.len = length
         self.initstate = initstate
+
+        # delete later?
+        self.acc = 0
+        self.fol = None
 
     def initialize(self, *args):
         """Sets initial state."""

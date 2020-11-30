@@ -140,22 +140,22 @@ if old_model:
                                     early_stopping_loss=early_stopping_loss)
 
 else:
-    dl_model.training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=25)
+    # dl_model.training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=25)
     # profiler.warmup()
     # profiler.start(logdir='logs')
-    # dl_model.training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=25, past=10)
-    # print('val loss', valid_loss())
+    dl_model.training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=25)
+    print('val loss', valid_loss())
     # profiler.stop()
-    # dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=50, past=15)
-    # print('val loss', valid_loss())
-    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=100, past=15)
-    # print('val loss', valid_loss())
-    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=200, past=15)
-    # print('val loss', valid_loss())
-    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=400, past=15)
-    # print('val loss', valid_loss())
-    # dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=800, past=15)
-    # print('val loss', valid_loss())
+    dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=50)
+    print('val loss', valid_loss())
+    dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=100)
+    print('val loss', valid_loss())
+    dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=200)
+    print('val loss', valid_loss())
+    dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=400)
+    print('val loss', valid_loss())
+    dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=800)
+    print('val loss', valid_loss())
 
 
 # model.save_weights('trained LSTM no relax')
@@ -165,8 +165,8 @@ else:
 #%% test by generating entire trajectories
 
 
-# print(' validation loss was '+str(valid_loss()))
-# print(' training loss was '+str(train_loss()))
+print(' validation loss was '+str(valid_loss()))
+print(' training loss was '+str(train_loss()))
 
 
 

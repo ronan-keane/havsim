@@ -3,7 +3,6 @@ import tensorflow as tf
 import numpy as np
 from havsim import helper
 import math
-import gc
 from time import time
 from memory_profiler import profile
 
@@ -128,13 +127,10 @@ class RNNCFModel(tf.keras.Model):
         for t in tf.range(nt):
             cur_lead_pos = lead_pos[:, t:t+past]
             cur_lead_speeds = lead_speeds[:, t:t+past]
-            cur_fol_pos = cur_pos[:, -past:]
-            cur_fol_speeds = cur_speeds[:, -past:]
-            cur_hds = cur_lead_pos - cur_fol_pos
-
+            cur_hds = cur_lead_pos - cur_pos
             cur_mask = mask[:, t:t+past]
 
-            x = tf.stack([cur_hds/self.maxhd, cur_fol_speeds/self.maxv, cur_lead_speeds/self.maxv], axis=2)
+            x = tf.stack([cur_hds/self.maxhd, cur_speeds/self.maxv, cur_lead_speeds/self.maxv], axis=2)
             self.lstm1.reset_dropout_mask()
             x = self.lstm1(x, training=training, mask=cur_mask)
             x = self.dense2(x)
@@ -258,7 +254,7 @@ def train_step(x, y_true, sample_weight, model, loss_fn, optimizer):
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     return pred_state, loss
 
-@profile
+# @profile
 def training_loop(model, loss, optimizer, ds, epochs=100, nbatches=10000, nveh=32, nt=25, m=100, n=20,
                   early_stopping_loss=None):
     """Trains model by repeatedly calling train_step.
@@ -326,7 +322,7 @@ def training_loop(model, loss, optimizer, ds, epochs=100, nbatches=10000, nveh=3
                 include = (loss_weights == 1)
                 mask = tf.concat([mask, include], 1)
                 mask = mask[:, -(nt+model.past-1):]
-                # gc.collect()
+
             batch_loss /= (t+1)
             epoch_loss += batch_loss
             batch_end = time()
@@ -352,20 +348,25 @@ def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
     total_vehs = len(vehs)
     vehs_list = tf.data.Dataset.from_tensor_slices(vehs)
     veh_batches = vehs_list.batch(64)
+    tmax = max([ds[veh]['times'][1]-ds[veh]['times'][0] for veh in vehs])
 
     out_loss = 0
     cur_pos, cur_speeds = [], []
     for b, veh_batch in enumerate(veh_batches.as_numpy_iterator()):
         vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0]] for count, veh in enumerate(veh_batch)}
-        tmax = max([times[1] for times in vehs_counter.values()])
         cur_states = [ds[veh]['IC'] for veh in veh_batch]
         cur_states = tf.convert_to_tensor(cur_states, dtype='float32')  #shape (nveh, 2)
         cur_states = tf.expand_dims(cur_states, axis=1) #shape (nveh, 1, 2)
         lead_states, true_traj, loss_weights = make_batch(veh_batch, vehs_counter, ds, tmax) #lead_states shape (nveh,nt,2)
-    
 
-        mask = (loss_weights == 1)
-        pred_states = model([lead_states, cur_states, mask, tf.range(25), tf.range(tmax)]) 
+        paddings = tf.constant([[0,0], [model.past-1,0], [0,0]]) #pad along the first axis
+        cur_states = tf.pad(cur_states, paddings)  #shape (nveh, past, 2)
+        lead_states = tf.pad(lead_states, paddings) #shape (nveh, nt+past-1, 2)
+        ignore = tf.fill([len(veh_batch), model.past-1], False)
+        include = (loss_weights == 1)
+        mask = tf.concat([ignore, include], 1) #shape (nveh, nt+past-1)
+
+        pred_states = model([lead_states, cur_states, mask, tf.constant(tmax)]) 
         pred_pos, pred_speeds = tf.unstack(pred_states, axis=2)
         cur_pos.append(pred_pos)
         cur_speeds.append(pred_speeds)
@@ -375,15 +376,7 @@ def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
             wt_cur_loss = cur_loss * (len(veh_batch)/total_vehs)
             out_loss += wt_cur_loss
 
-    max_nt = max([t.shape[1] for t in cur_pos])
-    
-    def add_padding(t):
-        paddings = [[0,0], [0, (max_nt-t.shape[1])]]
-        return tf.pad(t, paddings=paddings)
-
-    pad_pos = [add_padding(t) for t in cur_pos]
-    pad_speeds = [add_padding(t) for t in cur_speeds]
     if loss is None:
-       return tf.concat(pad_pos, 0), tf.concat(pad_speeds,0) 
+       return tf.concat(cur_pos, 0), tf.concat(cur_speeds,0) 
     else:
-        return tf.concat(pad_pos, 0), tf.concat(pad_speeds, 0), out_loss
+        return tf.concat(cur_pos, 0), tf.concat(cur_speeds, 0), out_loss

@@ -4,7 +4,7 @@ Bottleneck simulation
 """
 import havsim.simulation as hs
 from havsim.simulation.road_networks import downstream_wrapper, AnchorVehicle, get_inflow_wrapper, Lane, increment_inflow_wrapper
-from havsim.simulation.road import Road
+from havsim.simulation.road import Road, compute_route
 from havsim.helper import boundaryspeeds, getentryflows, calculateflows
 from havsim.plotting import plot_format, platoonplot, plotvhd
 import numpy as np
@@ -31,16 +31,7 @@ import time
 #%%
 # done with - accident free relax, no acceleration bounds, max speed bounds
 #vehicle parameters
-def onramp_newveh(self, vehid, *args):
-    cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15,
-              'shift_parameters': [-1.5, 1.5]}
-    self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 
-def mainroad_newveh(self, vehid, *args):
-    cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15, 'shift_parameters': [-1.5, 1.5]}
-    self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 #inflow amounts
 def onramp_inflow(timeind, *args):
     # return .06 + np.random.rand()/25
@@ -88,6 +79,18 @@ main_road.connect('exit', is_exit=True)
 onramp_road = Road(num_lanes=1, length=[(startmerge - 100, endmerge)], name='on ramp')
 onramp_road.merge(main_road, self_index=0, new_lane_index=1,
                   self_pos=(startmerge, endmerge), new_lane_pos=(startmerge, endmerge))
+def onramp_newveh(self, vehid, *args):
+    cf_p, lc_p  = IDM_parameters()
+    kwargs = {'route': compute_route(start_road=onramp_road, start_pos=startmerge-100, exit='exit'),
+              'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15,
+              'shift_parameters': [-1.5, 1.5]}
+    self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
+
+def mainroad_newveh(self, vehid, *args):
+    cf_p, lc_p  = IDM_parameters()
+    kwargs = {'route': compute_route(start_road=main_road, start_pos=0, exit='exit'),
+              'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15, 'shift_parameters': [-1.5, 1.5]}
+    self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 main_road.set_downstream(downstream1)
 main_road.set_upstream(increment_inflow=increment_inflow, get_inflow=get_inflow2, new_vehicle=mainroad_newveh)
 downstream2 = {'method': 'free merge', 'self_lane':onramp_road[0], 'stopping':'car following'}

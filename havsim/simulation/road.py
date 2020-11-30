@@ -1,6 +1,52 @@
 from havsim.simulation.road_networks import Lane, downstream_wrapper, get_inflow_wrapper, increment_inflow_wrapper
 
 
+def compute_route(start_road, start_pos, exit):
+    """
+    start_road: object for the start road
+    start_pos: position on the start road
+    exit: name for the exit road (string)
+    """
+    # Visited roads' names
+    visited = set()
+    # A map from road's name to [road_object, connect_position, shortest_dist, last_road_object_on_the_shortest_path]
+    dist = dict()
+    dist[start_road.name] = [start_road, start_pos, 0, None]
+
+    def get_min_distance_road_info():
+        ret = None
+        min_dist = float('inf')
+        for k, v in dist.items():
+            if k not in visited and v[2] < min_dist:
+                min_dist = v[2]
+                ret = v
+        return ret
+
+    while True:
+        cur = get_min_distance_road_info()
+        if cur is None:
+            break
+        road_obj, connect_pos, shortest_dist, last_road_obj = cur
+        if exit in road_obj.connect_to:
+            res = [exit]
+            # Construct the shortest path backwards
+            while last_road_obj is not None:
+                res.append(road_obj.name)
+                road_obj, _, _, last_road_obj = dist[last_road_obj.name]
+            res.reverse()
+            return res
+        for neighbor_name, neighbor_info in road_obj.connect_to.items():
+            # This ensures that we only deal with unvisited, non-exit neighbors
+            if neighbor_name not in visited and neighbor_info[-1] is not None:
+                connect_to_pos_neighbor = neighbor_info[0] if neighbor_info[1] == 'continue' else neighbor_info[0][0]
+                new_dist_neighbor = connect_to_pos_neighbor - connect_pos + shortest_dist
+                if neighbor_name not in dist or new_dist_neighbor < dist[neighbor_name][2]:
+                    dist[neighbor_name] = [neighbor_info[-1], connect_to_pos_neighbor, new_dist_neighbor, road_obj]
+        visited.add(road_obj.name)
+    # If we reach here, it means the exit is not reachable, reach empty route
+    return []
+
+
 def add_or_get_merge_anchor_index(lane, pos):
     """
     Add a merge anchor at pos if needed, return the index of the merge anchor

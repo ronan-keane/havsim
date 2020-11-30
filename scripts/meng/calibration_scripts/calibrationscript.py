@@ -59,7 +59,7 @@ lanes[7] = lanes[6]
 curplatoon = [525, 530, 537, 545]
 calibration_args = {"parameter_dict" : None, "ending_position" : 1475/3.28084}
 cal = mc.make_calibration(curplatoon, data, .1, mc.make_lc_events_new, lanes=lanes, calibration_kwargs = calibration_args)
-pguess =  [40, 1, 1, 94, 10, 25, 10, 1, 2, 200, 10, 40, 25, 15, 40, 68, 15, 20]*len(curplatoon)
+pguess =  [40, 1, 1, 94, 10, 25, 10, 1, 2, 20, 10, 40, 25, 15, 40, 68, 15, 20]*len(curplatoon)
 cal.simulate(pguess)
 
 # curplatoon = [1013, 1023, 1030, 1037, 1045]

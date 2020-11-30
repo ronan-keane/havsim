@@ -204,13 +204,6 @@ def update_calibration(vehicles, leadvehicles, update_lc_fun, update_add_fun, ti
 
     for veh in vehicles:
         veh.update(timeind, dt)
-<<<<<<< HEAD
-    for veh in vehicles:
-        if veh.lead is not None:
-            veh.hd = get_headway(veh, veh.lead)
-
-=======
->>>>>>> 7273f3a79286b20f2a249f481aafe5cd91db590d
     for veh in leadvehicles:
         veh.update(timeind, dt)
     for veh in vehicles:
@@ -308,14 +301,14 @@ class Calibration(CalibrationCF):
         for veh in self.vehicles:
             veh.set_lc(self.timeind, self.dt)
 
-        for veh in self.vehicles:
-            print(veh)
-            print(veh.pos)
-            print(veh.acc)
-            print(veh.speed)
-        print(self.timeind)
-        print(self.ending_position)
-        print('-------------------------')
+        # for veh in self.vehicles:
+        #     print(veh)
+        #     print(veh.pos)
+        #     print(veh.acc)
+        #     print(veh.speed)
+        # print(self.timeind)
+        # print(self.ending_position)
+        # print('-------------------------')
 
         # we need to have seperate add events and lc events, but the order of updates is exactly the same.
         update_calibration(self.vehicles, self.leadvehicles, self.update_lc_events, self.update_add_events, self.timeind, self.dt, self.ending_position)

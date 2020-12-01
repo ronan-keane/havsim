@@ -91,67 +91,48 @@ def update_all_lrfol_multiple(vehicles):
         lfol, rfol = veh.lfol, veh.rfol
         if lfol is None:
             pass
-        elif get_dist(veh, lfol) > 0:
-            # update for veh
-            veh.lfol = lfol.fol
-            veh.lfol.rlead.append(veh)
-            lfol.rlead.remove(veh)
-            # to handle edge case 1 we keep track of vehicles lfol overtakes
-            if lfol in lovertaken:
-                lovertaken[lfol].append(veh)
-            else:
-                lovertaken[lfol] = [veh]
-            # to handle edge case 2 we update recursively if lfol overtakes
-            update_lfol_recursive(veh, lfol.fol, lovertaken)
+        else:
+            update_lfol_recursive(veh, lfol, lovertaken)
 
         # same for right side
         if rfol is None:
             pass
-        elif get_dist(veh, rfol) > 0:
-
-            veh.rfol = rfol.fol
-            veh.rfol.llead.append(veh)
-            rfol.llead.remove(veh)
-
-            if rfol in rovertaken:
-                rovertaken[rfol].append(veh)
-            else:
-                rovertaken[rfol] = [veh]
-
-            update_rfol_recursive(veh, rfol.fol, rovertaken)
+        else:
+            update_rfol_recursive(veh, rfol, rovertaken)
 
     #now to finish the order we have to update all vehicles which overtook
     for lfol, overtook in lovertaken.items():
         if len(overtook) == 1:  # we know what lfol new rfol is - it can only be one thing
-            # update for lfol
             veh = overtook[0]
-            lfol.rfol.llead.remove(lfol)
-            lfol.rfol = veh
-            veh.llead.append(lfol)
         else:
             distlist = [get_dist(veh, lfol) for veh in overtook]
             ind = np.argmin(distlist)
             veh = overtook[ind]
+        # update for lfol
+        # try/except is for rare edge case when lfol.rfol is None - occurs when you overtake and get new rlane
+        # in the same timestep
+        try:
             lfol.rfol.llead.remove(lfol)
-            lfol.rfol = veh
-            veh.llead.append(lfol)
+        except:  
+            pass
+        lfol.rfol = veh
+        veh.llead.append(lfol)
 
     # same for right side
     for rfol, overtook in rovertaken.items():
         if len(overtook) == 1:  # we know what lfol new rfol is - it can only be one thing
-            # update for lfol
             veh = overtook[0]
-            rfol.lfol.rlead.remove(rfol)
-            rfol.lfol = veh
-            veh.rlead.append(rfol)
-
         else:
             distlist = [get_dist(veh, rfol) for veh in overtook]
             ind = np.argmin(distlist)
             veh = overtook[ind]
+        # update for rfol
+        try:
             rfol.lfol.rlead.remove(rfol)
-            rfol.lfol = veh
-            veh.rlead.append(rfol)
+        except:
+            pass
+        rfol.lfol = veh
+        veh.rlead.append(rfol)
 
 
 def update_lfol_recursive(veh, lfol, lovertaken):
@@ -161,11 +142,12 @@ def update_lfol_recursive(veh, lfol, lovertaken):
         veh.lfol = lfol.fol
         veh.lfol.rlead.append(veh)
         lfol.rlead.remove(veh)
-        # handles edge case 1
+        # updating lovertaken so we can handle edge case 1
         if lfol in lovertaken:
             lovertaken[lfol].append(veh)
         else:
             lovertaken[lfol] = [veh]
+        # to handle edge case 2 we update recursively if lfol overtakes
         update_lfol_recursive(veh, lfol.fol, lovertaken)
 
 

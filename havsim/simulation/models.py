@@ -130,7 +130,7 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
         3 - politeness (taking other vehicles into account, 0 = ignore other vehicles, ~.1-.2 = realistic),
         4 - bias on left side (can add a bias to make vehicles default to a certain side of the road),
         5 - bias on right side,
-        6 - probability of checking LC while in discretionary state (not in original model. set to
+        6 - probability of checking LC while in discretionary state (not in original model. set to 1
             to always check discretionary. units are probability of checking per timestep)
         7 - number of timesteps in cooperative/tactical state after meeting incentive criteria for
             a discretionary change (not in original model)
@@ -484,12 +484,51 @@ def check_if_veh_cooperates(veh, coop_veh, in_disc):
     return (temp >= 1 or np.random.rand() < temp)
 
 
+def relaxation_model_ttc(p, state, dt):
+    """Alternative relaxation model for very short or dangerous spacings - applies control to ttc.
+
+    Args:
+        p (list of floats): list of target ttc (time to collision), jam spacing, velocity sensitivity, gain
+            target ttc: If higher, we require larger spacings. If our current ttc is below the target,
+                we enter the special regime, which is seperate from the normal car following, and apply
+                a seperate control law to increase the ttc.
+            jam spacing: higher jam spacing = lower ttc
+            velocity sensitivity: more sensitive = lower ttc
+            gain: higher gain = stronger decelerations
+        state (list of floats): list of headway, self speed, lead speed
+    Returns:
+        acceleration (float): if normal_relax is false, gives the acceleration of the vehicle
+        normal_relax (bool): if true, we are in the normal relaxation regime
+    """
+    T, sj, a, delta = p
+    s, v, vl = state
+    
+    # calculate proxy for time to collision = ttc
+    sstar_branch = False
+    sstar = s - sj - a*v
+    if sstar < .1:
+        sstar = .1
+        sstar_branch = True
+    ttc = sstar/(v - vl + 1e-6)
+
+    if ttc < T and ttc > 0:  # apply control if ttc is below target
+        if sstar_branch:
+            acc = sstar+T*(-v+vl)
+            acc = (v-vl)*acc*delta/(sstar-dt*delta*acc)
+        else:
+            acc = -(v-vl)*(v+(-s+sj)*delta+(a+T)*v*delta-vl*(1+T*delta))
+            acc = acc/(s-sj-a*vl+dt*delta*(-s+sj+(a+T)*v-T*vl))
+        return acc, False
+    else:
+        return None, True
+
 def IDM_parameters(*args):
     """Suggested parameters for the IDM/MOBIL."""
     # time headway parameter = 1 -> always unstable in congested regime.
     # time headway = 1.5 -> restabilizes at high density
-    cf_parameters = [30, 1.1, 3, 1.1, 1.5]  # note speed is supposed to be in m/s
+    cf_parameters = [33.5, 1.3, 3, 1.1, 1.5]  # note speed is supposed to be in m/s
+    
     # note last 3 parameters have units in terms of timesteps, not seconds
-    lc_parameters = [-4, -20, .5, .1, 0, .2, .1, 20, 20]
+    lc_parameters = [-8, -20, .5, .1, 0, .2, .1, 10, 20]
 
     return cf_parameters, lc_parameters

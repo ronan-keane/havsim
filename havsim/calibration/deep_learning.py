@@ -138,7 +138,7 @@ def make_dataset(veh_dict, veh_list, dt=.1):
 class RNNCFModel(tf.keras.Model):
     """Simple RNN based CF model."""
 
-    def __init__(self, maxhd, maxv, mina, maxa, lstm_units=20, dt=.1):
+    def __init__(self, maxhd, maxv, mina, maxa, lstm_units=20, dt=.1, params=None):
         """Inits RNN based CF model.
 
         Args:
@@ -147,15 +147,16 @@ class RNNCFModel(tf.keras.Model):
             mina: minimum acceleration (for nomalization of outputs)
             maxa: maximum acceleration (for nomalization of outputs)
             dt: timestep
+            params: dictionary of model parameters. Used to pass nni autotune hyperparameters
         """
         super().__init__()
         # architecture
-        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=.3,
-                                                  kernel_regularizer=tf.keras.regularizers.l2(l=.02),
-                                                  recurrent_regularizer=tf.keras.regularizers.l2(l=.02))
+        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=params['dropout'], 
+                                    kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']),
+                                    recurrent_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
         self.dense1 = tf.keras.layers.Dense(1)
         self.dense2 = tf.keras.layers.Dense(10, activation='relu',
-                                            kernel_regularizer=tf.keras.regularizers.l2(l=.02))
+                                            kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
         self.lc_actions = tf.keras.layers.Dense(3, activation='softmax')
 
         # normalization constants
@@ -167,6 +168,7 @@ class RNNCFModel(tf.keras.Model):
         # other constants
         self.dt = dt
         self.lstm_units = lstm_units
+        self.num_hidden_layers = 1
 
     def call(self, inputs, training=False):
         """Updates states for a batch of vehicles.
@@ -177,8 +179,8 @@ class RNNCFModel(tf.keras.Model):
                     for position, then for speed
                 cur_state -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
                     starting timestep.
-                hidden_states - list of the two hidden states, each hidden state is a tensor with shape
-                    of (nveh, lstm_units). Initialized as all zeros for the first timestep.
+                hidden_states - tensor of hidden states with shape (num_hidden_layers, 2, nveh, lstm_units) 
+                    Initialized as all zeros for the first timestep.
             training: Whether to run in training or inference mode. Need to pass training=True if training
                 with dropout.
 
@@ -192,7 +194,7 @@ class RNNCFModel(tf.keras.Model):
             hidden_states: last hidden states for LSTM. Tuple of tensors, where each tensor has shape of
                 (number of vehicles, number of LSTM units)
         """
-        # prepare data for call
+	# prepare data for call
         lead_fol_inputs, init_state, hidden_states = inputs
         lead_fol_inputs = tf.unstack(lead_fol_inputs, axis=1)  # unpacked over time dimension
         cur_pos, cur_speed = tf.unstack(init_state, axis=1)
@@ -224,6 +226,14 @@ class RNNCFModel(tf.keras.Model):
         pos_outputs = tf.stack(pos_outputs, 1)
         lc_outputs = tf.stack(lc_outputs, 1)
         return pos_outputs, lc_outputs, cur_speed, hidden_states 
+
+    def get_config(self):
+        return {'pos_args': (self.maxhd, self.maxv, self.mina, self.maxa,), 'lstm_units': self.lstm_units, 'dt': self.dt}
+
+    @classmethod
+    def from_config(self, config):
+        pos_args = config.pop('pos_args')
+        return self(*pos_args, **config)
 
 
 def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
@@ -360,7 +370,7 @@ def train_step(x, y_true, lc_true, sample_weight, lc_weights, model, loss_fn, lc
         y_pred: output from model
         lc_pred: output from lc_model
         cur_speeds: output from model
-        hidden_state: hidden_state for model
+        hidden_state: hidden_states for model
         loss:
     """
     with tf.GradientTape() as tape:
@@ -444,8 +454,8 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
     vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0]] for count, veh in enumerate(vehs)}
     # make inputs for network
     cur_state = [ds[veh]['IC'] for veh in vehs]
-    hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
+    hidden_states = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
     hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
     lead_inputs, true_traj, true_lane_action, loss_weights, lc_weights = make_batch(vehs, vehs_counter, ds, nt)
     prev_loss = math.inf
@@ -508,8 +518,6 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
                 vehs_counter[ind] = [0, ds[new_veh]['times'][1]-ds[new_veh]['times'][0]]
                 cur_state_updates.append(ds[new_veh]['IC'])
             cur_state_updates = tf.convert_to_tensor(cur_state_updates, dtype='float32')
-            # hidden_state_updates = [[0 for j in range(model.lstm_units)] for k in need_new_vehs]
-            # hidden_state_updates = tf.convert_to_tensor(hidden_state_updates, dtype='float32')
             hidden_state_updates = tf.zeros((len(need_new_vehs), model.lstm_units))
             inds_to_update = tf.convert_to_tensor([[j] for j in need_new_vehs], dtype='int32')
 
@@ -654,6 +662,7 @@ def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
     cur_state = [ds[veh]['IC'] for veh in vehs]
     hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
+
     hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
     lead_inputs, true_traj, true_lane_action, loss_weights, lc_weights = \
             make_batch(vehs, vehs_counter, ds, nt, **kwargs)

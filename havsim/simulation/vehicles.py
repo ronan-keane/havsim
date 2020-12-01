@@ -327,6 +327,7 @@ class Vehicle:
         lane_events: list of lane events for current lane
     """
     # TODO implementation of adjoint method for cf, relax, shift parameters
+    # TODO set_route_events should be a method of vehicle?
 
     def __init__(self, vehid, curlane, cf_parameters, lc_parameters, lead=None, fol=None, lfol=None,
                  rfol=None, llead=None, rlead=None, length=3, eql_type='v', relax_parameters=15,
@@ -506,20 +507,21 @@ class Vehicle:
 
         else:
             if userelax:
-                # accident free formulation of relaxation
-                ttc = hd / (self.speed - lead.speed + 1e-6)
-                if ttc < 1.2 and ttc > 0:
-                # if False:  # disable accident free
-                    temp = (ttc/1.5)**2
-                    currelax, currelax_v = self.relax[timeind-self.relax_start]  # hd + v relax
-                    currelax, currelax_v = currelax*temp, currelax_v*temp
-                    # currelax = self.relax[timeind - self.relax_start]*temp
-                else:
+                ### relaxation formulations
+                # always use vanilla - can potentially lead to collisions
+                # normal_relax=True
+                
+                # use the equilibrium solution to modify relax (recommended)
+                
+                # alternative formulation applies control to ttc
+                acc, normal_relax = models.relaxation_model_ttc([1.5, 2, .3, 1], [hd, spd, lead.speed], dt)
+                ###
+                if normal_relax:
                     currelax, currelax_v = self.relax[timeind-self.relax_start]
                     # currelax = self.relax[timeind - self.relax_start]
 
-                acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
-                # acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed])
+                    acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
+                    # acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed])
             else:
                 acc = self.cf_model(self.cf_parameters, [hd, spd, lead.speed])
 

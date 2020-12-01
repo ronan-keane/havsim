@@ -134,3 +134,12 @@ scripts/spring 2020/relaxanalysis2.nb
 # vim
 **.swp
 scripts/spring 2020/testaccidentfree.nb
+
+#mac
+.DS_Store
+scripts/spring 2020/testaccidentfree.nb
+
+
+#DL logs
+scripts/meng/deep_learning/logs
+scripts/meng/deep_learning/plots

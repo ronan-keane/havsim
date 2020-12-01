@@ -3,9 +3,9 @@
 Bottleneck simulation
 """
 import havsim.simulation as hs
-from havsim.simulation.road_networks import downstream_wrapper, AnchorVehicle
+from havsim.simulation.road_networks import downstream_wrapper, AnchorVehicle, arrival_time_inflow, M3Arrivals
 from havsim.helper import boundaryspeeds, getentryflows, calculateflows
-from havsim.plotting import plot_format, platoonplot, plotvhd
+from havsim.plotting import plot_format, platoonplot, plotvhd, plotflows
 import numpy as np
 import matplotlib.pyplot as plt
 from havsim.simulation.models import IDM_parameters
@@ -20,8 +20,9 @@ import time
 # q,k = calculateflows(meas, [[200,600],[1000,1400]], [0, 9900], 30*10, lane = 6)
 
 #option 3 - can also just make boudnary conditions based on what the FD looks like
-# tempveh = hs.Vehicle(-1, None, [30, 1.1, 3, 1.1, 1.5], None, maxspeed = 30-1e-6)
-# spds = np.arange(0,33.3,.01)
+# cf_p, unused = IDM_parameters()
+# tempveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
+# spds = np.arange(0,cf_p[0],.01)
 # flows = np.array([tempveh.get_flow(i) for i in spds])
 # density = np.divide(flows,spds)
 # plt.figure()
@@ -30,43 +31,55 @@ import time
 #%%
 # done with - accident free relax, no acceleration bounds, max speed bounds
 #vehicle parameters
+cf_p, unused = IDM_parameters()
+tempveh = hs.Vehicle(-1, None, cf_p, None, maxspeed = cf_p[0]-1e-6)
+
 def onramp_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
     kwargs = {'route':['main road', 'exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15,
-              'shift_parameters': [-1.5, 1.5]}
+              'shift_parameters': [-2, 2], 'hdbounds':(cf_p[2]+1e-6, 1e4)}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 
 def mainroad_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15, 'shift_parameters': [-1.5, 1.5]}
+    kwargs = {'route':['exit'], 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15, 'shift_parameters': [-2, 2],
+              'hdbounds':(cf_p[2]+1e-6, 1e4)}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 #inflow amounts
-def onramp_inflow(timeind, *args):
-    # return .06 + np.random.rand()/25
-    return .1
+onramp_inflow_amount = .09
+mainroad_inflow_amount = .545
+# deterministic constant inflow
+def onramp_inflow(*args):
+    return onramp_inflow_amount
 def mainroad_inflow(*args):
-    # return .43 + np.random.rand()*24/100
-    return .48
+    return mainroad_inflow_amount
+# stochastic inflow
+onramp_inflow2 = (M3Arrivals(onramp_inflow_amount, cf_p[1], .3), .25)
+mainroad_inflow2 = (M3Arrivals(mainroad_inflow_amount, cf_p[1], .3), .25)
+
 
 #outflow using speed series
-tempveh = hs.Vehicle(-1, None, [30, 1.1, 3, 1.1, 1.5], None, maxspeed = 30-1e-6)
-outspeed = tempveh.inv_flow(.48, congested = False)
-inspeed, inhd = tempveh.inv_flow(.48, output_type = 'both', congested = True)
-inspeedramp, inhd = tempveh.inv_flow(.07, output_type = 'both', congested = True)
-def mainroad_outflow(*args):
-    return outspeed
+# outspeed = tempveh.inv_flow(.59, congested = True)
+# inspeed, inhd = tempveh.inv_flow(.59, output_type = 'both', congested = True)
+# inspeedramp, inhd = tempveh.inv_flow(.1, output_type = 'both', congested = True)
+# def mainroad_outflow(*args):
+#     return outspeed
 
-def speed_inflow(*args):
-    return inspeed
+# def speed_inflow(*args):
+#     return inspeed
 
-def speed_inflow_ramp(*args):
-    return inspeedramp
+# def speed_inflow_ramp(*args):
+#     return inspeedramp
 
 #define boundary conditions
 get_inflow1 = {'time_series':onramp_inflow}
 get_inflow2 = {'time_series':mainroad_inflow}
+# get_inflow1 = {'inflow_type': 'arrivals', 'args':onramp_inflow2}
+# get_inflow2 = {'inflow_type': 'arrivals', 'args':mainroad_inflow2}
 # increment_inflow = {'method': 'ceql'}
-increment_inflow = {'method': 'seql', 'kwargs':{'c':.8}}
+# increment_inflow = {'method': 'seql', 'kwargs':{'c':.8, 'eql_speed':False}}
+increment_inflow = {'method': 'seql2', 'kwargs':{'c':.8, 'eql_speed':True, 'transition':tempveh.inv_flow(1, output_type='v', congested=False)}}
+
 # increment_inflow = {'method': 'shifted', 'accel_bound':-.3, 'shift':1.5}
 # increment_inflow = {'method': 'speed', 'accel_bound':-.1, 'speed_series':speed_inflow}
 # increment_inflow_ramp = {'method': 'speed', 'accel_bound':-.1, 'speed_series':speed_inflow_ramp}
@@ -142,16 +155,40 @@ print('simulation time is '+str(end-start)+' over '+str(sum([timesteps - veh.sta
 laneinds = {lane0:0, lane1:1, lane2:2}
 sim, siminfo = plot_format(all_vehicles, laneinds)
 
-mylane2list = []
-for veh in sim.keys():
-    if 2 in sim[veh][:,7]:
-        mylane2list.append(veh)
+# mylane2list = []
+# for veh in sim.keys():
+#     if 2 in sim[veh][:,7]:
+#         mylane2list.append(veh)
 #%%
-platoonplot(sim, None, siminfo, lane = 2, opacity = 0)
-platoonplot(sim, None, siminfo, lane = 1, opacity = 0)
-# platoonplot(sim, None, siminfo, lane = 0, opacity = 0)
-# platoonplot(sim, None, siminfo, lane = 2, colorcode = False)
+# platoonplot(sim, None, siminfo, lane = 2, opacity = 0, speed_limit=[0,30])
+platoonplot(sim, None, siminfo, lane = 1, opacity = 0, speed_limit=[0,33.5])
+plt.ylabel('distance (m)')
+plt.xlabel('time index (.25s)')
+# platoonplot(sim, None, siminfo, lane = 0, opacity = 0, speed_limit=[0,33.5])
+platoonplot(sim, None, siminfo, lane = 1, colorcode = False, opacity=0)
 # platoonplot(sim, None, siminfo, lane = 1, colorcode = False)
+
+# %%
+# plotflows(sim, [[0,700],[1300,2000]], [0,10000], 120, lane=1, h=.25, MFD=True, Flows=False)
+# plotflows(sim, [[0,700],[1300,2000]], [0,10000], 120, lane=0, h=.25, MFD=True, Flows=False)
+
+# plotflows(sim, [[1400, 2000]], [1000,19960], 120, lane=1, h=.25, MFD=False, Flows=True)
+# plotflows(sim, [[1400, 2000]], [1000,19960], 120, lane=0, h=.25, MFD=False, Flows=True)
+
+
+
+plotflows(sim, [[1981, 2000]], [1000,10000], 9000, lane=1, h=.25, MFD=False, Flows=True, method='flow')
+flow_series = plt.gca().lines[0]._y
+plotflows(sim, [[1981, 2000]], [1000,10000], 9000, lane=0, h=.25, MFD=False, Flows=True, method='flow')
+flow_series2 = plt.gca().lines[0]._y
+print(' total inflow is '+str(2*mainroad_inflow_amount+onramp_inflow_amount))
+print('average discharge for lane 1 is '+str(np.mean(flow_series)*4))
+print('average discharge for lane 0 is '+str(np.mean(flow_series2)*4))
+print('total discharge is '+str(np.mean(flow_series)*4+np.mean(flow_series2)*4))
+print('inflow buffers are: '+str([i.inflow_buffer for i in simulation.inflow_lanes]))
+
+# plotflows(sim, [[1000,1400],[1400,1800]], [0,10000], 120, lane=0, h=.25, MFD=False, Flows=True)
+
 # %%
 # plotspacetime(sim, siminfo, lane = 2)
 # plotspacetime(sim, siminfo, lane = 1)

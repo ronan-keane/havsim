@@ -328,7 +328,7 @@ def training_loop(model, loss, optimizer, ds, epochs=100, nbatches=10000, nveh=3
             batch_end = time()
             print('Loss for current batch: {0:.2f}. Took {1:.0f}s '.format(batch_loss.numpy(), batch_end-batch_start))
         print('EPOCH {0} LOSS: {1:.2f}'.format(epoch, epoch_loss/(i+1)))
-    print(train_step.pretty_printed_concrete_signatures())
+    # print(train_step.pretty_printed_concrete_signatures())
 
 
 def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
@@ -347,7 +347,7 @@ def generate_trajectories(model, vehs, ds, loss=None, kwargs={}):
     # put all vehicles into a single batch, with the number of timesteps equal to the longest trajectory
     total_vehs = len(vehs)
     vehs_list = tf.data.Dataset.from_tensor_slices(vehs)
-    veh_batches = vehs_list.batch(64)
+    veh_batches = vehs_list.batch(128)
     tmax = max([ds[veh]['times'][1]-ds[veh]['times'][0] for veh in vehs])
 
     out_loss = 0

@@ -140,22 +140,46 @@ if old_model:
                                     early_stopping_loss=early_stopping_loss)
 
 else:
-    # dl_model.training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=25)
+
+    epochs = [1, 2, 2, 2, 2, 10]
+    timesteps = [25, 50, 100, 200, 400, 800]
+    veh = params['batch_size']
+    train_losses = []
+    valid_losses = []
+    for i in range(len(epochs)):
+        dl_model.training_loop(model, loss, opt, training, epochs=epochs[i], nveh=veh, nt=timesteps[i])
+        valid_loss_val = valid_loss().numpy()
+        # train_loss_val = train_loss().numpy()
+        print('validation loss ', valid_loss_val)
+        valid_losses.append(valid_loss_val)
+        # train_losses.append(train_loss_val)
+        # nni.report_intermediate_result(valid_losses[-1])
+    plt.figure(1)
+    plt.plot(list(range(epochs)), valid_losses)
+    plt.title('Validation loss')
+    plt.xlabel('epoch')
+    plt.ylabel('loss')
+    plt.savefig('plots/validLoss.png')
+
+    # print('train loss', *train_losses)
+    print('validation_loss', *valid_losses)
+    # nni.report_final_result(valid_losses[-1])
+
     # profiler.warmup()
     # profiler.start(logdir='logs')
-    dl_model.training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=25)
-    print('val loss', valid_loss())
+    # dl_model.training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=25)
+    # print('val loss', valid_loss())
     # profiler.stop()
-    dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=50)
-    print('val loss', valid_loss())
-    dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=100)
-    print('val loss', valid_loss())
-    dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=200)
-    print('val loss', valid_loss())
-    dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=400)
-    print('val loss', valid_loss())
-    dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=800)
-    print('val loss', valid_loss())
+    # dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=50)
+    # print('val loss', valid_loss())
+    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=100)
+    # print('val loss', valid_loss())
+    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=200)
+    # print('val loss', valid_loss())
+    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=400)
+    # print('val loss', valid_loss())
+    # dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=800)
+    # print('val loss', valid_loss())
 
 
 # model.save_weights('trained LSTM no relax')

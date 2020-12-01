@@ -1,10 +1,11 @@
 # imports and load data
 from havsim.calibration import deep_learning
-from havsim.plotting import plotLaneChangingConfMat
+from havsim.plotting import plotLaneChangingConfMat, plotTrajectoriesProb, plotCFErrorN
 import pickle
 import numpy as np
 import tensorflow as tf
 import math
+import os
 
 with open('data/recon-ngsim.pkl', 'rb') as f:
     all_veh_dict = pickle.load(f)
@@ -85,3 +86,13 @@ test2 = deep_learning.generate_trajectories(model, list(training.keys()), traini
 
 print(f'testing loss was {test.loss}')
 print(f'training loss was {test2.loss}')
+
+
+if not os.path.exists('outputs/lcprobs'):
+    os.makedirs('outputs/lcprobs')
+if not os.path.exists('outputs/cferror'):
+    os.makedirs('outputs/cferror')
+
+# save images (default 20 vehicles are selected)
+plotTrajectoriesProb(test, 'outputs/lcprobs') 
+plotCFErrorN(test, 'outputs/cferror')

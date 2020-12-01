@@ -42,17 +42,17 @@ def make_dataset(veh_dict, veh_list, dt=.1):
             'posmem' - (1d,) numpy array of observed positions for vehicle, 0 index corresponds to times[0].
                 Typically this has a longer length than the lead posmem/speedmem.
             'speedmem' - (1d,) numpy array of observed speeds for vehicle
-            'lead posmem' - (1d,) numpy array of positions for leaders, 0 index corresponds to times[0].
+            'lead posmem' - (1d,) numpy array of positions for leaders, corresponding to times.
                 length is subtracted from the lead position.
-            'lead speedmem' - (1d,) numpy array of speeds for leaders in same format as 'lead posmem'
-            'lfolpos' - (1d,) numpy array of positions for lfol in same format as 'lead posmem'
-            'lfolspeed' - (1d,) numpy array of speeds for lfol in same format as 'lead posmem'
-            'rfolpos' - (1d,) numpy array of positions for rfol in same format as 'lead posmem'
-            'rfolspeed' - (1d,) numpy array of speeds for rfol in same format as 'lead posmem'
-            'lleadpos' - (1d,) numpy array of positions for llead in same format as 'lead posmem'
-            'lleadspeed' - (1d,) numpy array of speeds for llead in same format as 'lead posmem'
-            'rleadpos' - (1d,) numpy array of positions for rlead in same format as 'lead posmem'
-            'rleadspeed' - (1d,) numpy array of speeds for rlead in same format as 'lead posmem'
+            'lead speedmem' - (1d,) numpy array of speeds for leaders.
+            'lfolpos' - (1d,) numpy array of positions for lfol
+            'lfolspeed' - (1d,) numpy array of speeds for lfol
+            'rfolpos' - (1d,) numpy array of positions for rfol
+            'rfolspeed' - (1d,) numpy array of speeds for rfol
+            'lleadpos' - (1d,) same as lead posmem, but for left leader
+            'lleadspeed' - (1d,) same as lead speedmem, but for left leader
+            'rleadpos' - (1d,) same as lead posmem, but for right leader
+            'rleadspeed' - (1d,) same as lead speedmem, but for right leader
         normalization amounts: tuple of
             maxheadway: max headway observed in training set
             maxspeed: max velocity observed in training set
@@ -173,8 +173,8 @@ class RNNCFModel(tf.keras.Model):
 
         Args:
             inputs: list of lead_inputs, cur_state, hidden_states.
-                lead_inputs - tensor with shape (nveh, nt, 12), giving the position and speed of the
-                    the leader, follower, lfol, rfol, llead, rllead at each timestep.
+                lead_inputs - tensor with shape (nveh, nt, 12), order is (lead, llead, rlead, fol, lfol, rfol)
+                    for position, then for speed
                 cur_state -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
                     starting timestep.
                 hidden_states - list of the two hidden states, each hidden state is a tensor with shape
@@ -249,7 +249,7 @@ def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
             of the loss function. If 0, it means the input at the corresponding index doesn't contribute
             to the loss.
     """
-    identity = np.eye(3)
+    # identity = np.eye(3)
     lead_inputs = []
     true_traj = []
     loss_weights = []
@@ -315,6 +315,7 @@ def weighted_masked_MSE_loss(y_true, y_pred, mask_weights):
     temp = tf.math.multiply(tf.square(y_true-y_pred), mask_weights)
     return tf.reduce_sum(temp)/tf.reduce_sum(mask_weights)
 
+
 def calculate_lc_hd_weights(inputs, y_true, y_pred, c=1):
     """
     Calculates LC loss weights utilizing error in headway calculations.
@@ -340,6 +341,7 @@ def calculate_lc_hd_weights(inputs, y_true, y_pred, c=1):
     div = -c * tf.math.reduce_sum(div, axis=2)
     return tf.math.exp(div)
 
+
 @tf.function
 def train_step(x, y_true, lc_true, sample_weight, lc_weights, model, loss_fn, lc_loss_fn, optimizer):
     """Updates parameters for a single batch of examples.
@@ -347,8 +349,9 @@ def train_step(x, y_true, lc_true, sample_weight, lc_weights, model, loss_fn, lc
     Args:
         x: input to model
         y_true: target for loss function
-        sample_weight: weight for loss function
-        lc_weights: weights for lc output
+        sample_weight: weight for loss function to masks padded trajectory length, so that batches of
+            vehicles have the same length
+        lc_weights: weights for lc output which mask lane changes which aren't possible due to topology
         model: tf.keras.Model
         loss_fn: function takes in y_true, y_pred, sample_weight, and returns the loss
         lc_loss_fn: function takes in y_true, y_pred, and returns the loss for lane changing
@@ -381,6 +384,7 @@ def train_step(x, y_true, lc_true, sample_weight, lc_weights, model, loss_fn, lc
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     return y_pred, lc_pred, cur_speeds, hidden_state, loss, lc_loss
 
+
 def calculate_class_metric(y_true, y_pred, class_id, metric):
     """
     This computes a class-dependent metric given the true y values and the predicted values
@@ -406,6 +410,7 @@ def calculate_class_metric(y_true, y_pred, class_id, metric):
 
     metric.update_state(y_true_npy, y_pred_npy)
     return metric.result().numpy()
+
 
 def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100, n=20,
                   early_stopping_loss=None):
@@ -535,7 +540,7 @@ class Trajectories:
             lc_loss: (float) lc loss from the model
             true_cf: (np.ndarray) with shape (nveh, nt) w/true trajectories for each vehicle
             true_lc_action: (np.ndarray) with shape (nveh, nt) w/true lc action for each vehicle
-            loss_weights: (np.ndarray)  with shape (nveh, nt) the loss weights for the model. 
+            loss_weights: (np.ndarray)  with shape (nveh, nt) the loss weights for the model.
                 A zero indicates that the vehicle at that given timestep does not exist within
                 the data so does not influence the loss.
             lc_weights: (np.ndarray) with shape (nveh, nt, 3) the lc loss weights for the model.
@@ -562,7 +567,7 @@ class Trajectories:
     def confusion_matrix(self, remove_nonsim=True, seed=42):
         """
         This calculates the confusion matrix of LC model. As a pre-processing step, rows
-        that do not have any LC prediction (b/c the batch includes timesteps beyond the 
+        that do not have any LC prediction (b/c the batch includes timesteps beyond the
         vehicle's lifetime) are removed.
         Args:
             remove_nonsim: (bool) decides whether or not rows beyond the vehicle's
@@ -625,6 +630,7 @@ class Trajectories:
             pred = pred[sel]
 
         return pred
+
 
 def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
     """Generate a batch of trajectories.

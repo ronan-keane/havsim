@@ -51,8 +51,7 @@ early_stopping = False
 
 # no early stopping -
 if not early_stopping:
-    # deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 10000, nveh = 32, nt = 50)
-    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 5000, nveh = 32, nt = 50)
+    deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 10000, nveh = 32, nt = 50)
     deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 100)
     deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 200)
     deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches = 1000, nveh = 32, nt = 300)
@@ -74,10 +73,7 @@ if early_stopping:
     deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=2000, nveh=32, nt=500, m=20, n=10,
                                 early_stopping_loss=early_stopping_loss)
 
-
-
 # model.save_weights('trained LSTM no relax')
-
 # model.load_weights('trained LSTM')
 
 #%% test by generating entire trajectories

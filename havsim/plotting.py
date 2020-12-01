@@ -7,6 +7,7 @@ where all the plotting functions go
 import numpy as np
 import copy
 import math
+import os
 import seaborn as sns
 
 import matplotlib.pyplot as plt
@@ -39,14 +40,118 @@ def plotLaneChangingConfMat(traj, save=False, output_fn=None):
     else:
         plt.show()
 
-def plotPredictedLC(traj, idx):
-    pred, true = traj.compressed_trajectory(idx)
-    if pred:
-        plt.clf()
-        sns.heatmap(pred)
-        plt.ylabel("Frame ID")
-        plt.title("Predicted LC (Single Trajectory)")
+def plotTrajectoryProbs(traj, idx, save=False, output_dir=None):
+    """
+    This plots the LC probabilities of left/right for a single vehicle's trajectory. We are visualizing
+    this as a number of heatmaps (split into rows to help interpret the image).
+    Args:
+        traj: (Trajectories object) which is generated from deep_learning.generate_trajectories
+        idx: (int) indexes into Trajectories object
+        save: (bool) whether or not we should save the image or just show
+        output_dir: (str) ignored if save is False. If save=True, then this directory is where
+            we save the resulting figure
+    """
+    pred = traj.trajectory_probs(idx)
+
+    min_pred, max_pred = np.min(pred), np.max(pred)
+    num_rows = int(np.ceil(pred.shape[0] / 50))
+    fig, ax = plt.subplots(num_rows, 1, figsize=(10,0.8 * num_rows))
+    fig.suptitle(f"LC Trajectory Probabilities for idx {idx}", y=0.9)
+    for row_idx in range(num_rows):
+        mappable = ax[row_idx].imshow(pred[row_idx * 50:(row_idx+1) * 50].T, vmin=min_pred, \
+                vmax=max_pred)
+
+        # remove ticks
+        ax[row_idx].set_xticks([])
+        ax[row_idx].set_yticks([])
+
+        # add x on true left changes
+        idx_of_left = np.nonzero(traj.true_lc_action[idx][row_idx * 50: (row_idx+1)*50] == 0)[0]
+        for left_index in idx_of_left:
+            ax[row_idx].text(left_index + 0.5, 0.3, 'x', color='white')
+
+        # add x on true right changes
+        idx_of_right = np.nonzero(traj.true_lc_action[idx][row_idx * 50: (row_idx+1)*50] == 2)[0]
+        for right_index in idx_of_right:
+            ax[row_idx].text(right_index + 0.5, 1.3, 'x', color='white')
+
+        ax[row_idx].set_ylabel(f'{row_idx * 50}', rotation='horizontal')
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    fig.colorbar(mappable=mappable, cax=cbar_ax)
+
+    if save:
+        plt.savefig(f'{output_dir}/{idx}.png')
+    else:
         plt.show()
+
+def plotCFError(traj, idx, save=False, output_dir=None):
+    """
+    This plots the CF errors throughout a single vehicle's trajectory. We are visualizing
+    this as a number of heatmaps (split into rows to help interpret the image).
+    Args:
+        traj: (Trajectories object) which is generated from deep_learning.generate_trajectories
+        idx: (int) indexes into Trajectories object
+        save: (bool) whether or not we should save the image or just show
+        output_dir: (str) ignored if save is False. If save=True, then this directory is where
+            we save the resulting figure
+    """
+    cf_error = np.abs((traj.true_cf - traj.cf_pred)[idx])
+    min_error, max_error = np.min(cf_error), np.max(cf_error)
+
+    num_rows = int(np.ceil(cf_error.shape[0] / 50))
+    fig, ax = plt.subplots(num_rows, 1, figsize=(10, 0.8 * num_rows))
+    fig.suptitle(f"Error in CF predictions for idx {idx}", y=0.9)
+    for row_idx in range(num_rows):
+        subset = cf_error[row_idx * 50: (row_idx + 1) * 50]
+        subset = np.hstack((subset, np.zeros(50 - subset.shape[0])))
+
+        mappable = ax[row_idx].imshow(subset.reshape((1, 50)), vmin=min_error, vmax=max_error)
+        ax[row_idx].set_xticks([])
+        ax[row_idx].set_yticks([])
+        ax[row_idx].set_ylabel(f'{row_idx * 50}', rotation='horizontal')
+
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    fig.colorbar(mappable=mappable, cax=cbar_ax)
+    if save:
+        plt.savefig(f'{output_dir}/{idx}.png')
+    else:
+        plt.show()
+
+def plotCFErrorN(traj, output_dir, n=20, seed=42):
+    """
+    This randomly samples n vehicles and plots their car following errors. It also saves the figures
+    into an output_dir
+    Args:
+        traj: (Trajectories object) which is generated from deep_learning.generate_trajectories
+        output_dir: (str) this directory is where we save the resulting figures
+        n: (int) number of vehicles to randomly sample
+        seed: (int) seed for randomly sampling vehicles
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    np.random.seed(seed)
+    idxs = np.random.choice(np.arange(len(traj)), n)
+    for idx in idxs: 
+        plotCFError(traj, idx, save=True, output_dir=output_dir)
+
+def plotTrajectoriesProb(traj, output_dir, n=20, seed=42):
+    """
+    This randomly samples n vehicles and plots their LC probabilities. It also saves the figures
+    into an output_dir.
+    Args:
+        traj: (Trajectories object) which is generated from deep_learning.generate_trajectories
+        output_dir: (str) this directory is where we save the resulting figures
+        n: (int) number of vehicles to randomly sample
+        seed: (int) seed for randomly sampling vehicles
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    np.random.seed(seed)
+    idxs = np.random.choice(np.arange(len(traj)), n)
+    for idx in idxs: 
+        plotTrajectoryProbs(traj, idx, save=True, output_dir=output_dir)
 
 def plotColorLines(X, Y, SPEED, speed_limit, colormap = 'speeds', ind = 0):
     """X and Y are x/y data to plot, SPEED gives the color for each data pair."""

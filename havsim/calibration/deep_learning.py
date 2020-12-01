@@ -44,15 +44,15 @@ def make_dataset(veh_dict, veh_list, dt=.1):
             'speedmem' - (1d,) numpy array of observed speeds for vehicle
             'lead posmem' - (1d,) numpy array of positions for leaders, 0 index corresponds to times[0].
                 length is subtracted from the lead position.
-            'lead speedmem' - (1d,) numpy array of speeds for leaders.
-            'lfolpos' - (1d,) numpy array of positions for lfol
-            'lfolspeed' - (1d,) numpy array of speeds for lfol
-            'rfolpos' - (1d,) numpy array of positions for rfol
-            'rfolspeed' - (1d,) numpy array of speeds for rfol
-            'lleadpos' - (1d,) numpy array of positions for llead
-            'lleadspeed' - (1d,) numpy array of speeds for llead
-            'rleadpos' - (1d,) numpy array of positions for rlead
-            'rleadspeed' - (1d,) numpy array of speeds for rlead
+            'lead speedmem' - (1d,) numpy array of speeds for leaders in same format as 'lead posmem'
+            'lfolpos' - (1d,) numpy array of positions for lfol in same format as 'lead posmem'
+            'lfolspeed' - (1d,) numpy array of speeds for lfol in same format as 'lead posmem'
+            'rfolpos' - (1d,) numpy array of positions for rfol in same format as 'lead posmem'
+            'rfolspeed' - (1d,) numpy array of speeds for rfol in same format as 'lead posmem'
+            'lleadpos' - (1d,) numpy array of positions for llead in same format as 'lead posmem'
+            'lleadspeed' - (1d,) numpy array of speeds for llead in same format as 'lead posmem'
+            'rleadpos' - (1d,) numpy array of positions for rlead in same format as 'lead posmem'
+            'rleadspeed' - (1d,) numpy array of speeds for rlead in same format as 'lead posmem'
         normalization amounts: tuple of
             maxheadway: max headway observed in training set
             maxspeed: max velocity observed in training set
@@ -173,8 +173,8 @@ class RNNCFModel(tf.keras.Model):
 
         Args:
             inputs: list of lead_inputs, cur_state, hidden_states.
-                lead_inputs - tensor with shape (nveh, nt, 10), giving the position and speed of the
-                    the leader, lfol, rfol, llead, rllead at each timestep.
+                lead_inputs - tensor with shape (nveh, nt, 12), giving the position and speed of the
+                    the leader, follower, lfol, rfol, llead, rllead at each timestep.
                 cur_state -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
                     starting timestep.
                 hidden_states - list of the two hidden states, each hidden state is a tensor with shape
@@ -223,9 +223,7 @@ class RNNCFModel(tf.keras.Model):
 
         pos_outputs = tf.stack(pos_outputs, 1)
         lc_outputs = tf.stack(lc_outputs, 1)
-        # loss_weights = tf.transpose(tf.convert_to_tensor(loss_weights, dtype='float32'))
-
-        return pos_outputs, lc_outputs, cur_speed, hidden_states  # loss_weights
+        return pos_outputs, lc_outputs, cur_speed, hidden_states 
 
 
 def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
@@ -242,8 +240,8 @@ def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
             can be calculated
 
     Returns:
-        lead_inputs - tensor with shape (nveh, nt, 10), giving the position and speed of the
-            the leader, lfol, rfol, llead, rllead at each timestep. Padded with zeros.
+        lead_inputs - tensor with shape (nveh, nt, 12), giving the position and speed of the
+            the leader, follower, lfol, rfol, llead, rllead at each timestep. Padded with zeros.
             nveh = len(vehs)
         true_traj: nested python list with shape (nveh, nt) giving the true vehicle position at each time.
             Padded with zeros
@@ -371,7 +369,8 @@ def train_step(x, y_true, lc_true, sample_weight, lc_weights, model, loss_fn, lc
         # use categorical cross entropy or sparse categorical cross entropy to compute loss over y_pred_lc
 
         # headway error calculation
-        weight = calculate_lc_hd_weights(x[0], y_true, y_pred)
+        # weight = calculate_lc_hd_weights(x[0], y_true, y_pred)
+        weight = calculate_lc_hd_weights(x[0], y_true, y_true)
 
         # lc_loss = lc_loss_fn(lc_true, lc_pred, sample_weight=loss_weights)
         lc_loss = lc_loss_fn(lc_true, masked_lc_pred, sample_weight=sample_weight*weight)
@@ -394,7 +393,6 @@ def calculate_class_metric(y_true, y_pred, class_id, metric):
         metric (float)
     """
     metric.reset_states()
-    # y_true_npy = tf.reshape(y_true, (y_true.shape[0] * y_true.shape[1],)).numpy()
     y_true_npy = y_true.numpy().flatten()
     y_pred_npy = tf.argmax(y_pred, axis=2).numpy().flatten()
 
@@ -558,31 +556,28 @@ class Trajectories:
         self.loss_weights = loss_weights
         self.lc_weights = lc_weights
 
-    def confusion_matrix(self, remove_zeros=True, seed=42):
+    def __len__(self):
+        return self.true_lc_action.shape[0]
+
+    def confusion_matrix(self, remove_nonsim=True, seed=42):
         """
         This calculates the confusion matrix of LC model. As a pre-processing step, rows
         that do not have any LC prediction (b/c the batch includes timesteps beyond the 
         vehicle's lifetime) are removed.
         Args:
-            remove_zeros: (bool) decides whether or not rows with all zeros in the lc_weights
-                which indicate whether or not the row has an LC prediction are removed
+            remove_nonsim: (bool) decides whether or not rows beyond the vehicle's
+                lifetime are removed
             seed: (int) seed for prediction
         Returns:
             np.ndarray (shape (3,3)) of the confusion matrix
         """
-        if remove_zeros:
+        if remove_nonsim:
             three_zeros = np.zeros((3,))
             sel = ~np.apply_along_axis(lambda x: np.array_equal(x, three_zeros), 2, self.lc_weights)
         else:
             sel = np.ones(self.lc_pred.shape[:2])
 
-        # calculate predictions
-        np.random.seed(seed=seed)
-        rand_sam = np.random.uniform(size=self.lc_pred.shape[:-1])
-        rand_sam = np.stack([rand_sam] * 3, axis=2)
-
-        cumulative_probs = self.lc_pred.cumsum(axis=2)
-        pred_idx = np.argmax(rand_sam < cumulative_probs, axis=2)
+        pred_idx = self.sample_lc_outputs(seed=seed)
 
         # select non-zero elements
         pred_idx = pred_idx[sel]
@@ -595,32 +590,41 @@ class Trajectories:
                         & (true_idx == true_label))
         return conf_mat
 
-    def compressed_trajectory(self, idx):
-        return compress_traj(self.lc_pred[idx], self.true_lc_action[idx], self.lc_weights[idx])
+    def sample_lc_outputs(self, seed=42):
+        """
+        Samples from the lc output predicted by the LC model.
+        Args:
+            seed: (int) seed for prediciton
+        Returns:
+            np.ndarray (shape (nveh, nt)) of the predicted lane changing action. If 0, change left
+                if 1, stay in the same lane, if 2, change right.
+        """
+        pred = self.lc_weights * self.lc_pred
+        pred = tf.unstack(pred, axis=1)
 
-def compress_traj(pred, true, lc_weights, remove_zeros=False):
-    if remove_zeros:
-        # remove all-zero rows (predictions we multiply by zero b/c it's not allowed to change lanes/etc.)
-        three_zeros = np.zeros((3,))
-        nonzero_sel = ~np.apply_along_axis(lambda x: np.array_equal(x, three_zeros), 1, lc_weights)
+        tf.random.set_seed(seed)
+        lc = [tf.squeeze(tf.random.categorical(tf.math.log(i), 1)) for i in pred]
+        return tf.stack(lc).numpy().T
 
-        pred = pred[nonzero_sel]
-        true = true[nonzero_sel]
+    def trajectory_probs(self, idx, remove_nonsim=True):
+        """
+        This returns the probability of changing left and changing right (as predicted by the
+        LC model) throughout a single vehicle's trajectory (indexed through idx)
+        Args:
+            idx: the index of the vehicle.
+        Returns:
+            np.ndarray (shape (nt, 2)), the first column representing the probability of changing
+                left, the second column representing the probability of changing right
+        """
+        pred = self.lc_weights[idx] * self.lc_pred[idx]
+        pred = pred[:, [0, 2]]
 
-    pred_idx = np.argmax(pred, axis = 1)
-    num_stay_preds = np.sum(pred_idx != 1)
+        if remove_nonsim:
+            # remove zeros
+            sel = np.apply_along_axis(lambda x: x != 0, 0, self.loss_weights[idx])
+            pred = pred[sel]
 
-    all_ones = np.ones((pred_idx.shape[0],))
-    incorrect_preds = np.maximum(np.abs(pred_idx - true), all_ones)
-    num_inc_preds = np.sum(incorrect_preds)
-
-    incorrect_or_notstay = (incorrect_preds.astype(bool) | (pred_idx != 1)).astype(bool)
-
-    # no incorrect predictions and all the predictions are stay in the same lane
-    if num_inc_preds == 0 and num_stay_preds:
-        return None, None
-    else:
-        return pred[incorrect_or_notstay], true[incorrect_or_notstay]
+        return pred
 
 def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
     """Generate a batch of trajectories.
@@ -633,10 +637,9 @@ def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
         lc_loss: if not None, we will call loss function and return the loss (for lane changing)
         kwargs: dictionary of keyword arguments to pass to make_batch
     Returns:
-        y_pred: tensor of vehicle trajectories, shape of (number of vehicles, number of timesteps)
-        cur_speeds: tensor of current vehicle speeds, shape of (number of vehicles, 1)
-        out_loss: tensor of overall loss, shape of (1,)
-        out_lc_loss: tensor of lane changing loss, shape of (1,)
+        Trajectories: object (defined above) that contains information about the predicted and 
+            true positions, predicted/true lc actions, the loss value of the model, the loss value
+            of the lane changing predictions, etc. See class for more details.
     """
     # put all vehicles into a single batch, with the number of timesteps equal to the longest trajectory
     nveh = len(vehs)

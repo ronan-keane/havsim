@@ -147,6 +147,7 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
     # can specify a lane, and make trajectories outside of that lane opaque.
     # can colorcode trajectories based on their speeds to easily see shockwaves and other structures.
 
+    # TODO make this faster
     if sim is not None:
         colorcode = False
 
@@ -357,7 +358,8 @@ def generate_changetimes(veh, col_index):
     return ind
 
 
-def plotflows(meas, spacea, timea, agg, type='FD', FDagg=None, lane = None, method = 'area', h = .1):
+def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane = None, method = 'area',
+              h = .1, time_units=3600, space_units=1000):
     """
 	aggregates microscopic data into macroscopic quantities based on Edie's generalized definitions of traffic variables
 
@@ -399,7 +401,8 @@ def plotflows(meas, spacea, timea, agg, type='FD', FDagg=None, lane = None, meth
         temp2 += agg
     intervals.append((temp1, end))
 
-    q, k = helper.calculateflows(meas, spacea, timea, agg, lane = lane, method = method, h = h)
+    q, k = helper.calculateflows(meas, spacea, timea, agg, lane = lane, method = method, h = h,
+                                 time_units=time_units, space_units=space_units)
     time_sequence = []
     time_sequence_for_line = []
 
@@ -420,8 +423,9 @@ def plotflows(meas, spacea, timea, agg, type='FD', FDagg=None, lane = None, meth
     # for i in k:
     #     unzipped_k += i
 
-    if type == 'FD':
-        marker_list = ['o', 'x']
+    if MFD:
+        plt.figure()
+        marker_list = ['o', 'x', '^']
         #different marker types
         for count, curq in enumerate(q):
             curmarker = marker_list[count]
@@ -429,16 +433,17 @@ def plotflows(meas, spacea, timea, agg, type='FD', FDagg=None, lane = None, meth
             plt.scatter(curk, curq, c=time_sequence_for_line, cmap=cm.get_cmap('viridis'), marker = curmarker)
         # plt.scatter(unzipped_k, unzipped_q, c=time_sequence, cmap=cm.get_cmap('viridis'))
         plt.colorbar()
-        plt.xlabel("density")
-        plt.ylabel("flow")
+        plt.xlabel("density (veh/km)")
+        plt.ylabel("flow (veh/hr)")
         plt.show()
 
-    elif type == 'line':
+    if Flows:
+        plt.figure()
         for i in range(len(spacea)):
+            q[i] = np.array(q[i])
             plt.plot(time_sequence_for_line, q[i])
-        print(q)
-        plt.xlabel("time")
-        plt.ylabel("flow")
+        plt.xlabel("time (.25s)")
+        plt.ylabel("flow (veh/hr)")
         plt.show()
 
     return

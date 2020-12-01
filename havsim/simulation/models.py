@@ -42,9 +42,10 @@ def OVM(p, state):
 
     Args:
         p: parameters - p[0],p[1],p[2],p[4] are shape parameters for the optimal velocity function.
-            The maximum speed is p[0]*(1 - tanh(-p[2])), jam spacing is p[4]. p[1] controls the
-            slope of the velocity/headway equilibrium curve. p[3] is a sensitivity parameter
-            which controls the strength of acceleration.
+            The maximum speed is p[0]*(1 - tanh(-p[2])), jam spacing is p[4]/p[1]. p[1] controls the
+            slope of the velocity/headway equilibrium curve. higher p[1] = higher maximum flow.
+            There is no physical interpretation of p[1].
+            p[3] is a sensitivity parameter which controls the strength of acceleration.
         state: list of [headway, self velocity, leader velocity] (leader velocity unused)
 
     Returns:
@@ -53,9 +54,9 @@ def OVM(p, state):
     return p[3]*(p[0]*(math.tanh(p[1]*state[0]-p[2]-p[4])-math.tanh(-p[2]))-state[1])
 
 
-def OVM_free(p, state):
+def OVM_free(p, v):
     """Free flow model for OVM."""
-    return p[3]*(p[0]*(1-math.tanh(-p[2])) - state[1])
+    return p[3]*(p[0]*(1-math.tanh(-p[2])) - v)
 
 
 def OVM_eql(p, s):
@@ -130,7 +131,7 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
         3 - politeness (taking other vehicles into account, 0 = ignore other vehicles, ~.1-.2 = realistic),
         4 - bias on left side (can add a bias to make vehicles default to a certain side of the road),
         5 - bias on right side,
-        6 - probability of checking LC while in discretionary state (not in original model. set to
+        6 - probability of checking LC while in discretionary state (not in original model. set to 1
             to always check discretionary. units are probability of checking per timestep)
         7 - number of timesteps in cooperative/tactical state after meeting incentive criteria for
             a discretionary change (not in original model)
@@ -242,13 +243,13 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
     # safe = p[0] (or use the maximum safety, p[1])
 
     # safety changes with relative velocity (implemented in treiber, kesting' traffic-simulation.de) -
-    # safe = veh.speed/veh.maxspeed
-    # safe = safe*p[0] + (1-safe)*p[1]
+    safe = veh.speed/veh.maxspeed
+    safe = safe*p[0] + (1-safe)*p[1]
 
-    if in_disc:  # different safeties for discretionary/mandatory
-        safe = p[0]
-    else:
-        safe = p[1]  # or use the relative velocity safety
+    # if in_disc:  # different safeties for discretionary/mandatory
+    #     safe = p[0]
+    # else:
+    #     safe = p[1]  # or use the relative velocity safety
     # ####################################################
 
     # determine if LC can be completed, and if not, determine if we want to enter cooperative or
@@ -347,16 +348,14 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol
     There are three possible options - cooperation and tactical, or only cooperation, or only tactical
 
     In the tactical model, first we check the safety conditions to see what is preventing us from
-    changing (either lcside fol or lcside lead). if both are violating safety, and the lcside leader is
-    faster than vehicle, then the vehicle gets deceleration to try to change behind them. If vehicle is
-    faster than lcside leader, then the vehicle gets acceleration to try to overtake. if only one is
-    violating safety, the vehicle moves in a way to prevent that violation. Meaning -
-    if only the follower's safety is violated, the vehicle accelerates.
-    if the vehicle's own safety is violated; the vehicle decelerates.
-    the tactical model only modifies the acceleration of veh.
+    changing (either lcside fol or lcside lead). If only the follower's safety is violated, the vehicle
+    accelerates. If the vehicle's own safety is violated; the vehicle decelerates. In the case where both
+    safeties are violated, the vehicle accelerates. The tactical model only modifies the acceleration of veh.
 
-    in the cooperative model, we try to identify a cooperating vehicle. A cooperating vehicle always gets a
+    in the cooperative model, we try to identify a cooperating vehicle. A cooperating vehicle gets a
     deceleration added so that it will give extra space to let the ego vehicle successfully change lanes.
+    Cooperation is only applied if the lcside fol is blocking the ego vehicle; if only the lcside leader
+    is blocking, only the tactical model will be applied.
     If the cooperation is applied without tactical, then the cooperating vehicle must be the lcside follower,
     and the newlcsidefolhd must be > jam spacing. This prevents cooperation with vehicles that are right next
     to you.
@@ -405,9 +404,9 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol
     # clearly it would be possible to modify different things, such as how the acceleration modifications
     # are obtained, and changing the conditions for entering/exiting the cooperative/tactical conditions
     # in particular we might want to add extra conditions for entering cooperative state
-    coop_veh_is_lcsidefolfol = False
 
-    if use_coop and use_tact:
+    coop_veh_is_lcsidefolfol = False
+    if use_coop and use_tact and lcsidefolsafe < safe:
         coop_veh = veh.coop_veh
         if coop_veh is not None:  # first, check cooperation is valid, and apply cooperation if so
             if coop_veh is lcsidefol and newlcsidefolhd > jam_spacing:  # coop_veh = lcsidefol
@@ -435,7 +434,7 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol
                 veh.coop_veh = coop_veh
                 coop_veh.acc += coop_veh.shift_eql('decel')
 
-    elif not use_tact and use_coop:
+    elif not use_tact and use_coop and lcsidefolsafe < safe:
         coop_veh = veh.coop_veh
         if coop_veh is not None:
             if coop_veh is lcsidefol and newlcsidefolhd > jam_spacing:  # coop_veh = lcsidefol
@@ -461,18 +460,19 @@ def tactical_model(veh, lcsidefol, lcsidefolsafe, vehsafe, safe, coop_veh_is_lcs
             tactstate = 'accel'
         veh.acc += veh.shift_eql(tactstate)
     else: # in normal rule, you find the safety that is blocking and move to widen that gap.
-        # if both lcsidefol and lcsidelead are blocking, look at lcsidelead speed
         if lcsidefolsafe < safe:
-            if vehsafe < safe:  # both unsafe
-                # making a change here
-                if lcsidefol.lead is None:
-                    tactstate = None
-                elif lcsidefol.lead.speed > veh.speed:  # edge case where lcsidefol.lead is None?
-                    tactstate = 'decel'
-                else:
-                    tactstate = 'accel'
-            else:  # only follower unsafe
-                tactstate = 'accel'
+            tactstate = 'accel'
+
+            # if both lcsidefol and lcsidelead are blocking, could look at lcsidelead speed
+            # if vehsafe < safe:  # both unsafe
+            #     if lcsidefol.lead.speed > veh.speed:  # edge case where lcsidefol.lead is None?
+            #     # if lcsidefol.lead is not None and lcsidefol.lead.speed > veh.speed:
+            #         tactstate = 'decel'
+            #     else:
+            #         tactstate = 'accel'
+            # else:  # only follower unsafe
+            #     tactstate = 'accel'
+
         else:  # only leader unsafe
             tactstate = 'decel'
         veh.acc += veh.shift_eql(tactstate)
@@ -487,12 +487,54 @@ def check_if_veh_cooperates(veh, coop_veh, in_disc):
     return (temp >= 1 or np.random.rand() < temp)
 
 
+def relaxation_model_ttc(p, state, dt):
+    """Alternative relaxation model for short/dangeorus spacings - applies control to ttc (not recommended).
+
+    Args:
+        p (list of floats): list of target ttc (time to collision), jam spacing, velocity sensitivity, gain
+            target ttc: If higher, we require larger spacings. If our current ttc is below the target,
+                we enter the special regime, which is seperate from the normal car following, and apply
+                a seperate control law to increase the ttc.
+            jam spacing: higher jam spacing = lower ttc
+            velocity sensitivity: more sensitive = lower ttc
+            gain: higher gain = stronger decelerations
+        state (list of floats): list of headway, self speed, lead speed
+    Returns:
+        acceleration (float): if normal_relax is false, gives the acceleration of the vehicle
+        normal_relax (bool): if true, we are in the normal relaxation regime
+    """
+    T, sj, a, delta = p
+    s, v, vl = state
+
+    # calculate proxy for time to collision = ttc
+    sstar_branch = False
+    sstar = s - sj - a*v
+    if sstar < 1e-6:
+        sstar = 1e-6
+        # sstar = 1e-6*(v - vl + 1e-6)
+        sstar_branch = True
+    ttc = sstar/(v - vl + 1e-6)
+
+    if ttc < T and ttc >= 0:  # apply control if ttc is below target
+        if sstar_branch:
+            acc = sstar+T*(-v+vl-1e-6)
+            acc = (v-vl)*acc*delta/(sstar-dt*delta*acc)
+            # acc = (v-vl)*(sstar+T*(-v+vl))*delta
+            # acc = acc/(sstar-dt*delta*sstar+(v-vl)*(-1+dt*T*delta))
+        else:
+            acc = -(v-vl)*(v+(-s+sj)*delta+(a+T)*v*delta-vl*(1+T*delta))
+            acc = acc/(s-sj-a*vl+dt*delta*(-s+sj+(a+T)*v-T*vl))
+        return acc, False
+    else:
+        return None, True
+
 def IDM_parameters(*args):
     """Suggested parameters for the IDM/MOBIL."""
     # time headway parameter = 1 -> always unstable in congested regime.
     # time headway = 1.5 -> restabilizes at high density
-    cf_parameters = [30, 1.1, 3, 1.1, 1.5]  # note speed is supposed to be in m/s
+    cf_parameters = [35, 1.3, 2, 1.1, 1.5]  # note speed is supposed to be in m/s
+
     # note last 3 parameters have units in terms of timesteps, not seconds
-    lc_parameters = [-4, -20, .5, .1, 0, .2, .1, 20, 20]
+    lc_parameters = [-8, -20, .6, .1, 0, .2, .1, 20, 20]
 
     return cf_parameters, lc_parameters

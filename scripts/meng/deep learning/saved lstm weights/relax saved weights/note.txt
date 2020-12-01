@@ -1,0 +1,3 @@
+no relax -> results from using deep_learning + DL2, trained on all vehicles, instead of only vehicles with no LC. 
+
+with relax -> results from using DL2_relax script

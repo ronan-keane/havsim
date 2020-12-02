@@ -40,23 +40,23 @@ def plotLaneChangingConfMat(traj, save=False, output_fn=None):
     else:
         plt.show()
 
-def plotTrajectoryProbs(traj, idx, save=False, output_dir=None):
+def plotTrajectoryProbs(traj, vehid, save=False, output_dir=None):
     """
     This plots the LC probabilities of left/right for a single vehicle's trajectory. We are visualizing
     this as a number of heatmaps (split into rows to help interpret the image).
     Args:
         traj: (Trajectories object) which is generated from deep_learning.generate_trajectories
-        idx: (int) indexes into Trajectories object
+        vehid: (int) vehicle id of the trajectory you would like to plot
         save: (bool) whether or not we should save the image or just show
         output_dir: (str) ignored if save is False. If save=True, then this directory is where
             we save the resulting figure
     """
-    pred = traj.trajectory_probs(idx)
+    pred = traj.trajectory_probs(vehid)
 
     min_pred, max_pred = np.min(pred), np.max(pred)
     num_rows = int(np.ceil(pred.shape[0] / 50))
     fig, ax = plt.subplots(num_rows, 1, figsize=(10,0.8 * num_rows))
-    fig.suptitle(f"LC Trajectory Probabilities for idx {idx}", y=0.9)
+    fig.suptitle(f"LC Trajectory Probabilities for vehid {vehid}", y=0.9)
     for row_idx in range(num_rows):
         mappable = ax[row_idx].imshow(pred[row_idx * 50:(row_idx+1) * 50].T, vmin=min_pred, \
                 vmax=max_pred)
@@ -65,13 +65,13 @@ def plotTrajectoryProbs(traj, idx, save=False, output_dir=None):
         ax[row_idx].set_xticks([])
         ax[row_idx].set_yticks([])
 
-        # add x on true left changes
-        idx_of_left = np.nonzero(traj.true_lc_action[idx][row_idx * 50: (row_idx+1)*50] == 0)[0]
+        # add x on true left changesget_true_lc_action
+        idx_of_left = np.nonzero(traj.get_true_lc_action(vehid)[row_idx * 50: (row_idx+1)*50] == 0)[0]
         for left_index in idx_of_left:
             ax[row_idx].text(left_index + 0.5, 0.3, 'x', color='white')
 
         # add x on true right changes
-        idx_of_right = np.nonzero(traj.true_lc_action[idx][row_idx * 50: (row_idx+1)*50] == 2)[0]
+        idx_of_right = np.nonzero(traj.get_true_lc_action(vehid)[row_idx * 50: (row_idx+1)*50] == 2)[0]
         for right_index in idx_of_right:
             ax[row_idx].text(right_index + 0.5, 1.3, 'x', color='white')
 
@@ -85,23 +85,23 @@ def plotTrajectoryProbs(traj, idx, save=False, output_dir=None):
     else:
         plt.show()
 
-def plotCFError(traj, idx, save=False, output_dir=None):
+def plotCFError(traj, vehid, save=False, output_dir=None):
     """
     This plots the CF errors throughout a single vehicle's trajectory. We are visualizing
     this as a number of heatmaps (split into rows to help interpret the image).
     Args:
         traj: (Trajectories object) which is generated from deep_learning.generate_trajectories
-        idx: (int) indexes into Trajectories object
+        vehid: (int) vehicle id for the trajectory to be plotted
         save: (bool) whether or not we should save the image or just show
         output_dir: (str) ignored if save is False. If save=True, then this directory is where
             we save the resulting figure
     """
-    cf_error = np.abs((traj.true_cf - traj.cf_pred)[idx])
+    cf_error = traj.cf_error(vehid)
     min_error, max_error = np.min(cf_error), np.max(cf_error)
 
     num_rows = int(np.ceil(cf_error.shape[0] / 50))
     fig, ax = plt.subplots(num_rows, 1, figsize=(10, 0.8 * num_rows))
-    fig.suptitle(f"Error in CF predictions for idx {idx}", y=0.9)
+    fig.suptitle(f"Error in CF predictions for vehid {vehid}", y=0.9)
     for row_idx in range(num_rows):
         subset = cf_error[row_idx * 50: (row_idx + 1) * 50]
         subset = np.hstack((subset, np.zeros(50 - subset.shape[0])))
@@ -132,7 +132,7 @@ def plotCFErrorN(traj, output_dir, n=20, seed=42):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     np.random.seed(seed)
-    idxs = np.random.choice(np.arange(len(traj)), n)
+    idxs = np.random.choice(traj.vehs, n)
     for idx in idxs: 
         plotCFError(traj, idx, save=True, output_dir=output_dir)
 
@@ -149,7 +149,7 @@ def plotTrajectoriesProb(traj, output_dir, n=20, seed=42):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     np.random.seed(seed)
-    idxs = np.random.choice(np.arange(len(traj)), n)
+    idxs = np.random.choice(traj.vehs, n)
     for idx in idxs: 
         plotTrajectoryProbs(traj, idx, save=True, output_dir=output_dir)
 

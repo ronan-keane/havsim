@@ -228,7 +228,8 @@ class RNNCFModel(tf.keras.Model):
         return pos_outputs, lc_outputs, cur_speed, hidden_states 
 
     def get_config(self):
-        return {'pos_args': (self.maxhd, self.maxv, self.mina, self.maxa,), 'lstm_units': self.lstm_units, 'dt': self.dt}
+        return {'pos_args': (self.maxhd, self.maxv, self.mina, self.maxa,), \
+                'lstm_units': self.lstm_units, 'dt': self.dt}
 
     @classmethod
     def from_config(self, config):
@@ -537,7 +538,8 @@ class Trajectories:
     LC outputs from the RNNCF model. It also saves the true lc actions and true trajectories
     """
     def __init__(self, cf_pred, cur_speeds, lc_pred, loss=np.nan, lc_loss=np.nan, \
-            true_cf=None, true_lc_action=None, loss_weights=None, lc_weights=None):
+            true_cf=None, true_lc_action=None, loss_weights=None, lc_weights=None,\
+            veh_ids=None):
         """
         Initializes the Trajectories object.
         Args:
@@ -557,6 +559,7 @@ class Trajectories:
                 went to the left-most lane and the vehicle is on the second left-most lane).
                 If all columns are zero, this is equivalent to the loss_weights entry being zero,
                 meaning that the given timestep does not exist within the data for that vehicle.
+            veh_ids: (list of ints) list of vehicle ids
 
         """
         self.cf_pred = cf_pred
@@ -568,6 +571,8 @@ class Trajectories:
         self.true_lc_action = true_lc_action
         self.loss_weights = loss_weights
         self.lc_weights = lc_weights
+        self.veh_ids = veh_ids # list of veh ids
+        self.veh_to_idx = {vehid:idx for idx, vehid in enumerate(veh_ids)}
 
     def __len__(self):
         return self.true_lc_action.shape[0]
@@ -619,21 +624,59 @@ class Trajectories:
         lc = [tf.squeeze(tf.random.categorical(tf.math.log(i), 1)) for i in pred]
         return tf.stack(lc).numpy().T
 
-    def trajectory_probs(self, idx, remove_nonsim=True):
+    def cf_error(self, vehid, remove_nonsim=True):
+        """
+        This returns a np.ndarray of the car following error of a particular vehicle, with
+        shape (nt,)
+        Args:
+            vehid: (float) the vehicle id. This is converted to an index
+            remove_nonsim: (bool) decides whether or not rows beyond the vehicle's
+                lifetime are removed
+        Returns:
+            cf_error (np.ndarray with shape (nt,)) with nt depending on remove_nonsim
+        """
+        idx = self.veh_to_idx[vehid]
+        cf_error = np.abs((self.true_cf - self.cf_pred)[idx])
+        if remove_nonsim:
+            sel = np.apply_along_axis(lambda x: x != 0, 0, self.loss_weights[idx])
+            cf_error = cf_error[sel]
+        return cf_error
+
+    def get_true_lc_action(self, vehid, remove_nonsim=True):
+        """
+        This returns the lc action for a particular vehicle
+        Args:
+            vehid: (float) the vehicle id. This is converted to an index
+            remove_nonsim: (bool) decides whether or not rows beyond the vehicle's
+                lifetime are removed
+        Returns
+            lc_action (np.ndarray with shape (nt,)) with nt depending on remove_nonsim
+                0 representing left, 1 representing stay, 2 representing right
+        """
+        idx = self.veh_to_idx[vehid]
+        lc_action = self.true_lc_action[idx]
+        if remove_nonsim:
+            sel = np.apply_along_axis(lambda x: x != 0, 0, self.loss_weights[idx])
+            lc_action = lc_action[sel]
+        return lc_action
+
+    def trajectory_probs(self, vehid, remove_nonsim=True):
         """
         This returns the probability of changing left and changing right (as predicted by the
         LC model) throughout a single vehicle's trajectory (indexed through idx)
         Args:
-            idx: the index of the vehicle.
+            vehid: (float) the vehicle id. This is converted to an index
+            remove_nonsim: (bool) decides whether or not rows beyond the vehicle's
+                lifetime are removed
         Returns:
             np.ndarray (shape (nt, 2)), the first column representing the probability of changing
                 left, the second column representing the probability of changing right
         """
+        idx = self.veh_to_idx[vehid]
         pred = self.lc_weights[idx] * self.lc_pred[idx]
         pred = pred[:, [0, 2]]
 
         if remove_nonsim:
-            # remove zeros
             sel = np.apply_along_axis(lambda x: x != 0, 0, self.loss_weights[idx])
             pred = pred[sel]
 
@@ -671,7 +714,7 @@ def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
 
     args = [y_pred.numpy(), cur_speeds.numpy(), lc_pred.numpy()]
     kwargs = {'true_cf': true_traj.numpy(), 'true_lc_action': true_lane_action.numpy(), \
-            'loss_weights': loss_weights.numpy(), 'lc_weights': lc_weights.numpy()}
+            'loss_weights': loss_weights.numpy(), 'lc_weights': lc_weights.numpy(), 'veh_ids': vehs}
 
     if loss is not None:
         out_loss = loss(true_traj, y_pred, loss_weights)

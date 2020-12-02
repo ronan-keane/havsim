@@ -10,6 +10,7 @@ import dl_model
 import random
 from havsim.plotting import plotLaneChangingConfMat, plotTrajectoriesProb, plotCFErrorN
 from tensorflow.python.profiler import profiler_v2 as profiler
+from IPython import embed
 
 with open('data/recon-ngsim.pkl', 'rb') as f:
     all_veh_dict = pickle.load(f)
@@ -78,21 +79,29 @@ early_stopping = False
 
 def test_loss(lc_loss=tf.keras.losses.SparseCategoricalCrossentropy()):
     if old_model:
-        return deep_learning.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss).loss
+        return deep_learning.generate_trajectories(model, list(testing.keys()), \
+                testing, loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss).loss
     else:
-        return dl_model.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+        return dl_model.generate_trajectories(model, list(testing.keys()), testing, \
+                loss=deep_learning.weighted_masked_MSE_loss)[-1]
 
 def valid_loss(lc_loss=tf.keras.losses.SparseCategoricalCrossentropy()):
     if old_model:
-        return deep_learning.generate_trajectories(model, list(validation.keys()), validation, loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss).loss
+        traj = deep_learning.generate_trajectories(model, list(validation.keys()), \
+                validation, loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss)
+        embed()
+        return traj.loss
     else:
-        return dl_model.generate_trajectories(model, list(validation.keys()), validation, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+        return dl_model.generate_trajectories(model, list(validation.keys()), \
+                validation, loss=deep_learning.weighted_masked_MSE_loss)[-1]
 
 def train_loss(lc_loss=tf.keras.losses.SparseCategoricalCrossentropy()):
     if old_model:
-        return deep_learning.generate_trajectories(model, list(training.keys()), training, loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss).loss
+        return deep_learning.generate_trajectories(model, list(training.keys()), \
+                training, loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss).loss
     else:
-        return dl_model.generate_trajectories(model, list(training.keys()), training, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+        return dl_model.generate_trajectories(model, list(training.keys()), \
+                training, loss=deep_learning.weighted_masked_MSE_loss)[-1]
 
 
 if old_model:

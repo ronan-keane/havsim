@@ -539,7 +539,7 @@ class Trajectories:
     """
     def __init__(self, cf_pred, cur_speeds, lc_pred, loss=np.nan, lc_loss=np.nan, \
             true_cf=None, true_lc_action=None, loss_weights=None, lc_weights=None,\
-            veh_ids=None):
+            veh_ids=None, veh_times=None):
         """
         Initializes the Trajectories object.
         Args:
@@ -560,22 +560,49 @@ class Trajectories:
                 If all columns are zero, this is equivalent to the loss_weights entry being zero,
                 meaning that the given timestep does not exist within the data for that vehicle.
             veh_ids: (list of ints) list of vehicle ids
+            veh_times: (dictionary from float -> list) maps vehids to simulated times
 
         """
-        self.cf_pred = cf_pred
-        self.cur_speeds = cur_speeds
-        self.lc_pred = lc_pred
-        self.loss = loss
-        self.lc_loss = lc_loss
-        self.true_cf = true_cf
-        self.true_lc_action = true_lc_action
-        self.loss_weights = loss_weights
-        self.lc_weights = lc_weights
         self.veh_ids = veh_ids # list of veh ids
         self.veh_to_idx = {vehid:idx for idx, vehid in enumerate(veh_ids)}
+        self.veh_times = veh_times
+
+        self.cf_pred = cf_pred
+        self.cf_predmem = self._generate_statemem(cf_pred)
+
+        self.lc_pred = lc_pred
+        self.lc_predmem = self._generate_statemem(lc_pred)
+
+        self.true_cf = true_cf
+        self.cf_truemem = self._generate_statemem(true_cf)
+
+        self.true_lc_action = true_lc_action
+        self.lc_truemem = self._generate_statemem(true_lc_action)
+
+        self.cur_speeds = cur_speeds
+        self.loss = loss
+        self.lc_loss = lc_loss
+        self.loss_weights = loss_weights
+        self.lc_weights = lc_weights
 
     def __len__(self):
         return self.true_lc_action.shape[0]
+
+    def _generate_statemem(self, data):
+        """
+        Converts Data into a dictionary that maps to statemem objects (from helper.py).
+        The data is np.ndarray w/shape (nveh, nt,...) where data[0] corresponds to the 
+        1st vehicle in veh_ids.
+        Args:
+            data: (np.ndarray with shape (nveh, nt, ...)) data that needs to be converted
+                to statemem objects
+        Returns:
+            dict of float (vehids) to StateMem objects
+        """
+        mem = {}
+        for idx, vehid in enumerate(self.veh_ids):
+            mem[vehid] = helper.StateMem(data[idx], self.veh_times[vehid][0])
+        return mem
 
     def confusion_matrix(self, remove_nonsim=True, seed=42):
         """
@@ -702,7 +729,9 @@ def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
     nveh = len(vehs)
     vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0]] for count, veh in enumerate(vehs)}
     nt = max([i[1] for i in vehs_counter.values()])
+    veh_times = {veh: ds[veh]['times'] for veh in vehs}
     cur_state = [ds[veh]['IC'] for veh in vehs]
+
     hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
 
@@ -714,7 +743,8 @@ def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
 
     args = [y_pred.numpy(), cur_speeds.numpy(), lc_pred.numpy()]
     kwargs = {'true_cf': true_traj.numpy(), 'true_lc_action': true_lane_action.numpy(), \
-            'loss_weights': loss_weights.numpy(), 'lc_weights': lc_weights.numpy(), 'veh_ids': vehs}
+            'loss_weights': loss_weights.numpy(), 'lc_weights': lc_weights.numpy(), 'veh_ids': vehs, \
+            'veh_times': veh_times}
 
     if loss is not None:
         out_loss = loss(true_traj, y_pred, loss_weights)

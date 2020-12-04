@@ -7,42 +7,67 @@ def compute_route(start_road, start_pos, exit):
     start_pos: position on the start road
     exit: name for the exit road (string)
     """
-    # Visited roads' names
-    visited = set()
-    # A map from road's name to [road_object, connect_position, shortest_dist, last_road_object_on_the_shortest_path]
+    # The exit must be of str type
+    assert isinstance(exit, str)
+    # A map from (in_road, out_road) to (shortest_dist, pos, last_in_road_out_road_pair_in_the_shortest_path)
+    # (in_road, out_road) uniquely identify a connection point between two roads
     dist = dict()
-    dist[start_road.name] = [start_road, start_pos, 0, None]
+    dist[(None, start_road)] = (0, start_pos, None)
+
+    # Visited (in_road, out_road) pair
+    visited = set()
+
+    def get_road_name(rd):
+        if isinstance(rd, str):
+            return rd
+        return rd.name
 
     def get_min_distance_road_info():
         ret = None
         min_dist = float('inf')
         for k, v in dist.items():
-            if k not in visited and v[2] < min_dist:
-                min_dist = v[2]
-                ret = v
+            if k not in visited and v[0] < min_dist:
+                min_dist = v[0]
+                ret = k, v
         return ret
 
     while True:
         cur = get_min_distance_road_info()
         if cur is None:
             break
-        road_obj, connect_pos, shortest_dist, last_road_obj = cur
-        if exit in road_obj.connect_to:
-            res = [exit]
-            # Construct the shortest path backwards
-            while last_road_obj is not None:
-                res.append(road_obj.name)
-                road_obj, _, _, last_road_obj = dist[last_road_obj.name]
-            res.reverse()
-            return res
-        for neighbor_name, neighbor_info in road_obj.connect_to.items():
-            # This ensures that we only deal with unvisited, non-exit neighbors
-            if neighbor_name not in visited and neighbor_info[-1] is not None:
-                connect_to_pos_neighbor = neighbor_info[0] if neighbor_info[1] == 'continue' else neighbor_info[0][0]
-                new_dist_neighbor = connect_to_pos_neighbor - connect_pos + shortest_dist
-                if neighbor_name not in dist or new_dist_neighbor < dist[neighbor_name][2]:
-                    dist[neighbor_name] = [neighbor_info[-1], connect_to_pos_neighbor, new_dist_neighbor, road_obj]
-        visited.add(road_obj.name)
+        (in_road, out_road), (shortest_dist, pos, last_road_info) = cur
+
+        # If the road is an exit
+        if isinstance(out_road, str):
+            if out_road == exit:
+                res = []
+                # Construct the shortest path backwards
+                while last_road_info is not None:
+                    if not res or res[-1] != get_road_name(out_road):
+                        res.append(get_road_name(out_road))
+                    in_road, out_road = last_road_info
+                    last_road_info = dist[last_road_info][2]
+                res.reverse()
+                # Ignore the start road on the path
+                return res
+        else:
+            for neighbor_name, neighbor_info in out_road.connect_to.items():
+                # We only deal with unvisited neighbors
+                if neighbor_name not in visited:
+                    if neighbor_info[1] == 'continue':
+                        connect_pos_neighbor = neighbor_info[0]
+                    else:
+                        connect_pos_neighbor = neighbor_info[0][0]
+                    if connect_pos_neighbor >= pos:
+                        new_dist_neighbor = shortest_dist + connect_pos_neighbor - pos
+                        neighbor_entry = out_road, (neighbor_name if neighbor_info[-1] is None else neighbor_info[-1])
+                        if neighbor_entry not in dist or dist[neighbor_entry][0] > new_dist_neighbor:
+                            if neighbor_info[-1] is None:
+                                pos_neighbor = 0
+                            else:
+                                pos_neighbor = connect_pos_neighbor + out_road[0].roadlen[neighbor_name]
+                            dist[neighbor_entry] = (new_dist_neighbor, pos_neighbor, (in_road, out_road))
+        visited.add((in_road, out_road))
     # If we reach here, it means the exit is not reachable, reach empty route
     return []
 

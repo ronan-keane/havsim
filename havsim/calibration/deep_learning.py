@@ -8,10 +8,11 @@ def generate_lane_data(veh_data):
     """
     Generates Labels for Lane-Changing Model for a given vehicle
     Args:
-        veh_data: (helper.VehicleData) represents vehicle we're analyzing
+        veh_data: helper.VehicleData for a single vehicle
     Returns:
         lane_data: python list of -1/0/1, -1 is lane changing to the left, 0 is
             staying in the same lane, and 1 is lane changing to the right
+            length = veh_data.end - veh_data.start + 1
     """
     lane_data = []
 
@@ -31,7 +32,8 @@ def make_dataset(veh_dict, veh_list, dt=.1):
     """Makes dataset from meas and platooninfo.
 
     Args:
-        veh_dict: see havsim.helper.load_dataset
+        veh_dict: dictionary with keys as vehicle ID, value as helper.VehicleData.
+            see havsim.helper.load_dataset
         dt: timestep
     Returns:
         ds: (reads as dataset) dictionary of vehicles, values are a dictionary with keys
@@ -39,20 +41,25 @@ def make_dataset(veh_dict, veh_list, dt=.1):
             'times' - list of two int times. First is the first time with an observed leader. Second is the
                 last time with an observed leader +1. The number of times we call the model is equal to
                 times[1] - times[0], which is the length of the lead measurements.
-            'posmem' - (1d,) numpy array of observed positions for vehicle, 0 index corresponds to times[0].
-                Typically this has a longer length than the lead posmem/speedmem.
-            'speedmem' - (1d,) numpy array of observed speeds for vehicle
+            'veh posmem' - (1d,) numpy array of observed positions for vehicle, 0 index corresponds
+                to times[0]. Typically this has a longer length than the lead posmem/speedmem.
+            'veh speedmem' - (1d,) numpy array of observed speeds for vehicle
+            'veh lanemem' - intervals representation of lanes for vehicle (helper.VehMem.intervals)
+            'veh lcmem' - (1d,) numpy array of labels for lane changing actions. -1 is left change at
+                corresponding timestep, 1 is right change, 0 is no change.
             'lead posmem' - (1d,) numpy array of positions for leaders, corresponding to times.
                 length is subtracted from the lead position.
             'lead speedmem' - (1d,) numpy array of speeds for leaders.
-            'lfolpos' - (1d,) numpy array of positions for lfol
-            'lfolspeed' - (1d,) numpy array of speeds for lfol
-            'rfolpos' - (1d,) numpy array of positions for rfol
-            'rfolspeed' - (1d,) numpy array of speeds for rfol
-            'lleadpos' - (1d,) same as lead posmem, but for left leader
-            'lleadspeed' - (1d,) same as lead speedmem, but for left leader
-            'rleadpos' - (1d,) same as lead posmem, but for right leader
-            'rleadspeed' - (1d,) same as lead speedmem, but for right leader
+            'fol posmem' - (1d,) numpy array of positions of followers, with veh length subtracted
+            'fol speedmem' - (1d,) numpy array of speed of followers.
+            'lfol posmem' - (1d,) numpy array of positions for lfol
+            'lfol speedmem' - (1d,) numpy array of speeds for lfol
+            'rfol posmem' - (1d,) numpy array of positions for rfol
+            'rfol speedmem' - (1d,) numpy array of speeds for rfol
+            'llead posmem' - (1d,) same as lead posmem, but for left leader
+            'llead speedmem' - (1d,) same as lead speedmem, but for left leader
+            'rlead posmem' - (1d,) same as lead posmem, but for right leader
+            'rlead speedmem' - (1d,) same as lead speedmem, but for right leader
         normalization amounts: tuple of
             maxheadway: max headway observed in training set
             maxspeed: max velocity observed in training set
@@ -64,75 +71,88 @@ def make_dataset(veh_dict, veh_list, dt=.1):
     ds = {}
     maxheadway, maxspeed = 0, 0
     minacc, maxacc = 1e4, -1e4
+
     for veh in veh_list:
         veh_data = veh_dict[veh]
-
         start, end = int(veh_data.start), int(veh_data.end)
         start_sim, end_sim = veh_data.longest_lead_times
 
-        leadpos = np.array(veh_data.leadmem.pos[start_sim:end_sim + 1])
-        leadlen = np.array(veh_data.leadmem.len[start_sim:end_sim + 1])
-        leadpos = leadpos - leadlen # adjust by lead length
+        # vehicle
+        vehpos = np.array(veh_data.posmem[start_sim:end_sim+2])
+        vehspd = np.array(veh_data.speedmem[start_sim:end_sim+2])
+        true_lc_actions = np.array(generate_lane_data(veh_data)[start_sim - start:end_sim+2])
 
+        # generate lc state - whether or not left/right change is possible at any given timestep
+        contains_lane1 = 1.0 in veh_data.get_unique_mem(veh_data.lanemem)
+        viable_lc = np.zeros((vehpos.shape[0], 2))
+        for time in range(start_sim, end + 1):
+            if veh_data.lanemem[time] > 2 or (veh_data.lanemem[time] == 2 and contains_lane1):
+                viable_lc[time - start_sim, 0] = 1
+            if veh_data.lanemem[time] < 6:
+                viable_lc[time - start_sim, 1] = 1
+
+        # leaders
+        leadpos = np.array(veh_data.leadmem.pos[start_sim:end_sim + 1]) - \
+            np.array(veh_data.leadmem.len[start_sim:end_sim + 1])
         leadspeed = np.array(veh_data.leadmem.speed[start_sim:end_sim + 1])
 
-        # indexing for pos/spd
-        vehpos = np.array(veh_data.posmem[start_sim:])
-        vehspd = np.array(veh_data.speedmem[start_sim:])
+        lleadpos = np.array(replace_nones(veh_data.lleadmem.pos[start_sim:end_sim + 1])) - \
+            replace_nones(veh_data.lleadmem.len[start_sim:end_sim + 1])
+        lleadspeed = np.array(replace_nones(veh_data.lleadmem.speed[start_sim:end_sim + 1]))
 
-        lanemem = np.array(generate_lane_data(veh_data)[start_sim - start:])
+        rleadpos = np.array(replace_nones(veh_data.rleadmem.pos[start_sim:end_sim + 1])) - \
+            replace_nones(veh_data.rleadmem.len[start_sim:end_sim + 1])
+        rleadspeed = np.array(replace_nones(veh_data.rleadmem.speed[start_sim:end_sim + 1]))
 
-        folpos = np.array(replace_nones(veh_data.folmem.pos[start_sim:end_sim + 1]))
+        # followers
+        folpos = np.array(replace_nones(veh_data.folmem.pos[start_sim:end_sim + 1])) + veh_data.len
         folspeed = np.array(replace_nones(veh_data.folmem.speed[start_sim:end_sim + 1]))
 
-        # lfol rfol llead rllead
-        contains_lane1 = 1.0 in veh_data.get_unique_mem(veh_data.lanemem)
-        pos_and_spd = [ [[], []] for _ in range(len(veh_data.lcmems))]
-        lc_weights = np.zeros((vehpos.shape[0], 2))
-        for time in range(start_sim, end + 1):
-            for mem_idx, lc_mem in enumerate(veh_data.lcmems):
-                if lc_mem[time] is not None:
-                    pos_and_spd[mem_idx][1].append(lc_mem.speed[time])
-                    # adjust position based off of who is leader, and who is follower
-                    # llead/rlead, subtract the length of the leader
-                    # lfol/rfol, subtract current vehicle
-                    if mem_idx > 1:
-                        pos_and_spd[mem_idx][0].append(lc_mem.pos[time] - lc_mem.len[time])
-                    else:
-                        pos_and_spd[mem_idx][0].append(lc_mem.pos[time] + veh_data.len)
-                else:
-                    pos_and_spd[mem_idx][1].append(0)
-                    pos_and_spd[mem_idx][0].append(0)
+        lfolpos = np.array(replace_nones(veh_data.lfolmem.pos[start_sim:end_sim + 1])) + veh_data.len
+        lfolspeed = np.array(replace_nones(veh_data.lfolmem.speed[start_sim:end_sim + 1]))
 
-                if veh_data.lanemem[time] > 2 or (veh_data.lanemem[time] == 2 and contains_lane1):
-                    lc_weights[time - start_sim, 0] = 1
-                if veh_data.lanemem[time] < 6:
-                    lc_weights[time - start_sim, 1] = 1
+        rfolpos = np.array(replace_nones(veh_data.rfolmem.pos[start_sim:end_sim + 1])) + veh_data.len
+        rfolspeed = np.array(replace_nones(veh_data.rfolmem.speed[start_sim:end_sim + 1]))
 
-        # convert to np.ndarray
-        for mem_idx in range(len(pos_and_spd)):
-            for j in range(2):
-                pos_and_spd[mem_idx][j] = np.array(pos_and_spd[mem_idx][j])
-
+        # normalization
         IC = [vehpos[0], vehspd[0]]
         if end_sim != start_sim:
             headway = leadpos - vehpos[:end_sim + 1 - start_sim]
             maxheadway = max(max(headway), maxheadway)
-            maxspeed = max(max(leadspeed), maxspeed)
+            maxspeed = max(max(vehspd), maxspeed)
         else:
-            # if there never was a leader, there never was a headway
-            headway = []
-
+            pass
         vehacc = [(vehpos[i+2] - 2*vehpos[i+1] + vehpos[i])/(dt**2) for i in range(len(vehpos)-2)]
         minacc, maxacc = min(minacc, min(vehacc)), max(maxacc, max(vehacc))
 
-        ds[veh] = {'IC': IC, 'times': [start_sim, min(int(end_sim + 1), end)], 'posmem': vehpos, \
-                'speedmem': vehspd, 'lanemem': lanemem, 'lead posmem': leadpos,'lead speedmem': leadspeed, \
-                'lfolpos': pos_and_spd[0][0],'lfolspeed': pos_and_spd[0][1], \
-                'rfolpos': pos_and_spd[1][0], 'rfolspeed': pos_and_spd[1][1], \
-                'lleadpos': pos_and_spd[2][0], 'lleadspeed': pos_and_spd[2][1], \
-                'rleadpos': pos_and_spd[3][0], 'rleadspeed': pos_and_spd[3][1], \
-                'lc_weights': np.array(lc_weights), 'fol posmem': folpos, 'fol speedmem': folspeed}
+        ds[veh] = {'IC': IC, 'times': [start_sim, min(int(end_sim + 1), end)], 'veh posmem': vehpos,
+                'veh speedmem': vehspd, 'veh lcmem': true_lc_actions, 'viable lc': np.array(viable_lc),
+                'veh lanemem': veh_data.lanemem.intervals(start_sim, end_sim+1),
+                'lead posmem': leadpos, 'lead speedmem': leadspeed,
+                'lfol posmem': lfolpos,'lfol speedmem': lfolspeed,
+                'rfol posmem': rfolpos, 'rfol speedmem': rfolspeed,
+                'llead posmem': lleadpos, 'llead speedmem': lleadspeed,
+                'rlead posmem': rleadpos, 'rlead speedmem': rleadspeed,
+                'fol posmem': folpos, 'fol speedmem': folspeed}
+
+        # pos_and_spd = [ [[], []] for _ in range(len(veh_data.lcmems))]
+            # for mem_idx, lc_mem in enumerate(veh_data.lcmems):
+            #     if lc_mem[time] is not None:
+            #         pos_and_spd[mem_idx][1].append(lc_mem.speed[time])
+            #         # adjust position based off of who is leader, and who is follower
+            #         # llead/rlead, subtract the length of the leader
+            #         # lfol/rfol, subtract current vehicle
+            #         if mem_idx > 1:
+            #             pos_and_spd[mem_idx][0].append(lc_mem.pos[time] - lc_mem.len[time])
+            #         else:
+            #             pos_and_spd[mem_idx][0].append(lc_mem.pos[time] + veh_data.len)
+            #     else:
+            #         pos_and_spd[mem_idx][1].append(0)
+            #         pos_and_spd[mem_idx][0].append(0)
+        # # convert to np.ndarray
+        # for mem_idx in range(len(pos_and_spd)):
+        #     for j in range(2):
+        #         pos_and_spd[mem_idx][j] = np.array(pos_and_spd[mem_idx][j])
     return ds, (maxheadway, maxspeed, minacc, maxacc)
 
 class RNNCFModel(tf.keras.Model):
@@ -151,7 +171,7 @@ class RNNCFModel(tf.keras.Model):
         """
         super().__init__()
         # architecture
-        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=params['dropout'], 
+        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=params['dropout'],
                                     kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']),
                                     recurrent_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
         self.dense1 = tf.keras.layers.Dense(1)
@@ -179,7 +199,7 @@ class RNNCFModel(tf.keras.Model):
                     for position, then for speed
                 cur_state -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
                     starting timestep.
-                hidden_states - tensor of hidden states with shape (num_hidden_layers, 2, nveh, lstm_units) 
+                hidden_states - tensor of hidden states with shape (num_hidden_layers, 2, nveh, lstm_units)
                     Initialized as all zeros for the first timestep.
             training: Whether to run in training or inference mode. Need to pass training=True if training
                 with dropout.
@@ -225,7 +245,7 @@ class RNNCFModel(tf.keras.Model):
 
         pos_outputs = tf.stack(pos_outputs, 1)
         lc_outputs = tf.stack(lc_outputs, 1)
-        return pos_outputs, lc_outputs, cur_speed, hidden_states 
+        return pos_outputs, lc_outputs, cur_speed, hidden_states
 
     def get_config(self):
         return {'pos_args': (self.maxhd, self.maxv, self.mina, self.maxa,), \
@@ -591,7 +611,7 @@ class Trajectories:
     def _generate_statemem(self, data):
         """
         Converts Data into a dictionary that maps to statemem objects (from helper.py).
-        The data is np.ndarray w/shape (nveh, nt,...) where data[0] corresponds to the 
+        The data is np.ndarray w/shape (nveh, nt,...) where data[0] corresponds to the
         1st vehicle in veh_ids.
         Args:
             data: (np.ndarray with shape (nveh, nt, ...)) data that needs to be converted
@@ -721,7 +741,7 @@ def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
         lc_loss: if not None, we will call loss function and return the loss (for lane changing)
         kwargs: dictionary of keyword arguments to pass to make_batch
     Returns:
-        Trajectories: object (defined above) that contains information about the predicted and 
+        Trajectories: object (defined above) that contains information about the predicted and
             true positions, predicted/true lc actions, the loss value of the model, the loss value
             of the lane changing predictions, etc. See class for more details.
     """

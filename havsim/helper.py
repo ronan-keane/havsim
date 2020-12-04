@@ -276,7 +276,6 @@ class VehicleData:
         self.rfolmem = VehMem(rfolmem, vehdict, start, end)
         self.rleadmem = VehMem(rleadmem, vehdict, start, end)
         self.lleadmem = VehMem(lleadmem, vehdict, start, end)
-        self.lcmems = [self.lfolmem, self.rfolmem, self.lleadmem, self.rleadmem]
 
         self.leads = self.get_unique_mem(leadmem)
         self.longest_lead_times = self.get_longest_lead_times()

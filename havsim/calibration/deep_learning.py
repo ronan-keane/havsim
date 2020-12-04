@@ -1,4 +1,5 @@
-"""Trains a tensorflow.keras model for car following behavior."""
+"""Tensorflow.keras car following and lane changing models."""
+
 import tensorflow as tf
 import numpy as np
 from havsim import helper
@@ -21,11 +22,11 @@ def generate_lane_data(veh_data):
         lane_data += [0] * (end - start - 1)
         if idx < len(intervals) - 1:
             if val < intervals[idx + 1][0]:
-                lane_data.append(1)
-            elif val == intervals[idx + 1][0]:
                 lane_data.append(0)
+            elif val == intervals[idx + 1][0]:
+                lane_data.append(1)
             else:
-                lane_data.append(-1)
+                lane_data.append(2)
     return lane_data
 
 def make_dataset(veh_dict, veh_list, dt=.1):
@@ -45,8 +46,10 @@ def make_dataset(veh_dict, veh_list, dt=.1):
                 to times[0]. Typically this has a longer length than the lead posmem/speedmem.
             'veh speedmem' - (1d,) numpy array of observed speeds for vehicle
             'veh lanemem' - intervals representation of lanes for vehicle (helper.VehMem.intervals)
-            'veh lcmem' - (1d,) numpy array of labels for lane changing actions. -1 is left change at
-                corresponding timestep, 1 is right change, 0 is no change.
+            'true lc actions' - (1d,) numpy array of labels for lane changing actions. 0 is left change at
+                corresponding timestep, 2 is right change, 1 is no change.
+            'viable lc' - (t, 3) row index corresponds to time, column index corresponds to lc class,
+                (0 = left, 2 = right). Value is 1 if that lc type is possible at the timestep, 0 otherwise.
             'lead posmem' - (1d,) numpy array of positions for leaders, corresponding to times.
                 length is subtracted from the lead position.
             'lead speedmem' - (1d,) numpy array of speeds for leaders.
@@ -82,14 +85,14 @@ def make_dataset(veh_dict, veh_list, dt=.1):
         vehspd = np.array(veh_data.speedmem[start_sim:end_sim+2])
         true_lc_actions = np.array(generate_lane_data(veh_data)[start_sim - start:end_sim+2])
 
-        # generate lc state - whether or not left/right change is possible at any given timestep
+        # generate viable_lc - whether or not left/right change is possible at any given timestep
         contains_lane1 = 1.0 in veh_data.get_unique_mem(veh_data.lanemem)
-        viable_lc = np.zeros((vehpos.shape[0], 2))
+        viable_lc = np.ones((vehpos.shape[0], 3))
         for time in range(start_sim, end + 1):
-            if veh_data.lanemem[time] > 2 or (veh_data.lanemem[time] == 2 and contains_lane1):
-                viable_lc[time - start_sim, 0] = 1
-            if veh_data.lanemem[time] < 6:
-                viable_lc[time - start_sim, 1] = 1
+            if not (veh_data.lanemem[time] > 2 or (veh_data.lanemem[time] == 2 and contains_lane1)):
+                viable_lc[time - start_sim, 0] = 0
+            if veh_data.lanemem[time] > 5:
+                viable_lc[time - start_sim, 2] = 0
 
         # leaders
         leadpos = np.array(veh_data.leadmem.pos[start_sim:end_sim + 1]) - \
@@ -126,7 +129,7 @@ def make_dataset(veh_dict, veh_list, dt=.1):
         minacc, maxacc = min(minacc, min(vehacc)), max(maxacc, max(vehacc))
 
         ds[veh] = {'IC': IC, 'times': [start_sim, min(int(end_sim + 1), end)], 'veh posmem': vehpos,
-                'veh speedmem': vehspd, 'veh lcmem': true_lc_actions, 'viable lc': np.array(viable_lc),
+                'veh speedmem': vehspd, 'true lc actions': true_lc_actions, 'viable lc': np.array(viable_lc),
                 'veh lanemem': veh_data.lanemem.intervals(start_sim, end_sim+1),
                 'lead posmem': leadpos, 'lead speedmem': leadspeed,
                 'lfol posmem': lfolpos,'lfol speedmem': lfolspeed,
@@ -135,30 +138,12 @@ def make_dataset(veh_dict, veh_list, dt=.1):
                 'rlead posmem': rleadpos, 'rlead speedmem': rleadspeed,
                 'fol posmem': folpos, 'fol speedmem': folspeed}
 
-        # pos_and_spd = [ [[], []] for _ in range(len(veh_data.lcmems))]
-            # for mem_idx, lc_mem in enumerate(veh_data.lcmems):
-            #     if lc_mem[time] is not None:
-            #         pos_and_spd[mem_idx][1].append(lc_mem.speed[time])
-            #         # adjust position based off of who is leader, and who is follower
-            #         # llead/rlead, subtract the length of the leader
-            #         # lfol/rfol, subtract current vehicle
-            #         if mem_idx > 1:
-            #             pos_and_spd[mem_idx][0].append(lc_mem.pos[time] - lc_mem.len[time])
-            #         else:
-            #             pos_and_spd[mem_idx][0].append(lc_mem.pos[time] + veh_data.len)
-            #     else:
-            #         pos_and_spd[mem_idx][1].append(0)
-            #         pos_and_spd[mem_idx][0].append(0)
-        # # convert to np.ndarray
-        # for mem_idx in range(len(pos_and_spd)):
-        #     for j in range(2):
-        #         pos_and_spd[mem_idx][j] = np.array(pos_and_spd[mem_idx][j])
     return ds, (maxheadway, maxspeed, minacc, maxacc)
 
 class RNNCFModel(tf.keras.Model):
     """Simple RNN based CF model."""
 
-    def __init__(self, maxhd, maxv, mina, maxa, lstm_units=20, dt=.1, params=None):
+    def __init__(self, maxhd, maxv, mina, maxa, lstm_units=20, dt=.1, l2reg=.02, dropout=.2, **kwargs):
         """Inits RNN based CF model.
 
         Args:
@@ -167,17 +152,19 @@ class RNNCFModel(tf.keras.Model):
             mina: minimum acceleration (for nomalization of outputs)
             maxa: maximum acceleration (for nomalization of outputs)
             dt: timestep
-            params: dictionary of model parameters. Used to pass nni autotune hyperparameters
+            lstm_units: number of LSTM units
+            l2reg: constant for l2 regularization which is applied to dense layer kernel and LSTM kernel
+            dropout: dropout % applied to LSTM units
         """
         super().__init__()
         # architecture
-        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=params['dropout'],
-                                    kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']),
-                                    recurrent_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
+        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=dropout,
+                                    kernel_regularizer=tf.keras.regularizers.l2(l=l2reg),
+                                    recurrent_regularizer=tf.keras.regularizers.l2(l=l2reg))
         self.dense1 = tf.keras.layers.Dense(1)
         self.dense2 = tf.keras.layers.Dense(10, activation='relu',
-                                            kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
-        self.lc_actions = tf.keras.layers.Dense(3, activation='softmax')
+                                            kernel_regularizer=tf.keras.regularizers.l2(l=l2reg))
+        self.lc_actions = tf.keras.layers.Dense(3)
 
         # normalization constants
         self.maxhd = maxhd
@@ -188,6 +175,8 @@ class RNNCFModel(tf.keras.Model):
         # other constants
         self.dt = dt
         self.lstm_units = lstm_units
+        self.l2reg = l2reg
+        self.dropout = dropout
         self.num_hidden_layers = 1
 
     def call(self, inputs, training=False):
@@ -232,8 +221,8 @@ class RNNCFModel(tf.keras.Model):
             self.lstm_cell.reset_dropout_mask()
             x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
             x = self.dense2(x)
-            cur_lc = self.lc_actions(x)  # get outputed batch probabilities for LC
-            x = self.dense1(x)  # output of the model is current acceleration for the batch
+            cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch
+            x = self.dense1(x)  # current normalized acceleration for the batch
 
             # update vehicle states
             x = tf.squeeze(x, axis=1)
@@ -249,7 +238,7 @@ class RNNCFModel(tf.keras.Model):
 
     def get_config(self):
         return {'pos_args': (self.maxhd, self.maxv, self.mina, self.maxa,), \
-                'lstm_units': self.lstm_units, 'dt': self.dt}
+                'lstm_units': self.lstm_units, 'dt': self.dt, 'l2reg':self.l2reg, 'dropout':self.dropout}
 
     @classmethod
     def from_config(self, config):
@@ -257,7 +246,7 @@ class RNNCFModel(tf.keras.Model):
         return self(*pos_args, **config)
 
 
-def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
+def make_batch(vehs, vehs_counter, ds, nt=5):
     """Create batch of data to send to model.
 
     Args:
@@ -266,73 +255,69 @@ def make_batch(vehs, vehs_counter, ds, nt=5, rp=None, relax_args=None):
             max time index)
         ds: dataset, from make_dataset
         nt: number of timesteps in batch
-        rp: if not None, we apply relaxation using helper.get_fixed_relaxation with parameter rp.
-        relax_args: if rp is not None, pass in a tuple of (meas, platooninfo, dt) so the relaxation
-            can be calculated
 
     Returns:
         lead_inputs - tensor with shape (nveh, nt, 12), giving the position and speed of the
             the leader, follower, lfol, rfol, llead, rllead at each timestep. Padded with zeros.
+            If vehicle is not available at any time, takes value of zero.
             nveh = len(vehs)
-        true_traj: nested python list with shape (nveh, nt) giving the true vehicle position at each time.
+        true_traj: (nveh, nt) tensor giving the true vehicle position at each time.
             Padded with zeros
-        loss_weights: nested python list with shape (nveh, nt) with either 1 or 0, used to weight each sample
-            of the loss function. If 0, it means the input at the corresponding index doesn't contribute
-            to the loss.
+        true_lc_action: (nveh, nt) tensor giving the class label for lane changing output at each time.
+        traj_mask: (nveh, nt) tensor  with either 1 or 0, corresponds to the padding. If 0, then it means
+            the vehicle is not simulated at that timestep, so it needs to be masked.
+        viable_lc: (nveh, nt, 3) tensor giving whether the lane change class is possible at the given time.
     """
-    # identity = np.eye(3)
     lead_inputs = []
     true_traj = []
-    loss_weights = []
-    true_lane_action = []
-    lc_weights = []
+    traj_mask = []
+    true_lc_action = []
+    viable_lc = []
     for count, veh in enumerate(vehs):
         t, tmax = vehs_counter[count]
         leadpos, leadspeed = ds[veh]['lead posmem'], ds[veh]['lead speedmem']
-        lfolpos, lfolspeed = ds[veh]['lfolpos'], ds[veh]['lfolspeed']
-        rfolpos, rfolspeed = ds[veh]['rfolpos'], ds[veh]['rfolspeed']
-        lleadpos, lleadspeed = ds[veh]['lleadpos'], ds[veh]['lleadspeed']
-        rleadpos, rleadspeed = ds[veh]['rleadpos'], ds[veh]['rleadspeed']
+        lfolpos, lfolspeed = ds[veh]['lfol pomems'], ds[veh]['lfol speedmem']
+        rfolpos, rfolspeed = ds[veh]['rfol posmem'], ds[veh]['rfol speedmem']
+        lleadpos, lleadspeed = ds[veh]['llead posmem'], ds[veh]['llead speedmem']
+        rleadpos, rleadspeed = ds[veh]['rlead posmem'], ds[veh]['rlead speedmem']
         folpos, folspeed = ds[veh]['fol posmem'], ds[veh]['fol speedmem']
-        lanemem = ds[veh]['lanemem']
-        veh_lc_weights = ds[veh]['lc_weights']
-        if rp is not None:
-            meas, platooninfo, dt = relax_args
-            relax = helper.get_fixed_relaxation(veh, meas, platooninfo, rp, dt=dt)
-            leadpos = leadpos + relax
-        posmem = ds[veh]['posmem']
-        curlead = []
-        curtraj = []
-        curweights = []
-        curtruelane = []
-        curlcweights = []
-        for i in range(nt):
-            # acceleration weights
-            if t+i < tmax:
-                curlead.append([leadpos[t+i], lleadpos[t+i], rleadpos[t+i], folpos[t+i], \
-                        lfolpos[t+i], rfolpos[t+i], leadspeed[t+i], lleadspeed[t+i], \
-                        rleadspeed[t+i], folspeed[t+i], lfolspeed[t+i], rfolspeed[t+i]])
-                curtruelane.append(lanemem[t+i] + 1)
-                curtraj.append(posmem[t+i+1])
-                curweights.append(1)
-                curlcweights.append([veh_lc_weights[t+i, 0], 1, veh_lc_weights[t+i, 1]])
-            else:
-                curlead.append([0] * 12)
-                curtraj.append(0)
-                curtruelane.append(0)
-                curweights.append(0)
-                curlcweights.append([0, 0, 0])
+        cur_lc_action = ds[veh]['veh lcmem']
+        cur_viable_lc = ds[veh]['viable lc']
+        posmem = ds[veh]['veh posmem']
+
+        maxt = tmax-t
+        uset = min(nt, maxt)
+        leftover = nt-uset
+
+        # make inputs
+        curlead = np.stack((leadpos[t:t+uset], lleadpos[t:t+uset], rleadpos[t:t+uset], folpos[t:t+uset],
+                            lfolpos[t:t+uset], rfolpos[t:t+uset], leadspeed[t:t+uset], lleadspeed[t:t+uset],
+                            rleadspeed[t:t+uset], folspeed[t:t+uset], lfolspeed[t:t+uset],
+                            rfolspeed[t:t+uset]), axis=1)
+        curlead = np.concatenate((curlead, np.zeros(leftover,12))) if leftover>0 else curlead
         lead_inputs.append(curlead)
+
+        curtraj = posmem[t+1:t+uset+1]
+        curtraj = np.concatenate((curtraj, np.zeros(leftover,))) if leftover>0 else curtraj
         true_traj.append(curtraj)
-        loss_weights.append(curweights)
-        true_lane_action.append(curtruelane)
-        lc_weights.append(curlcweights)
+
+        curmask = np.ones(uset,)
+        curmask = np.concatenate((curmask, np.zeros(leftover,))) if leftover>0 else curmask
+        traj_mask.append(curmask)
+
+        curtruelc = cur_lc_action[t:t+uset]
+        curtruelc = np.concatenate((curtruelc, np.zeros(leftover,))) if leftover>0 else curtruelc
+        true_lc_action.append(curtruelc)
+
+        curviable = cur_viable_lc[t:t+uset,:]
+        curviable = np.concatenate((curviable,np.zeros(leftover,3))) if leftover>0 else curviable
+        viable_lc.append(curviable)
 
     return [tf.convert_to_tensor(lead_inputs, dtype='float32'),
             tf.convert_to_tensor(true_traj, dtype='float32'),
-            tf.convert_to_tensor(true_lane_action, dtype = 'float32'),
-            tf.convert_to_tensor(loss_weights, dtype='float32'),
-            tf.convert_to_tensor(lc_weights, dtype='float32')]
+            tf.convert_to_tensor(true_lc_action, dtype = 'float32'),
+            tf.convert_to_tensor(traj_mask, dtype='float32'),
+            tf.convert_to_tensor(viable_lc, dtype='float32')]
 
 
 def masked_MSE_loss(y_true, y_pred, mask_weights):

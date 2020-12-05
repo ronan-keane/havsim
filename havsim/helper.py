@@ -506,7 +506,7 @@ class VehMemPosition:
         self.start = start
         self.end = end
 
-    def __getitem__(self, times):
+    def __getitem__(self, times, val=None):
         """Index or slice memory as if it was in its dense representation."""
         if type(times) == slice:
             data = self.data
@@ -534,21 +534,25 @@ class VehMemPosition:
                 curveh = data[i][0]
                 if curveh is not None:
                     vehdata = vehdict[curveh]
-                    out.extend(self.myslice(vehdata, timeslist[count], timeslist[count+1]))
+                    out.extend(self._myslice(vehdata, timeslist[count], timeslist[count+1]))
                 else:
-                    out.extend([None]*(timeslist[count+1]-timeslist[count]))
+                    out.extend([val]*(timeslist[count+1]-timeslist[count]))
             return out
         else:
             if times < self.start or times > self.end:
                 raise IndexError
             vehdata = self.vehdict[mem_binary_search(self.data, times)]
-            return self.index(vehdata, times)
+            return self._myindex(vehdata, times)
 
-    def myslice(self, vehdata, start, stop):
+    def _myslice(self, vehdata, start, stop):
         return vehdata.posmem[start:stop]
 
-    def index(self, vehdata, time):
+    def _myindex(self, vehdata, time):
         return vehdata.posmem[time]
+
+    def index(self, start, stop, val=None):
+        """Overwrite default None value in __getitem__."""
+        return self.__getitem__(slice(start, stop), val=val)
 
     def __repr__(self):
         return str(self.__getitem__(slice(self.start, self.end+1)))
@@ -556,19 +560,19 @@ class VehMemPosition:
 
 class VehMemSpeed(VehMemPosition):
     """Returns speed data instead of position data."""
-    def myslice(self, vehdata, start, stop):
+    def _myslice(self, vehdata, start, stop):
         return vehdata.speedmem[start:stop]
 
-    def index(self, vehdata, time):
+    def _myindex(self, vehdata, time):
         return vehdata.speedmem[time]
 
 
 class VehMemLen(VehMemPosition):
     """Returns lengths instead of position data."""
-    def myslice(self, vehdata, start, stop):
+    def _myslice(self, vehdata, start, stop):
         return (vehdata.len,)*(stop-start)
 
-    def index(self, vehdata, time):
+    def _myindex(self, vehdata, time):
         return vehdata.len
 
 

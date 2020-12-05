@@ -70,7 +70,6 @@ def make_dataset(veh_dict, veh_list, dt=.1):
             maxacc: maximum acceleration observed in training set
 
     """
-    replace_nones = lambda arr: [x if x is not None else 0.0 for x in arr]
     ds = {}
     maxheadway, maxspeed = 0, 0
     minacc, maxacc = 1e4, -1e4
@@ -99,23 +98,23 @@ def make_dataset(veh_dict, veh_list, dt=.1):
             np.array(veh_data.leadmem.len[start_sim:end_sim + 1])
         leadspeed = np.array(veh_data.leadmem.speed[start_sim:end_sim + 1])
 
-        lleadpos = np.array(replace_nones(veh_data.lleadmem.pos[start_sim:end_sim + 1])) - \
-            replace_nones(veh_data.lleadmem.len[start_sim:end_sim + 1])
-        lleadspeed = np.array(replace_nones(veh_data.lleadmem.speed[start_sim:end_sim + 1]))
+        lleadpos = np.array(veh_data.lleadmem.pos.index(start_sim, end_sim + 1, np.nan)) - \
+            np.array(veh_data.lleadmem.len.index(start_sim, end_sim + 1, np.nan))
+        lleadspeed = np.array(veh_data.lleadmem.speed.index(start_sim, end_sim + 1, np.nan))
 
-        rleadpos = np.array(replace_nones(veh_data.rleadmem.pos[start_sim:end_sim + 1])) - \
-            replace_nones(veh_data.rleadmem.len[start_sim:end_sim + 1])
-        rleadspeed = np.array(replace_nones(veh_data.rleadmem.speed[start_sim:end_sim + 1]))
+        rleadpos = np.array(veh_data.rleadmem.pos.index(start_sim, end_sim + 1, np.nan)) - \
+            np.array(veh_data.rleadmem.len.index(start_sim, end_sim + 1, np.nan))
+        rleadspeed = np.array(veh_data.rleadmem.speed.index(start_sim,end_sim + 1, np.nan))
 
         # followers
-        folpos = np.array(replace_nones(veh_data.folmem.pos[start_sim:end_sim + 1])) + veh_data.len
-        folspeed = np.array(replace_nones(veh_data.folmem.speed[start_sim:end_sim + 1]))
+        folpos = np.array(veh_data.folmem.pos.index(start_sim, end_sim + 1, np.nan)) + veh_data.len
+        folspeed = np.array(veh_data.folmem.speed.index(start_sim, end_sim + 1, np.nan))
 
-        lfolpos = np.array(replace_nones(veh_data.lfolmem.pos[start_sim:end_sim + 1])) + veh_data.len
-        lfolspeed = np.array(replace_nones(veh_data.lfolmem.speed[start_sim:end_sim + 1]))
+        lfolpos = np.array(veh_data.lfolmem.pos.index(start_sim, end_sim + 1, np.nan)) + veh_data.len
+        lfolspeed = np.array(veh_data.lfolmem.speed.index(start_sim, end_sim + 1, np.nan))
 
-        rfolpos = np.array(replace_nones(veh_data.rfolmem.pos[start_sim:end_sim + 1])) + veh_data.len
-        rfolspeed = np.array(replace_nones(veh_data.rfolmem.speed[start_sim:end_sim + 1]))
+        rfolpos = np.array(veh_data.rfolmem.pos.index(start_sim, end_sim + 1, np.nan)) + veh_data.len
+        rfolspeed = np.array(veh_data.rfolmem.speed.index(start_sim, end_sim + 1, np.nan))
 
         # normalization
         IC = [vehpos[0], vehspd[0]]
@@ -186,7 +185,7 @@ class RNNCFModel(tf.keras.Model):
             inputs: list of lead_inputs, cur_state, hidden_states.
                 lead_inputs - tensor with shape (nveh, nt, 12), order is (lead, llead, rlead, fol, lfol, rfol)
                     for position, then for speed
-                cur_state -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
+                init_state -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
                     starting timestep.
                 hidden_states - tensor of hidden states with shape (num_hidden_layers, 2, nveh, lstm_units)
                     Initialized as all zeros for the first timestep.
@@ -199,6 +198,8 @@ class RNNCFModel(tf.keras.Model):
                 measurements for time 0 and 1. Then cur_state has the vehicle position/speed for time 0, and
                 outputs has the vehicle positions for time 1 and 2. curspeed would have the speed for time 2,
                 and you can differentiate the outputs to get the speed at time 1 if it's needed.
+            lc_outputs: (number of vehicles, number of timesteps, 3) tensor giving the predicted logits over
+                {left lc, stay in lane, right lc} classes for each timestep.
             curspeed: tensor of current vehicle speeds, shape of (number of vehicles, 1)
             hidden_states: last hidden states for LSTM. Tuple of tensors, where each tensor has shape of
                 (number of vehicles, number of LSTM units)
@@ -216,6 +217,7 @@ class RNNCFModel(tf.keras.Model):
             spds = cur_lead_fol_input[:,6:]/self.maxv
 
             cur_inputs = tf.concat([lead_hd, fol_hd, spds], axis=1)
+            cur_inputs = tf.where(tf.math.is_nan(cur_inputs), tf.ones_like(cur_input), cur_input)
 
             # call to model
             self.lstm_cell.reset_dropout_mask()
@@ -237,11 +239,13 @@ class RNNCFModel(tf.keras.Model):
         return pos_outputs, lc_outputs, cur_speed, hidden_states
 
     def get_config(self):
+        """Return any non-trainable parameters in json format."""
         return {'pos_args': (self.maxhd, self.maxv, self.mina, self.maxa,), \
                 'lstm_units': self.lstm_units, 'dt': self.dt, 'l2reg':self.l2reg, 'dropout':self.dropout}
 
     @classmethod
     def from_config(self, config):
+        """Inits self from saved config created by get_config."""
         pos_args = config.pop('pos_args')
         return self(*pos_args, **config)
 

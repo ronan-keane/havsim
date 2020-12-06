@@ -3,9 +3,9 @@
 import tensorflow as tf
 import numpy as np
 from havsim import helper
-import math
+import copy
 
-def generate_lane_data(veh_data):
+def generate_lane_data(veh_data, window=1):
     """
     Generates Labels for Lane-Changing Model for a given vehicle
     Args:
@@ -19,17 +19,18 @@ def generate_lane_data(veh_data):
 
     intervals = veh_data.lanemem.intervals()
     for idx, (val, start, end) in list(enumerate(intervals)):
-        lane_data += [0] * (end - start - 1)
+        lane_data += [0] * max((end - start - window),0)
         if idx < len(intervals) - 1:
+            uselen = min(window, end-start)
             if val < intervals[idx + 1][0]:
-                lane_data.append(0)
+                lane_data.extend([0]*uselen)
             elif val == intervals[idx + 1][0]:
-                lane_data.append(1)
+                lane_data.extend([1]*uselen)
             else:
-                lane_data.append(2)
+                lane_data.extend([2]*uselen)
     return lane_data
 
-def make_dataset(veh_dict, veh_list, dt=.1):
+def make_dataset(veh_dict, veh_list, dt=.1, window=1):
     """Makes dataset from meas and platooninfo.
 
     Args:
@@ -45,7 +46,7 @@ def make_dataset(veh_dict, veh_list, dt=.1):
             'veh posmem' - (1d,) numpy array of observed positions for vehicle, 0 index corresponds
                 to times[0]. Typically this has a longer length than the lead posmem/speedmem.
             'veh speedmem' - (1d,) numpy array of observed speeds for vehicle
-            'veh lanemem' - intervals representation of lanes for vehicle (helper.VehMem.intervals)
+            'veh lanemem' - veh_data.lanemem (helper.VehMem for lane data of veh)
             'true lc actions' - (1d,) numpy array of labels for lane changing actions. 0 is left change at
                 corresponding timestep, 2 is right change, 1 is no change.
             'viable lc' - (t, 3) row index corresponds to time, column index corresponds to lc class,
@@ -82,7 +83,7 @@ def make_dataset(veh_dict, veh_list, dt=.1):
         # vehicle
         vehpos = np.array(veh_data.posmem[start_sim:end_sim+2])
         vehspd = np.array(veh_data.speedmem[start_sim:end_sim+2])
-        true_lc_actions = np.array(generate_lane_data(veh_data)[start_sim - start:end_sim+2])
+        true_lc_actions = np.array(generate_lane_data(veh_data, window)[start_sim - start:end_sim+2])
 
         # generate viable_lc - whether or not left/right change is possible at any given timestep
         contains_lane1 = 1.0 in veh_data.get_unique_mem(veh_data.lanemem)
@@ -129,7 +130,7 @@ def make_dataset(veh_dict, veh_list, dt=.1):
 
         ds[veh] = {'IC': IC, 'times': [start_sim, min(int(end_sim + 1), end)], 'veh posmem': vehpos,
                 'veh speedmem': vehspd, 'true lc actions': true_lc_actions, 'viable lc': np.array(viable_lc),
-                'veh lanemem': veh_data.lanemem.intervals(start_sim, end_sim+1),
+                'veh lanemem': veh_data.lanemem,
                 'lead posmem': leadpos, 'lead speedmem': leadspeed,
                 'lfol posmem': lfolpos,'lfol speedmem': lfolspeed,
                 'rfol posmem': rfolpos, 'rfol speedmem': rfolspeed,
@@ -178,49 +179,49 @@ class RNNCFModel(tf.keras.Model):
         self.dropout = dropout
         self.num_hidden_layers = 1
 
-    def call(self, inputs, training=False):
+    def call(self, leadfol_inputs, init_state, hidden_states, training=False):
         """Updates states for a batch of vehicles.
 
         Args:
-            inputs: list of lead_inputs, cur_state, hidden_states.
-                lead_inputs - tensor with shape (nveh, nt, 12), order is (lead, llead, rlead, fol, lfol, rfol)
-                    for position, then for speed
-                init_state -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
-                    starting timestep.
-                hidden_states - tensor of hidden states with shape (num_hidden_layers, 2, nveh, lstm_units)
-                    Initialized as all zeros for the first timestep.
+            leadfol_inputs - tensor with shape (nveh, nt, 12), gives position/speed at given timestep for
+                all surrounding vehicles. order is (lead, llead, rlead, fol, lfol, rfol)
+                for position, then for speed
+            init_state -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
+                starting timestep.
+            hidden_states - tensor of hidden states with shape (num_hidden_layers, 2, nveh, lstm_units)
+                Initialized as all zeros for the first timestep.
             training: Whether to run in training or inference mode. Need to pass training=True if training
                 with dropout.
 
         Returns:
-            outputs: tensor of vehicle positions, shape of (number of vehicles, number of timesteps). Note
-                that these are 1 timestep after lead_inputs. E.g. if nt = 2 and lead_inputs has the lead
+            pred_traj: tensor of vehicle positions, shape of (number of vehicles, number of timesteps). Note
+                that these are 1 timestep after leadfol_inputs. E.g. if nt = 2 and leadfol_inputs has the lead
                 measurements for time 0 and 1. Then cur_state has the vehicle position/speed for time 0, and
                 outputs has the vehicle positions for time 1 and 2. curspeed would have the speed for time 2,
                 and you can differentiate the outputs to get the speed at time 1 if it's needed.
-            lc_outputs: (number of vehicles, number of timesteps, 3) tensor giving the predicted logits over
+            pred_lc_action: (number of vehicles, number of timesteps, 3) tensor giving the predicted logits over
                 {left lc, stay in lane, right lc} classes for each timestep.
             curspeed: tensor of current vehicle speeds, shape of (number of vehicles, 1)
             hidden_states: last hidden states for LSTM. Tuple of tensors, where each tensor has shape of
                 (number of vehicles, number of LSTM units)
         """
-	# prepare data for call
-        lead_fol_inputs, init_state, hidden_states = inputs
-        lead_fol_inputs = tf.unstack(lead_fol_inputs, axis=1)  # unpacked over time dimension
+        # prepare data for call
+        self.lstm_cell.reset_dropout_mask()
+        leadfol_inputs = tf.unstack(leadfol_inputs, axis=1)  # unpacked over time dimension
         cur_pos, cur_speed = tf.unstack(init_state, axis=1)
 
-        pos_outputs, lc_outputs = [], []
-        for cur_lead_fol_input in lead_fol_inputs:
+        pred_traj, pred_lc_action = [], []
+        for cur_lead_fol_input in leadfol_inputs:
             # extract data for current timestep
             lead_hd = (cur_lead_fol_input[:,:3] - tf.expand_dims(cur_pos, axis=1))/self.maxhd
             fol_hd = (tf.expand_dims(cur_pos, axis=1) - cur_lead_fol_input[:,3:6])/self.maxhd
             spds = cur_lead_fol_input[:,6:]/self.maxv
 
             cur_inputs = tf.concat([lead_hd, fol_hd, spds], axis=1)
-            cur_inputs = tf.where(tf.math.is_nan(cur_inputs), tf.ones_like(cur_input), cur_input)
+            cur_inputs = tf.where(tf.math.is_nan(cur_inputs), tf.ones_like(cur_inputs), cur_inputs)
 
             # call to model
-            self.lstm_cell.reset_dropout_mask()
+            # self.lstm_cell.reset_dropout_mask()
             x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
             x = self.dense2(x)
             cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch
@@ -231,12 +232,12 @@ class RNNCFModel(tf.keras.Model):
             cur_acc = (self.maxa-self.mina)*x + self.mina
             cur_pos = cur_pos + self.dt*cur_speed
             cur_speed = cur_speed + self.dt*cur_acc
-            pos_outputs.append(cur_pos)
-            lc_outputs.append(cur_lc)
+            pred_traj.append(cur_pos)
+            pred_lc_action.append(cur_lc)
 
-        pos_outputs = tf.stack(pos_outputs, 1)
-        lc_outputs = tf.stack(lc_outputs, 1)
-        return pos_outputs, lc_outputs, cur_speed, hidden_states
+        pred_traj = tf.stack(pred_traj, 1)
+        pred_lc_action = tf.stack(pred_lc_action, 1)
+        return pred_traj, pred_lc_action, cur_speed, hidden_states
 
     def get_config(self):
         """Return any non-trainable parameters in json format."""
@@ -256,12 +257,12 @@ def make_batch(vehs, vehs_counter, ds, nt=5):
     Args:
         vehs: list of vehicles in current batch
         vehs_counter: dictionary where keys are indexes, values are tuples of (current time index,
-            max time index)
+            max time index, vehid)
         ds: dataset, from make_dataset
         nt: number of timesteps in batch
 
     Returns:
-        lead_inputs - tensor with shape (nveh, nt, 12), giving the position and speed of the
+        leadfol_inputs - tensor with shape (nveh, nt, 12), giving the position and speed of the
             the leader, follower, lfol, rfol, llead, rllead at each timestep. Padded with zeros.
             If vehicle is not available at any time, takes value of zero.
             nveh = len(vehs)
@@ -272,7 +273,7 @@ def make_batch(vehs, vehs_counter, ds, nt=5):
             the vehicle is not simulated at that timestep, so it needs to be masked.
         viable_lc: (nveh, nt, 3) tensor giving whether the lane change class is possible at the given time.
     """
-    lead_inputs = []
+    leadfol_inputs = []
     true_traj = []
     traj_mask = []
     true_lc_action = []
@@ -299,7 +300,7 @@ def make_batch(vehs, vehs_counter, ds, nt=5):
                             rleadspeed[t:t+uset], folspeed[t:t+uset], lfolspeed[t:t+uset],
                             rfolspeed[t:t+uset]), axis=1)
         curlead = np.concatenate((curlead, np.zeros(leftover,12))) if leftover>0 else curlead
-        lead_inputs.append(curlead)
+        leadfol_inputs.append(curlead)
 
         curtraj = posmem[t+1:t+uset+1]
         curtraj = np.concatenate((curtraj, np.zeros(leftover,))) if leftover>0 else curtraj
@@ -314,14 +315,185 @@ def make_batch(vehs, vehs_counter, ds, nt=5):
         true_lc_action.append(curtruelc)
 
         curviable = cur_viable_lc[t:t+uset,:]
-        curviable = np.concatenate((curviable,np.zeros(leftover,3))) if leftover>0 else curviable
+        curviable = np.concatenate((curviable, np.zeros(leftover,3))) if leftover>0 else curviable
         viable_lc.append(curviable)
 
-    return [tf.convert_to_tensor(lead_inputs, dtype='float32'),
+    return [tf.convert_to_tensor(leadfol_inputs, dtype='float32'),
             tf.convert_to_tensor(true_traj, dtype='float32'),
             tf.convert_to_tensor(true_lc_action, dtype = 'float32'),
             tf.convert_to_tensor(traj_mask, dtype='float32'),
             tf.convert_to_tensor(viable_lc, dtype='float32')]
+
+
+@tf.function
+def train_step(leadfol_inputs, init_state, hidden_state, true_traj, true_lc_action, traj_mask, viable_lc,
+               model, loss_fn, lc_loss_fn, optimizer, vehs_counter, ds):
+    """Updates parameters for a single batch of examples.
+
+    Args:
+       leadfol_inputs - tensor with shape (nveh, nt, 12), giving the position and speed of the
+            the leader, follower, lfol, rfol, llead, rllead at each timestep. Padded with zeros.
+            If vehicle is not available at any time, takes value of zero.
+            nveh = len(vehs)
+        init_state: (nveh, 2) tensor giving the current position, speed for all vehicles in batch
+        hidden_state: tensor giving initial hidden state of model
+        true_traj: (nveh, nt) tensor giving the true vehicle position at each time.
+            Padded with zeros
+        true_lc_action: (nveh, nt) tensor giving the class label for lane changing output at each time.
+        traj_mask: (nveh, nt) tensor  with either 1 or 0, corresponds to the padding. If 0, then it means
+            the vehicle is not simulated at that timestep, so it needs to be masked.
+        viable_lc: (nveh, nt, 3) tensor giving whether the lane change class is possible at the given time.
+        model: tf.keras.Model
+        loss_fn: function takes in y_true, y_pred, sample_weight, and returns the loss
+        lc_loss_fn: function takes in y_true, y_pred, and returns the loss for lane changing
+        optimizer: tf.keras.optimizer
+    Returns:
+        pred_traj: output from model
+        pred_lc_actions: output from model
+        cur_speeds: output from model
+        hidden_state: output from model
+        cf_loss: loss value from loss_fn
+        lc_loss: loss value from lc_loss_fn
+    """
+    with tf.GradientTape() as tape:
+        pred_traj, pred_lc_action, cur_speeds, hidden_state = \
+            model(leadfol_inputs, init_state, hidden_state, training=True)
+
+        lc_loss = lc_loss_fn(pred_lc_action, true_lc_action, traj_mask, viable_lc, leadfol_inputs, true_traj,
+                             pred_traj, vehs_counter, ds)
+        cf_loss = loss_fn(true_traj, pred_traj, traj_mask)
+        loss = cf_loss + sum(model.losses) + lc_loss
+
+    gradients = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    return pred_traj, pred_lc_action, cur_speeds, hidden_state, cf_loss, lc_loss
+
+
+def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100,
+                  resume_state=None):
+    """Trains model by repeatedly calling train_step.
+
+    Args:
+        model: tf.keras.Model instance
+        loss: tf.keras.losses or custom loss function
+        lc_loss: tf.keras.losses or custom loss function for lane changing
+        optimizer: tf.keras.optimzers instance
+        ds: dataset from make_dataset
+        nbatches: number of batches to run
+        nveh: number of vehicles in each batch
+        nt: number of timesteps per vehicle in each batch
+        m: every m batches, print out the loss of the batch.
+        resume_state: If you want to resume where you left off, pass in the output from the previous
+            call (and use the same optimizer instance).
+    Returns:
+        resume_state: tuple of (vehs_counter, cur_state, hidden_states), can be used to resume training.
+    """
+    # initialization
+    if not resume_state:
+        # select vehicles to put in the batch
+        vehlist = list(ds.keys())
+        np.random.shuffle(vehlist)
+        vehs = vehlist[:nveh].copy()
+        # vehs_counter stores current time index, maximum time index (length - 1) for each vehicle
+        # vehs_counter[i] corresponds to vehs[i]
+        vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0], veh]
+                        for count, veh in enumerate(vehs)}
+        # make inputs for network
+        cur_state = [ds[veh]['IC'] for veh in vehs]
+        cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
+        hidden_states = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
+        hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
+    else:
+        vehs_counter, cur_state, hidden_states = resume_state
+
+    leadfol_inputs, true_traj, true_lc_action, traj_mask, viable_lc = make_batch(vehs, vehs_counter, ds, nt)
+
+    for i in range(nbatches):
+        # call train_step
+        pred_traj, pred_lc_action, cur_speeds, hidden_states, cf_loss, lc_loss = \
+            train_step(leadfol_inputs, cur_state, hidden_states, true_traj, true_lc_action,
+                        traj_mask, viable_lc, model, loss, lc_loss_fn, optimizer, vehs_counter, ds)
+        if i % m == 0:
+            print(f'loss for {i}th batch is {cf_loss:.4f}. LC loss is {lc_loss:.4f}\n')
+
+        #### update iteration by replacing any vehicles which have been fully simulated ####
+        cur_state = tf.stack([pred_traj[:, -1], cur_speeds], axis=1)  # current state for vehicles in batch
+        # check if any vehicles in batch have had their entire trajectory simulated
+        need_new_vehs = []  # list of indices in batch we need to get a new vehicle for
+        for count, veh in enumerate(vehs):
+            vehs_counter[count][0] += nt
+            if vehs_counter[count][0] >= vehs_counter[count][1]:
+                need_new_vehs.append(count)
+        # update vehicles in batch - update hidden_states and cur_state accordingly
+        if len(need_new_vehs) > 0:
+            np.random.shuffle(vehlist)
+            new_vehs = vehlist[:len(need_new_vehs)]
+            cur_state_updates = []
+            for count, ind in enumerate(need_new_vehs):
+                new_veh = new_vehs[count]
+                vehs[ind] = new_veh
+                vehs_counter[ind] = [0, ds[new_veh]['times'][1]-ds[new_veh]['times'][0], new_veh]
+                cur_state_updates.append(ds[new_veh]['IC'])
+            cur_state_updates = tf.convert_to_tensor(cur_state_updates, dtype='float32')
+            hidden_state_updates = tf.zeros((len(need_new_vehs), model.lstm_units))
+            inds_to_update = tf.convert_to_tensor([[j] for j in need_new_vehs], dtype='int32')
+
+            cur_state = tf.tensor_scatter_nd_update(cur_state, inds_to_update, cur_state_updates)
+            h, c = hidden_states
+            h = tf.tensor_scatter_nd_update(h, inds_to_update, hidden_state_updates)
+            c = tf.tensor_scatter_nd_update(c, inds_to_update, hidden_state_updates)
+            hidden_states = [h, c]
+
+        leadfol_inputs, true_traj, true_lc_action, traj_mask, viable_lc = \
+            make_batch(vehs, vehs_counter, ds, nt)
+
+    return (vehs_counter, cur_state, hidden_states)
+
+
+def generate_trajectories(model, vehs, ds, loss_fn=None, lc_loss_fn=None):
+    """Generate a batch of trajectories.
+
+    Args:
+        model: tf.keras.Model
+        vehs: list of vehicle IDs
+        ds: dataset from make_dataset
+        loss_fn: if not None, we will call loss function and return the loss
+        lc_loss_fn: if not None, we will call loss function and return the loss (for lane changing)
+    Returns:
+        pred_traj: output from model
+        pred_lc_action: output from model
+        cf_loss: result of loss_fn
+        lc_loss_fn: result of lc_loss_fn
+    """
+    # put all vehicles into a single batch, with the number of timesteps equal to the longest trajectory
+    nveh = len(vehs)
+    vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0], veh]
+                        for count, veh in enumerate(vehs)}
+    nt = max([i[1] for i in vehs_counter.values()])
+    # make inputs for network
+    cur_state = [ds[veh]['IC'] for veh in vehs]
+    cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
+    hidden_states = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
+    hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
+    leadfol_inputs, true_traj, true_lc_action, traj_mask, viable_lc = make_batch(vehs, vehs_counter, ds, nt)
+
+    pred_traj, pred_lc_action, cur_speeds, hidden_state = \
+        model(leadfol_inputs, cur_state, hidden_states, training=True)
+
+
+    lc_loss = lc_loss_fn(pred_lc_action, true_lc_action, traj_mask, viable_lc, leadfol_inputs, true_traj,
+                             pred_traj, vehs_counter, ds) if not lc_loss_fn else None
+    cf_loss = loss_fn(true_traj, pred_traj, traj_mask) if not loss_fn else None
+
+    return pred_traj, pred_lc_action, traj_mask, viable_lc, cf_loss, lc_loss
+
+def generate_vehicle_data(model, vehs, ds, vehdict, loss_fn=None, lc_loss_fn=None):
+    sim_vehdict = copy.deepcopy({veh: vehdict[veh] for veh in vehs})
+
+    pred_traj, pred_lc_action, traj_mask, viable_lc, cf_loss, lc_loss = \
+        generate_trajectories(model, vehs, ds, loss_fn, lc_loss_fn)
+
+
 
 
 def masked_MSE_loss(y_true, y_pred, mask_weights):
@@ -334,6 +506,114 @@ def weighted_masked_MSE_loss(y_true, y_pred, mask_weights):
     """Returns masked_MSE over the entire batch, but we don't include 0 weight losses in the average."""
     temp = tf.math.multiply(tf.square(y_true-y_pred), mask_weights)
     return tf.reduce_sum(temp)/tf.reduce_sum(mask_weights)
+
+
+def logits_to_probabilities(pred_lc_action, traj_mask, viable_lc):
+    """Converts unnormalized, unmasked logits into masked, normalized probabilities."""
+    pred_lc_action = tf.math.exp(pred_lc_action)
+    pred_lc_action = pred_lc_action*tf.expand_dims(traj_mask, axis=-1)
+    pred_lc_action = pred_lc_action*viable_lc
+    pred_lc_action = pred_lc_action/tf.reduce_sum(pred_lc_action, axis=-1, keepdims=True)
+    return pred_lc_action
+
+
+def SparseCategoricalCrossentropy(pred_lc_action, true_lc_action, traj_mask, viable_lc, *args):
+    """Masked 'baseline' loss for training LC model."""
+    pred_lc_action = logits_to_probabilities(pred_lc_action, traj_mask, viable_lc)
+    return tf.reduce_sum(tf.keras.losses.sparse_categorical_crossentropy(
+        true_lc_action, pred_lc_action))/tf.reduce_sum(traj_mask)
+
+
+def weighted_SparseCategoricalCrossentropy(pred_lc_action, true_lc_action, traj_mask, viable_lc,
+                                           lead_inputs, true_traj, pred_traj, *args):
+    """Like the 'baseline' loss, but with extra weights based on the CF error."""
+    pred_lc_action = logits_to_probabilities(pred_lc_action, traj_mask, viable_lc)
+    weights = calculate_lc_hd_weights(lead_inputs, true_traj, pred_traj)
+    return tf.reduce_sum(tf.keras.losses.sparse_categorical_crossentropy(
+        true_lc_action, pred_lc_action)*weights)/tf.reduce_sum(traj_mask)
+
+
+def expected_LC(pred_lc_action, true_lc_action, traj_mask, viable_lc, lead_inputs, true_traj, pred_traj,
+                vehs_counter, ds):
+    """Computes loss based on the expected time of lane change from the logits.
+    """
+    pred_lc_action = logits_to_probabilities(pred_lc_action, traj_mask, viable_lc)
+    nt = traj_mask.shape[-1]
+
+    P_loss_list, E_loss_list = [], []
+
+    for batch_index, values in vehs_counter.items():
+        # get intervals for each vehicle
+        curindex, maxind, vehid = values
+        starttime, endtime = ds[vehid]['times']
+        curtime = curindex + starttime
+        endtime = curtime + min(maxind, nt)
+        intervals = ds[vehid]['veh lanemem'].intervals(curtime, endtime)
+        cur_lc_action = pred_lc_action[batch_index]
+
+        for count in range(len(intervals)):
+            # for each interval, calculate the expected time of lane change
+            P, pred_P, ET, pred_ET = calculate_ET_P(cur_lc_action, intervals, count, curtime)
+
+            P_loss_list.append(100*tf.square(pred_P-P))
+            E_loss_list.append(tf.square(pred_ET-ET))
+
+    return tf.reduce_mean(P_loss_list) + tf.reduce_mean(E_loss_list)
+
+
+def calculate_ET_P(pred_lc_action, intervals, count, curtime):
+    """For a specific lane changing interval, calculate ET and P.
+
+    A lane changing interval is some sequence of timesteps for a single vehicle which has at most a
+    single lane change in it. An interval with no lane change is also allowed.
+    P is the probability that no lane change, or a change in the wrong side, will occur
+    sometime in the interval.
+    ET is the expected time of the predicted lane change, conditional on a lane change occuring.
+
+    Args:
+        pred_lc_action: (nt, 3) tensor giving the probabilities of {left, stay, right} at a given timestep
+            for a single vehicle
+        intervals: Interval representation of a helper.VehMem for the lane data of a single vehicle.
+        count: index corresponding to current interval
+        curtime: 0 index of pred_lc_action corresponds to time curtime
+    Returns:
+        P: target P, 0 if current interval contains lane change, 1 otherwise
+        pred_P: predicted P calculated from predicted lc actions
+        ET: target ET, the length of the current interval if interval contains lane change, 0 otherwise
+        pred_ET: predicted ET calculated from predicted lc actions
+    """
+    # first, calculate targets for the current interval
+    curlane, cur_start, cur_end = intervals[count]
+    if count < len(intervals)-1:
+        if curlane < intervals[count+1][0]:
+            useind = 2  # right change
+        else:
+            useind = 0 # left change
+        ET = cur_end-1-cur_start  # target expected time of change
+        P = 0  # target probability of not making change in the interval
+    else:
+        useind = 1 # stay in lane
+        ET = 0
+        P = 1
+
+    # calculate probability of change at each timestep in interval
+    # this has 1 length more than the interval length, because the last index corresponds to the
+    # probability of not making the change in the interval
+    if useind==1:  # no lane change in interval
+        probs = pred_lc_action[int(cur_start-curtime):int(cur_end-curtime), useind]
+        probs2 = 1 - probs
+    else:
+        probs2 = pred_lc_action[int(cur_start-curtime):int(cur_end-curtime), useind]
+        probs = 1 - probs2
+    probs = tf.concat((tf.ones(1,), probs))
+    probs2 = tf.concat((probs2, tf.ones(1,)))
+    probs = tf.math.cumprod(probs)
+    pred_ET_P = probs*probs2
+
+    pred_P = pred_ET_P[-1]
+    pred_ET = tf.matmul(pred_ET_P[:-1], tf.range(0,int(cur_end-cur_start)), transpose_a=True)
+
+    return P, pred_P, ET, pred_ET
 
 
 def calculate_lc_hd_weights(inputs, y_true, y_pred, c=1):
@@ -362,49 +642,6 @@ def calculate_lc_hd_weights(inputs, y_true, y_pred, c=1):
     return tf.math.exp(div)
 
 
-@tf.function
-def train_step(x, y_true, lc_true, sample_weight, lc_weights, model, loss_fn, lc_loss_fn, optimizer):
-    """Updates parameters for a single batch of examples.
-
-    Args:
-        x: input to model
-        y_true: target for loss function
-        sample_weight: weight for loss function to masks padded trajectory length, so that batches of
-            vehicles have the same length
-        lc_weights: weights for lc output which mask lane changes which aren't possible due to topology
-        model: tf.keras.Model
-        loss_fn: function takes in y_true, y_pred, sample_weight, and returns the loss
-        lc_loss_fn: function takes in y_true, y_pred, and returns the loss for lane changing
-        optimizer: tf.keras.optimizer
-    Returns:
-        y_pred: output from model
-        lc_pred: output from lc_model
-        cur_speeds: output from model
-        hidden_state: hidden_states for model
-        loss:
-    """
-    with tf.GradientTape() as tape:
-        # would using model.predict_on_batch instead of model.call be faster to evaluate?
-        # the ..._on_batch methods use the model.distribute_strategy - see tf.keras source code
-        y_pred, lc_pred, cur_speeds, hidden_state = model(x, training=True)
-
-        masked_lc_pred = lc_pred * lc_weights
-        # use categorical cross entropy or sparse categorical cross entropy to compute loss over y_pred_lc
-
-        # headway error calculation
-        # weight = calculate_lc_hd_weights(x[0], y_true, y_pred)
-        weight = calculate_lc_hd_weights(x[0], y_true, y_true)
-
-        # lc_loss = lc_loss_fn(lc_true, lc_pred, sample_weight=loss_weights)
-        lc_loss = lc_loss_fn(lc_true, masked_lc_pred, sample_weight=sample_weight*weight)
-        cf_loss = loss_fn(y_true, y_pred, sample_weight)
-
-        loss = cf_loss + sum(model.losses) + 10 * lc_loss
-    gradients = tape.gradient(loss, model.trainable_variables)
-    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    return y_pred, lc_pred, cur_speeds, hidden_state, loss, lc_loss
-
-
 def calculate_class_metric(y_true, y_pred, class_id, metric):
     """
     This computes a class-dependent metric given the true y values and the predicted values
@@ -430,115 +667,6 @@ def calculate_class_metric(y_true, y_pred, class_id, metric):
 
     metric.update_state(y_true_npy, y_pred_npy)
     return metric.result().numpy()
-
-
-def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100, n=20,
-                  early_stopping_loss=None):
-    """Trains model by repeatedly calling train_step.
-
-    Args:
-        model: tf.keras.Model instance
-        loss: tf.keras.losses or custom loss function
-        lc_loss: tf.keras.losses or custom loss function for lane changing
-        optimizer: tf.keras.optimzers instance
-        ds: dataset from make_dataset
-        nbatches: number of batches to run
-        nveh: number of vehicles in each batch
-        nt: number of timesteps per vehicle in each batch
-        m: number of batches per print out. If using early stopping, the early_stopping_loss is evaluated
-            every m batches.
-        n: if using early stopping, number of batches that the testing loss can increase before stopping.
-        early_stopping_loss: if None, we return the loss from train_tep every m batches. If not None, it is
-            a function which takes in model, returns a loss value. If the loss increases, we stop the
-            training, and load the best weights.
-    Returns:
-        None.
-    """
-    # initialization
-    # select vehicles to put in the batch
-    vehlist = list(ds.keys())
-    np.random.shuffle(vehlist)
-    vehs = vehlist[:nveh].copy()
-    # vehs_counter stores current time index, maximum time index (length - 1) for each vehicle
-    # vehs_counter[i] corresponds to vehs[i]
-    vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0]] for count, veh in enumerate(vehs)}
-    # make inputs for network
-    cur_state = [ds[veh]['IC'] for veh in vehs]
-    cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
-    hidden_states = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
-    hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
-    lead_inputs, true_traj, true_lane_action, loss_weights, lc_weights = make_batch(vehs, vehs_counter, ds, nt)
-    prev_loss = math.inf
-    early_stop_counter = 0
-
-    precision_metric = tf.keras.metrics.Precision()
-    recall_metric = tf.keras.metrics.Recall()
-
-    for i in range(nbatches):
-        # call train_step
-        veh_states, lc_pred, cur_speeds, hidden_states, loss_value, lc_loss = \
-            train_step([lead_inputs, cur_state, hidden_states], true_traj, true_lane_action, \
-                        loss_weights, lc_weights, model, loss, lc_loss_fn, optimizer)
-        if i % m == 0:
-            true_la = true_lane_action.numpy()
-            num_left, num_stay, num_right = np.sum(true_la == 0), np.sum(true_la == 1), np.sum(true_la == 2)
-
-            # calculate precision/recall of changing to the left and right lanes
-            left_prec = calculate_class_metric(true_lane_action, lc_pred, 0, precision_metric)
-            right_prec = calculate_class_metric(true_lane_action, lc_pred, 2, precision_metric)
-            left_recall = calculate_class_metric(true_lane_action, lc_pred, 0, recall_metric)
-            right_recall = calculate_class_metric(true_lane_action, lc_pred, 2, recall_metric)
-
-            if early_stopping_loss is not None:
-                loss_value = early_stopping_loss(model)
-                if loss_value > prev_loss:
-                    early_stop_counter += 1
-                    if early_stop_counter >= n:
-                        print(f'loss for {i}th batch is {loss_value:.4f}. LC loss is {lc_loss:.4f}\n' + \
-                                '\t(left prec, right prec, left recall, right recall):' + \
-                                f' {left_prec:.4f}, {right_prec:.4f}, {left_recall:.4f}, {right_recall:.4f}\n' +
-                                f'\t(num left, num stay, num right): {num_left}, {num_stay}, {num_right}')
-                        model.load_weights('prev_weights')  # folder must exist
-                        break
-                else:
-                    model.save_weights('prev_weights')
-                    prev_loss = loss_value
-                    early_stop_counter = 0
-            print(f'loss for {i}th batch is {loss_value:.4f}. LC loss is {lc_loss:.4f}\n' + \
-                    '\t(left prec, right prec, left recall, right recall):' + \
-                    f' {left_prec:.4f}, {right_prec:.4f}, {left_recall:.4f}, {right_recall:.4f}\n' +
-                    f'\t(num left, num stay, num right): {num_left}, {num_stay}, {num_right}')
-
-        # update iteration
-        cur_state = tf.stack([veh_states[:, -1], cur_speeds], axis=1)  # current state for vehicles in batch
-        # check if any vehicles in batch have had their entire trajectory simulated
-        need_new_vehs = []  # list of indices in batch we need to get a new vehicle for
-        for count, veh in enumerate(vehs):
-            vehs_counter[count][0] += nt
-            if vehs_counter[count][0] >= vehs_counter[count][1]:
-                need_new_vehs.append(count)
-        # update vehicles in batch - update hidden_states and cur_state accordingly
-        if len(need_new_vehs) > 0:
-            np.random.shuffle(vehlist)
-            new_vehs = vehlist[:len(need_new_vehs)]
-            cur_state_updates = []
-            for count, ind in enumerate(need_new_vehs):
-                new_veh = new_vehs[count]
-                vehs[ind] = new_veh
-                vehs_counter[ind] = [0, ds[new_veh]['times'][1]-ds[new_veh]['times'][0]]
-                cur_state_updates.append(ds[new_veh]['IC'])
-            cur_state_updates = tf.convert_to_tensor(cur_state_updates, dtype='float32')
-            hidden_state_updates = tf.zeros((len(need_new_vehs), model.lstm_units))
-            inds_to_update = tf.convert_to_tensor([[j] for j in need_new_vehs], dtype='int32')
-
-            cur_state = tf.tensor_scatter_nd_update(cur_state, inds_to_update, cur_state_updates)
-            h, c = hidden_states
-            h = tf.tensor_scatter_nd_update(h, inds_to_update, hidden_state_updates)
-            c = tf.tensor_scatter_nd_update(c, inds_to_update, hidden_state_updates)
-            hidden_states = [h, c]
-
-        lead_inputs, true_traj, true_lane_action, loss_weights, lc_weights = \
-                make_batch(vehs, vehs_counter, ds, nt)
 
 
 class Trajectories:
@@ -719,47 +847,4 @@ class Trajectories:
         return pred
 
 
-def generate_trajectories(model, vehs, ds, loss=None, lc_loss=None, kwargs={}):
-    """Generate a batch of trajectories.
 
-    Args:
-        model: tf.keras.Model
-        vehs: list of vehicle IDs
-        ds: dataset from make_dataset
-        loss: if not None, we will call loss function and return the loss
-        lc_loss: if not None, we will call loss function and return the loss (for lane changing)
-        kwargs: dictionary of keyword arguments to pass to make_batch
-    Returns:
-        Trajectories: object (defined above) that contains information about the predicted and
-            true positions, predicted/true lc actions, the loss value of the model, the loss value
-            of the lane changing predictions, etc. See class for more details.
-    """
-    # put all vehicles into a single batch, with the number of timesteps equal to the longest trajectory
-    nveh = len(vehs)
-    vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0]] for count, veh in enumerate(vehs)}
-    nt = max([i[1] for i in vehs_counter.values()])
-    veh_times = {veh: ds[veh]['times'] for veh in vehs}
-    cur_state = [ds[veh]['IC'] for veh in vehs]
-
-    hidden_states = [tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))]
-    cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
-
-    hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
-    lead_inputs, true_traj, true_lane_action, loss_weights, lc_weights = \
-            make_batch(vehs, vehs_counter, ds, nt, **kwargs)
-
-    y_pred, lc_pred, cur_speeds, hidden_state = model([lead_inputs, cur_state, hidden_states])
-
-    args = [y_pred.numpy(), cur_speeds.numpy(), lc_pred.numpy()]
-    kwargs = {'true_cf': true_traj.numpy(), 'true_lc_action': true_lane_action.numpy(), \
-            'loss_weights': loss_weights.numpy(), 'lc_weights': lc_weights.numpy(), 'veh_ids': vehs, \
-            'veh_times': veh_times}
-
-    if loss is not None:
-        out_loss = loss(true_traj, y_pred, loss_weights)
-        kwargs['loss'] = out_loss.numpy()
-        if lc_loss is not None:
-            out_lc_loss = lc_loss(true_lane_action, lc_pred)
-            kwargs['lc_loss'] = out_lc_loss.numpy()
-
-    return Trajectories(*args, **kwargs)

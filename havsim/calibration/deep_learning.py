@@ -5,6 +5,9 @@ import numpy as np
 from havsim import helper
 import copy
 
+# TODO can't use expected_LC loss because train_step needs to have tensor inputs instad of vehs_counter, ds
+# TODO try training LC model only with expected_LC loss (make new versions of RNNCFModel, train_step, training_loop in DL3_lc_only to do this (feed true_traj into model))
+
 def generate_lane_data(veh_data, window=1):
     """
     Generates Labels for Lane-Changing Model for a given vehicle
@@ -327,7 +330,7 @@ def make_batch(vehs, vehs_counter, ds, nt=5):
 
 @tf.function
 def train_step(leadfol_inputs, init_state, hidden_state, true_traj, true_lc_action, traj_mask, viable_lc,
-               model, loss_fn, lc_loss_fn, optimizer, vehs_counter, ds):
+               model, loss_fn, lc_loss_fn, optimizer):
     """Updates parameters for a single batch of examples.
 
     Args:
@@ -360,7 +363,7 @@ def train_step(leadfol_inputs, init_state, hidden_state, true_traj, true_lc_acti
             model(leadfol_inputs, init_state, hidden_state, training=True)
 
         lc_loss = lc_loss_fn(pred_lc_action, true_lc_action, traj_mask, viable_lc, leadfol_inputs, true_traj,
-                             pred_traj, vehs_counter, ds)
+                             pred_traj)
         cf_loss = loss_fn(true_traj, pred_traj, traj_mask)
         loss = cf_loss + sum(model.losses) + lc_loss
 
@@ -412,7 +415,7 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
         # call train_step
         pred_traj, pred_lc_action, cur_speeds, hidden_states, cf_loss, lc_loss = \
             train_step(leadfol_inputs, cur_state, hidden_states, true_traj, true_lc_action,
-                        traj_mask, viable_lc, model, loss, lc_loss_fn, optimizer, vehs_counter, ds)
+                        traj_mask, viable_lc, model, loss, lc_loss_fn, optimizer)
         if i % m == 0:
             print(f'loss for {i}th batch is {cf_loss:.4f}. LC loss is {lc_loss:.4f}\n')
 
@@ -489,6 +492,7 @@ def generate_trajectories(model, vehs, ds, loss_fn=None, lc_loss_fn=None):
 
 
 def generate_vehicle_data(model, vehs, ds, vehdict, loss_fn=None, lc_loss_fn=None, dt=.1):
+    """Generate ouput from model for a list of vehicles in VehicleData format."""
     sim_vehdict = copy.deepcopy({veh: vehdict[veh] for veh in vehs})
 
     pred_traj, pred_lc_action, traj_mask, viable_lc, cf_loss, lc_loss = \

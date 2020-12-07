@@ -51,3 +51,6 @@ deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=100)
 deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=300)
 deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=500)
 deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=750)
+
+#%%
+sim_vehdict = deep_learning.generate_vehicle_data(model, train_veh, training, vehdict, loss)

@@ -88,7 +88,7 @@ def make_dataset(veh_dict, veh_list, dt=.1, window=1):
         # generate viable_lc - whether or not left/right change is possible at any given timestep
         contains_lane1 = 1.0 in veh_data.get_unique_mem(veh_data.lanemem)
         viable_lc = np.ones((vehpos.shape[0], 3))
-        for time in range(start_sim, end + 1):
+        for time in range(start_sim, int(start_sim+vehpos.shape[0])):
             if not (veh_data.lanemem[time] > 2 or (veh_data.lanemem[time] == 2 and contains_lane1)):
                 viable_lc[time - start_sim, 0] = 0
             if veh_data.lanemem[time] > 5:
@@ -224,7 +224,7 @@ class RNNCFModel(tf.keras.Model):
             # self.lstm_cell.reset_dropout_mask()
             x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
             x = self.dense2(x)
-            cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch
+            # cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch
             x = self.dense1(x)  # current normalized acceleration for the batch
 
             # update vehicle states
@@ -233,10 +233,10 @@ class RNNCFModel(tf.keras.Model):
             cur_pos = cur_pos + self.dt*cur_speed
             cur_speed = cur_speed + self.dt*cur_acc
             pred_traj.append(cur_pos)
-            pred_lc_action.append(cur_lc)
+            # pred_lc_action.append(cur_lc)
 
         pred_traj = tf.stack(pred_traj, 1)
-        pred_lc_action = tf.stack(pred_lc_action, 1)
+        # pred_lc_action = tf.stack(pred_lc_action, 1)
         return pred_traj, pred_lc_action, cur_speed, hidden_states
 
     def get_config(self):
@@ -279,14 +279,14 @@ def make_batch(vehs, vehs_counter, ds, nt=5):
     true_lc_action = []
     viable_lc = []
     for count, veh in enumerate(vehs):
-        t, tmax = vehs_counter[count]
+        t, tmax, unused = vehs_counter[count]
         leadpos, leadspeed = ds[veh]['lead posmem'], ds[veh]['lead speedmem']
-        lfolpos, lfolspeed = ds[veh]['lfol pomems'], ds[veh]['lfol speedmem']
+        lfolpos, lfolspeed = ds[veh]['lfol posmem'], ds[veh]['lfol speedmem']
         rfolpos, rfolspeed = ds[veh]['rfol posmem'], ds[veh]['rfol speedmem']
         lleadpos, lleadspeed = ds[veh]['llead posmem'], ds[veh]['llead speedmem']
         rleadpos, rleadspeed = ds[veh]['rlead posmem'], ds[veh]['rlead speedmem']
         folpos, folspeed = ds[veh]['fol posmem'], ds[veh]['fol speedmem']
-        cur_lc_action = ds[veh]['veh lcmem']
+        cur_lc_action = ds[veh]['true lc actions']
         cur_viable_lc = ds[veh]['viable lc']
         posmem = ds[veh]['veh posmem']
 
@@ -299,23 +299,23 @@ def make_batch(vehs, vehs_counter, ds, nt=5):
                             lfolpos[t:t+uset], rfolpos[t:t+uset], leadspeed[t:t+uset], lleadspeed[t:t+uset],
                             rleadspeed[t:t+uset], folspeed[t:t+uset], lfolspeed[t:t+uset],
                             rfolspeed[t:t+uset]), axis=1)
-        curlead = np.concatenate((curlead, np.zeros(leftover,12))) if leftover>0 else curlead
+        curlead = np.concatenate((curlead, np.zeros((leftover,12)))) if leftover>0 else curlead
         leadfol_inputs.append(curlead)
 
         curtraj = posmem[t+1:t+uset+1]
-        curtraj = np.concatenate((curtraj, np.zeros(leftover,))) if leftover>0 else curtraj
+        curtraj = np.concatenate((curtraj, np.zeros((leftover,)))) if leftover>0 else curtraj
         true_traj.append(curtraj)
 
         curmask = np.ones(uset,)
-        curmask = np.concatenate((curmask, np.zeros(leftover,))) if leftover>0 else curmask
+        curmask = np.concatenate((curmask, np.zeros((leftover,)))) if leftover>0 else curmask
         traj_mask.append(curmask)
 
         curtruelc = cur_lc_action[t:t+uset]
-        curtruelc = np.concatenate((curtruelc, np.zeros(leftover,))) if leftover>0 else curtruelc
+        curtruelc = np.concatenate((curtruelc, np.zeros((leftover,)))) if leftover>0 else curtruelc
         true_lc_action.append(curtruelc)
 
         curviable = cur_viable_lc[t:t+uset,:]
-        curviable = np.concatenate((curviable, np.zeros(leftover,3))) if leftover>0 else curviable
+        curviable = np.concatenate((curviable, np.zeros((leftover,3)))) if leftover>0 else curviable
         viable_lc.append(curviable)
 
     return [tf.convert_to_tensor(leadfol_inputs, dtype='float32'),
@@ -487,13 +487,40 @@ def generate_trajectories(model, vehs, ds, loss_fn=None, lc_loss_fn=None):
 
     return pred_traj, pred_lc_action, traj_mask, viable_lc, cf_loss, lc_loss
 
-def generate_vehicle_data(model, vehs, ds, vehdict, loss_fn=None, lc_loss_fn=None):
+
+def generate_vehicle_data(model, vehs, ds, vehdict, loss_fn=None, lc_loss_fn=None, dt=.1):
     sim_vehdict = copy.deepcopy({veh: vehdict[veh] for veh in vehs})
 
     pred_traj, pred_lc_action, traj_mask, viable_lc, cf_loss, lc_loss = \
         generate_trajectories(model, vehs, ds, loss_fn, lc_loss_fn)
 
+    pred_lc_action = logits_to_probabilities(pred_lc_action, traj_mask, viable_lc)
 
+    for count, veh in enumerate(vehs):
+        # update posmem and speedmem
+        start = sim_vehdict[veh].start
+        starttime, endtime = ds[veh]['times']
+        nt = endtime- starttime
+        true_posmem = sim_vehdict[veh].posmem.data
+        posmem = list(pred_traj[count,:nt].numpy())
+        true_posmem[starttime+1-start:starttime+1-start+nt] = posmem
+
+        speedmem = [(posmem[i+1] - posmem[i])/dt for i in range(len(posmem)-1)]  # no last speed
+        sim_vehdict[veh].speedmem.data[starttime+1-start:starttime-start+nt] = speedmem
+
+        # add new attribute which holds the probabilities
+        lcmem = pred_lc_action[count,:nt]
+        # calculate ET and P and save those
+        intervals = sim_vehdict[veh].lanemem.intervals(starttime, endtime)
+        ET_P = []
+        for count in range(len(intervals)):
+            unused, pred_P, unused, pred_ET = calculate_ET_P(lcmem, intervals, count, starttime)
+            ET_P.append((pred_ET, pred_P))
+
+        sim_vehdict[veh].lc_actions = lcmem.numpy()
+        sim_vehdict[veh].ET_P = ET_P
+
+    return sim_vehdict
 
 
 def masked_MSE_loss(y_true, y_pred, mask_weights):

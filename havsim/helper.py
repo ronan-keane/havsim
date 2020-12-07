@@ -277,17 +277,15 @@ class VehicleData:
         self.rleadmem = VehMem(rleadmem, vehdict, start, end)
         self.lleadmem = VehMem(lleadmem, vehdict, start, end)
 
-        self.leads = self.get_unique_mem(leadmem)
         self.longest_lead_times = self.get_longest_lead_times()
+        self.leads = self.get_unique_mem(self.leadmem.intervals(*self.longest_lead_times))
 
     def get_longest_lead_times(self):
         """Find the longest time interval with leader is not None and return the starting/ending times."""
         # similar code could be used to list all intervals with leader not None - would we ever need that?
-        if len(self.leads) == 0:
-            return self.start, self.start
         longest = 0
-        longest_start = -1
-        longest_end = -1
+        longest_start = self.start
+        longest_end = self.start
 
         curr_start = None
         running_interval = 0

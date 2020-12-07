@@ -7,8 +7,8 @@ where all the plotting functions go
 import numpy as np
 import copy
 import math
-import os
-import seaborn as sns
+# import os
+# import seaborn as sns
 
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
@@ -22,25 +22,25 @@ import palettable
 import havsim.helper as helper
 import havsim.calibration as hc
 
-def plotLaneChangingConfMat(traj, save=False, output_fn=None):
-    """
-    This plots the confusion matrix for the lane changing model.
-    Args:
-        traj: (Trajectories object) which is generated from deep_learning.generate_trajectories
-        save: (bool) whether or not we should save the image or just show
-        output_fn: the path to the output filename (only used if saved=True)
-    """
-    plt.clf() # clear figure
-    sns.heatmap(traj.confusion_matrix(), annot=True)
-    plt.title("Confusion Matrix")
-    plt.xlabel("Predicted Label")
-    plt.ylabel("True Label")
-    if save and output_fn:
-        plt.savefig(output_fn)
-    else:
-        plt.show()
+# def plotLaneChangingConfMat(traj, save=False, output_fn=None):
+#     """
+#     This plots the confusion matrix for the lane changing model.
+#     Args:
+#         traj: (Trajectories object) which is generated from deep_learning.generate_trajectories
+#         save: (bool) whether or not we should save the image or just show
+#         output_fn: the path to the output filename (only used if saved=True)
+#     """
+#     plt.clf() # clear figure
+#     sns.heatmap(traj.confusion_matrix(), annot=True)
+#     plt.title("Confusion Matrix")
+#     plt.xlabel("Predicted Label")
+#     plt.ylabel("True Label")
+#     if save and output_fn:
+#         plt.savefig(output_fn)
+#     else:
+#         plt.show()
 
-def plotTrajectoryProbs(traj, vehid, save=False, output_dir=None):
+def plotTrajectoryProbs(vehdict, vehid, save=False, output_dir=None):
     """
     This plots the LC probabilities of left/right for a single vehicle's trajectory. We are visualizing
     this as a number of heatmaps (split into rows to help interpret the image).
@@ -51,12 +51,12 @@ def plotTrajectoryProbs(traj, vehid, save=False, output_dir=None):
         output_dir: (str) ignored if save is False. If save=True, then this directory is where
             we save the resulting figure
     """
-    pred = traj.trajectory_probs(vehid)
+    pred = vehdict[vehid].lc_actions[:,[0,2]]
 
     min_pred, max_pred = np.min(pred), np.max(pred)
     num_rows = int(np.ceil(pred.shape[0] / 50))
     fig, ax = plt.subplots(num_rows, 1, figsize=(10,0.8 * num_rows))
-    fig.suptitle(f"LC Trajectory Probabilities for vehid {vehid}", y=0.9)
+    fig.suptitle(f"LC Trajectory Probabilities for vehid", y=0.9)
     for row_idx in range(num_rows):
         mappable = ax[row_idx].imshow(pred[row_idx * 50:(row_idx+1) * 50].T, vmin=min_pred, \
                 vmax=max_pred)
@@ -65,27 +65,44 @@ def plotTrajectoryProbs(traj, vehid, save=False, output_dir=None):
         ax[row_idx].set_xticks([])
         ax[row_idx].set_yticks([])
 
-        # add x on true left changesget_true_lc_action
-        idx_of_left = np.nonzero(traj.get_true_lc_action(vehid)[row_idx * 50: (row_idx+1)*50] == 0)[0]
-        for left_index in idx_of_left:
-            ax[row_idx].text(left_index + 0.5, 0.3, 'x', color='white')
-
-        # add x on true right changes
-        idx_of_right = np.nonzero(traj.get_true_lc_action(vehid)[row_idx * 50: (row_idx+1)*50] == 2)[0]
-        for right_index in idx_of_right:
-            ax[row_idx].text(right_index + 0.5, 1.3, 'x', color='white')
-
         ax[row_idx].set_ylabel(f'{row_idx * 50}', rotation='horizontal')
+
+        # # add x on true left changesget_true_lc_action
+        # idx_of_left = np.nonzero(traj.get_true_lc_action(vehid)[row_idx * 50: (row_idx+1)*50] == 0)[0]
+        # for left_index in idx_of_left:
+        #     ax[row_idx].text(left_index + 0.5, 0.3, 'x', color='white')
+
+        # # add x on true right changes
+        # idx_of_right = np.nonzero(traj.get_true_lc_action(vehid)[row_idx * 50: (row_idx+1)*50] == 2)[0]
+        # for right_index in idx_of_right:
+        #     ax[row_idx].text(right_index + 0.5, 1.3, 'x', color='white')
+
+    intervals = vehdict[vehid].intervals(*vehdict[vehid].longest_lead_times)
+    ET_P = vehdict[vehid].ET_P
+    for count in range(len(intervals)):
+        ET, P = ET_P[count]
+        if count == len(intervals)-1:
+            lc_type = 'stay'
+        elif intervals[count][0] < intervals[count+1][0]:
+            lc_type = 'right'
+        else:
+            lc_type = 'left'
+        row_index = intervals[count][2] // 50
+        right_index = intervals[count][2] - vehdict[vehid].longest_lead_times[0]
+        ax[row_index].text(right_index + .5, .8, f'{lc_type}, P={P:.4f}', color='white')
+        row_index = ET // 50
+        ax[row_index].text(ET, .8, f'ET={ET:.2f}', color='white')
+
     fig.subplots_adjust(right=0.8)
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     fig.colorbar(mappable=mappable, cax=cbar_ax)
 
-    if save:
-        plt.savefig(f'{output_dir}/{idx}.png')
-    else:
-        plt.show()
+    # if save:
+    #     plt.savefig(f'{output_dir}/{idx}.png')
+    # else:
+    #     plt.show()
 
-def plotCFError(traj, vehid, save=False, output_dir=None):
+def plotCFError(cf_error, vehid, save=False, output_dir=None):
     """
     This plots the CF errors throughout a single vehicle's trajectory. We are visualizing
     this as a number of heatmaps (split into rows to help interpret the image).
@@ -96,12 +113,12 @@ def plotCFError(traj, vehid, save=False, output_dir=None):
         output_dir: (str) ignored if save is False. If save=True, then this directory is where
             we save the resulting figure
     """
-    cf_error = traj.cf_error(vehid)
+    # cf_error = traj.cf_error(vehid)
     min_error, max_error = np.min(cf_error), np.max(cf_error)
 
     num_rows = int(np.ceil(cf_error.shape[0] / 50))
     fig, ax = plt.subplots(num_rows, 1, figsize=(10, 0.8 * num_rows))
-    fig.suptitle(f"Error in CF predictions for vehid {vehid}", y=0.9)
+    fig.suptitle(f"Error in CF predictions for vehid", y=0.9)
     for row_idx in range(num_rows):
         subset = cf_error[row_idx * 50: (row_idx + 1) * 50]
         subset = np.hstack((subset, np.zeros(50 - subset.shape[0])))
@@ -114,10 +131,10 @@ def plotCFError(traj, vehid, save=False, output_dir=None):
     fig.subplots_adjust(right=0.8)
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     fig.colorbar(mappable=mappable, cax=cbar_ax)
-    if save:
-        plt.savefig(f'{output_dir}/{idx}.png')
-    else:
-        plt.show()
+    # if save:
+    #     plt.savefig(f'{output_dir}/{idx}.png')
+    # else:
+    #     plt.show()
 
 def plotCFErrorN(traj, output_dir, n=20, seed=42):
     """
@@ -129,11 +146,11 @@ def plotCFErrorN(traj, output_dir, n=20, seed=42):
         n: (int) number of vehicles to randomly sample
         seed: (int) seed for randomly sampling vehicles
     """
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    # if not os.path.exists(output_dir):
+    #     os.makedirs(output_dir)
     np.random.seed(seed)
     idxs = np.random.choice(traj.vehs, n)
-    for idx in idxs: 
+    for idx in idxs:
         plotCFError(traj, idx, save=True, output_dir=output_dir)
 
 def plotTrajectoriesProb(traj, output_dir, n=20, seed=42):
@@ -146,11 +163,11 @@ def plotTrajectoriesProb(traj, output_dir, n=20, seed=42):
         n: (int) number of vehicles to randomly sample
         seed: (int) seed for randomly sampling vehicles
     """
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    # if not os.path.exists(output_dir):
+    #     os.makedirs(output_dir)
     np.random.seed(seed)
     idxs = np.random.choice(traj.vehs, n)
-    for idx in idxs: 
+    for idx in idxs:
         plotTrajectoryProbs(traj, idx, save=True, output_dir=output_dir)
 
 def plotColorLines(X, Y, SPEED, speed_limit, colormap = 'speeds', ind = 0):

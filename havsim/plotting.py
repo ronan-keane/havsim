@@ -87,13 +87,14 @@ def plotTrajectoryProbs(vehdict, vehid, save=False, output_dir=None):
             lc_type = 'right'
         else:
             lc_type = 'left'
-        row_index = (intervals[count][2] - vehdict[vehid].longest_lead_times[0]) // 50
-        right_index = intervals[count][2] - vehdict[vehid].longest_lead_times[0] - 50*row_index
-        ax[row_index].text(right_index + .5, .8, f'{lc_type}, P={P:.4f}', color='white')
+        row_index = (intervals[count][2]-1 - vehdict[vehid].longest_lead_times[0]) // 50
+        right_index = intervals[count][2]-1 - vehdict[vehid].longest_lead_times[0] - 50*(row_index)
+        right_index = right_index -1 if count == len(intervals)-1 else right_index
+        ax[row_index].text(right_index, .8, f'{lc_type}, P={P:.4f}', color='C1')
         ET = ET + intervals[count][1] - vehdict[vehid].longest_lead_times[0]
-        row_index = math.ceil(ET) // 50
-        right_index = ET + intervals[count][1] - 50*row_index
-        ax[row_index].text(ET, .8, f'ET={ET:.2f}', color='white')
+        row_index = (math.ceil(ET)) // 50
+        right_index = ET - 50*row_index
+        ax[row_index].text(right_index.numpy(), .8, f'ET={ET:.2f}', color='C1')
 
     fig.subplots_adjust(right=0.8)
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])

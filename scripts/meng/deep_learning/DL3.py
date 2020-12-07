@@ -60,7 +60,7 @@ sim_vehdict = deep_learning.generate_vehicle_data(model, train_veh, training, ve
 
 #%% examples of plotting
 
-vehid = 2935
+vehid = 1007
 hp.plotTrajectoryProbs(sim_vehdict,vehid)
 
 def cferror(vehid):

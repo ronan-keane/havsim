@@ -1,4 +1,4 @@
-
+"""Works with version of deep_learning in DL_reg branch. Units are in feet."""
 """
 @author: rlk268@cornell.edu
 """
@@ -6,7 +6,7 @@ import tensorflow as tf
 import pickle
 import numpy as np
 import math
-import deep_learning
+from havsim.calibration import deep_learning
 
 class RNNCFModel(tf.keras.Model):
     """Simple RNN based CF model."""
@@ -118,7 +118,7 @@ def load_model(filepath):
     return loaded_model
 #%%
 # save_model(model, 'trained LSTM')
-#%%
+#%%  reproduce  testing error
 model = load_model('trained LSTM')
 
 try:

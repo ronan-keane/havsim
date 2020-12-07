@@ -5,12 +5,10 @@ import numpy as np
 from havsim import helper
 import copy
 
-# TODO need extra input to indicate whether vehicle is None or not. Currently the error is extremely high and I believe this is the reason.
-    # error is probably also high because the CF and LC model should have more seperate parts. But the error for CF only is also higher
-    # than the model which uses the lead inputs only, which makes no sense. 
-    # good first step would be to make it so that training CF only results in same/lower error than the model which uses leaders only.
 # TODO can't use expected_LC loss because train_step needs to have tensor inputs instad of vehs_counter, ds
 # TODO try training LC model only with expected_LC loss (make new versions of RNNCFModel, train_step, training_loop in DL3_lc_only to do this (feed true_traj into model))
+# TODO ET tends to be quite low and P also tends to be low for intervals with no lane changing. 
+    # might want to try giving the LC model seperate layers
 
 
 def generate_lane_data(veh_data, window=1):
@@ -215,7 +213,7 @@ class RNNCFModel(tf.keras.Model):
                 (number of vehicles, number of LSTM units)
         """
         # prepare data for call
-        self.lstm_cell.reset_dropout_mask()
+        # self.lstm_cell.reset_dropout_mask()
         leadfol_inputs = tf.unstack(leadfol_inputs, axis=1)  # unpacked over time dimension
         cur_pos, cur_speed = tf.unstack(init_state, axis=1)
 
@@ -230,7 +228,7 @@ class RNNCFModel(tf.keras.Model):
             cur_inputs = tf.where(tf.math.is_nan(cur_inputs), tf.ones_like(cur_inputs), cur_inputs)
 
             # call to model
-            # self.lstm_cell.reset_dropout_mask()
+            self.lstm_cell.reset_dropout_mask()
             x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
             x = self.dense2(x)
             cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch

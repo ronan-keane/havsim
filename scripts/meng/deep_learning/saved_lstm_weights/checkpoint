@@ -1,2 +1,2 @@
-model_checkpoint_path: "trained LSTM"
-all_model_checkpoint_paths: "trained LSTM"
+model_checkpoint_path: "CF_LC_initial"
+all_model_checkpoint_paths: "CF_LC_initial"

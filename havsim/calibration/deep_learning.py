@@ -5,8 +5,13 @@ import numpy as np
 from havsim import helper
 import copy
 
+# TODO need extra input to indicate whether vehicle is None or not. Currently the error is extremely high and I believe this is the reason.
+    # error is probably also high because the CF and LC model should have more seperate parts. But the error for CF only is also higher
+    # than the model which uses the lead inputs only, which makes no sense. 
+    # good first step would be to make it so that training CF only results in same/lower error than the model which uses leaders only.
 # TODO can't use expected_LC loss because train_step needs to have tensor inputs instad of vehs_counter, ds
 # TODO try training LC model only with expected_LC loss (make new versions of RNNCFModel, train_step, training_loop in DL3_lc_only to do this (feed true_traj into model))
+
 
 def generate_lane_data(veh_data, window=1):
     """
@@ -14,23 +19,23 @@ def generate_lane_data(veh_data, window=1):
     Args:
         veh_data: helper.VehicleData for a single vehicle
     Returns:
-        lane_data: python list of -1/0/1, -1 is lane changing to the left, 0 is
-            staying in the same lane, and 1 is lane changing to the right
+        lane_data: python list of 0/1/2, 0 is lane changing to the left, 1 is
+            staying in the same lane, and 2 is lane changing to the right
             length = veh_data.end - veh_data.start + 1
     """
     lane_data = []
 
     intervals = veh_data.lanemem.intervals()
     for idx, (val, start, end) in list(enumerate(intervals)):
-        lane_data += [0] * max((end - start - window),0)
+        lane_data += [1] * max((end - start - window),0)
         if idx < len(intervals) - 1:
             uselen = min(window, end-start)
             if val < intervals[idx + 1][0]:
-                lane_data.extend([0]*uselen)
+                lane_data.extend([2]*uselen)
             elif val == intervals[idx + 1][0]:
                 lane_data.extend([1]*uselen)
             else:
-                lane_data.extend([2]*uselen)
+                lane_data.extend([0]*uselen)
     return lane_data
 
 def make_dataset(veh_dict, veh_list, dt=.1, window=1):
@@ -46,6 +51,7 @@ def make_dataset(veh_dict, veh_list, dt=.1, window=1):
             'times' - list of two int times. First is the first time with an observed leader. Second is the
                 last time with an observed leader +1. The number of times we call the model is equal to
                 times[1] - times[0], which is the length of the lead measurements.
+            'longest lead times' - these 
             'veh posmem' - (1d,) numpy array of observed positions for vehicle, 0 index corresponds
                 to times[0]. Typically this has a longer length than the lead posmem/speedmem.
             'veh speedmem' - (1d,) numpy array of observed speeds for vehicle
@@ -227,7 +233,7 @@ class RNNCFModel(tf.keras.Model):
             # self.lstm_cell.reset_dropout_mask()
             x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
             x = self.dense2(x)
-            # cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch
+            cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch
             x = self.dense1(x)  # current normalized acceleration for the batch
 
             # update vehicle states
@@ -236,10 +242,10 @@ class RNNCFModel(tf.keras.Model):
             cur_pos = cur_pos + self.dt*cur_speed
             cur_speed = cur_speed + self.dt*cur_acc
             pred_traj.append(cur_pos)
-            # pred_lc_action.append(cur_lc)
+            pred_lc_action.append(cur_lc)
 
         pred_traj = tf.stack(pred_traj, 1)
-        # pred_lc_action = tf.stack(pred_lc_action, 1)
+        pred_lc_action = tf.stack(pred_lc_action, 1)
         return pred_traj, pred_lc_action, cur_speed, hidden_states
 
     def get_config(self):
@@ -318,7 +324,9 @@ def make_batch(vehs, vehs_counter, ds, nt=5):
         true_lc_action.append(curtruelc)
 
         curviable = cur_viable_lc[t:t+uset,:]
-        curviable = np.concatenate((curviable, np.zeros((leftover,3)))) if leftover>0 else curviable
+        temp = np.zeros((leftover,3))
+        temp[:,0] = 1
+        curviable = np.concatenate((curviable, temp)) if leftover>0 else curviable
         viable_lc.append(curviable)
 
     return [tf.convert_to_tensor(leadfol_inputs, dtype='float32'),
@@ -393,7 +401,7 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
     """
     # initialization
     if not resume_state:
-        # select vehicles to put in the batch
+        # select vehicles to put in the batchnbatches=10000, nveh=32, nt=10, m=100
         vehlist = list(ds.keys())
         np.random.shuffle(vehlist)
         vehs = vehlist[:nveh].copy()
@@ -485,8 +493,8 @@ def generate_trajectories(model, vehs, ds, loss_fn=None, lc_loss_fn=None):
 
 
     lc_loss = lc_loss_fn(pred_lc_action, true_lc_action, traj_mask, viable_lc, leadfol_inputs, true_traj,
-                             pred_traj, vehs_counter, ds) if not lc_loss_fn else None
-    cf_loss = loss_fn(true_traj, pred_traj, traj_mask) if not loss_fn else None
+                             pred_traj, vehs_counter, ds) if lc_loss_fn else 0
+    cf_loss = loss_fn(true_traj, pred_traj, traj_mask) if loss_fn else 0
 
     return pred_traj, pred_lc_action, traj_mask, viable_lc, cf_loss, lc_loss
 
@@ -497,8 +505,10 @@ def generate_vehicle_data(model, vehs, ds, vehdict, loss_fn=None, lc_loss_fn=Non
 
     pred_traj, pred_lc_action, traj_mask, viable_lc, cf_loss, lc_loss = \
         generate_trajectories(model, vehs, ds, loss_fn, lc_loss_fn)
+    print(f'cf loss is {cf_loss:.4f}. LC loss is {lc_loss:.4f}\n')
 
-    pred_lc_action = logits_to_probabilities(pred_lc_action, traj_mask, viable_lc)
+    if lc_loss_fn is not None:
+        pred_lc_action = logits_to_probabilities(pred_lc_action, traj_mask, viable_lc)
 
     for count, veh in enumerate(vehs):
         # update posmem and speedmem
@@ -513,16 +523,17 @@ def generate_vehicle_data(model, vehs, ds, vehdict, loss_fn=None, lc_loss_fn=Non
         sim_vehdict[veh].speedmem.data[starttime+1-start:starttime-start+nt] = speedmem
 
         # add new attribute which holds the probabilities
-        lcmem = pred_lc_action[count,:nt]
-        # calculate ET and P and save those
-        intervals = sim_vehdict[veh].lanemem.intervals(starttime, endtime)
-        ET_P = []
-        for count in range(len(intervals)):
-            unused, pred_P, unused, pred_ET = calculate_ET_P(lcmem, intervals, count, starttime)
-            ET_P.append((pred_ET, pred_P))
-
-        sim_vehdict[veh].lc_actions = lcmem.numpy()
-        sim_vehdict[veh].ET_P = ET_P
+        if lc_loss_fn is not None:
+            lcmem = pred_lc_action[count,:nt]
+            # calculate ET and P and save those
+            intervals = sim_vehdict[veh].lanemem.intervals(starttime, endtime-1)
+            ET_P = []
+            for count in range(len(intervals)):
+                unused, pred_P, unused, pred_ET = calculate_ET_P(lcmem, intervals, count, starttime)
+                ET_P.append((pred_ET, pred_P))
+    
+            sim_vehdict[veh].lc_actions = lcmem.numpy()
+            sim_vehdict[veh].ET_P = ET_P
 
     return sim_vehdict
 
@@ -540,9 +551,12 @@ def weighted_masked_MSE_loss(y_true, y_pred, mask_weights):
 
 
 def logits_to_probabilities(pred_lc_action, traj_mask, viable_lc):
-    """Converts unnormalized, unmasked logits into masked, normalized probabilities."""
+    """Converts unnormalized, unmasked logits into masked, normalized probabilities.
+    
+    To avoid issues with NaN, all predictions past the maximum time have 1 in the 0 index.
+    """
     pred_lc_action = tf.math.exp(pred_lc_action)
-    pred_lc_action = pred_lc_action*tf.expand_dims(traj_mask, axis=-1)
+    # pred_lc_action = pred_lc_action*tf.expand_dims(traj_mask, axis=-1)
     pred_lc_action = pred_lc_action*viable_lc
     pred_lc_action = pred_lc_action/tf.reduce_sum(pred_lc_action, axis=-1, keepdims=True)
     return pred_lc_action
@@ -578,7 +592,7 @@ def expected_LC(pred_lc_action, true_lc_action, traj_mask, viable_lc, lead_input
         curindex, maxind, vehid = values
         starttime, endtime = ds[vehid]['times']
         curtime = curindex + starttime
-        endtime = curtime + min(maxind, nt)
+        endtime = curtime + min(maxind-1, nt)
         intervals = ds[vehid]['veh lanemem'].intervals(curtime, endtime)
         cur_lc_action = pred_lc_action[batch_index]
 
@@ -636,13 +650,13 @@ def calculate_ET_P(pred_lc_action, intervals, count, curtime):
     else:
         probs2 = pred_lc_action[int(cur_start-curtime):int(cur_end-curtime), useind]
         probs = 1 - probs2
-    probs = tf.concat((tf.ones(1,), probs))
-    probs2 = tf.concat((probs2, tf.ones(1,)))
+    probs = tf.concat((tf.ones(1,), probs), axis=0)
+    probs2 = tf.concat((probs2, tf.ones(1,)), axis=0)
     probs = tf.math.cumprod(probs)
     pred_ET_P = probs*probs2
 
     pred_P = pred_ET_P[-1]
-    pred_ET = tf.matmul(pred_ET_P[:-1], tf.range(0,int(cur_end-cur_start)), transpose_a=True)
+    pred_ET = tf.tensordot(pred_ET_P[:-1], tf.range(0,int(cur_end-cur_start),dtype='float32'), 1)
 
     return P, pred_P, ET, pred_ET
 

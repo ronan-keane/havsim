@@ -3,8 +3,10 @@ from havsim.calibration import deep_learning
 import pickle
 import tensorflow as tf
 import havsim.plotting as hp
+import matplotlib.pyplot as plt
+import numpy as np
 
-with open('C:/Users/rlk268/OneDrive - Cornell University/havsim/data/recon-ngsim.pkl', 'rb') as f:
+with open('recon-ngsim.pkl', 'rb') as f:
     vehdict = pickle.load(f)
 
 try:
@@ -21,36 +23,55 @@ except:
 
 veh_list = []
 for veh in vehdict.keys():
-    if len(vehdict[veh].leads)==1:  # exactly 1 leader => no lane changing. >1 => at least 1 lane change.
+    if len(vehdict[veh].leads)>=1:  # exactly 1 leader => no lane changing. >1 => at least 1 lane change.
         veh_list.append(veh)
 
-train_veh = veh_list[:-100]
-test_veh = veh_list[-100:]
+train_veh = veh_list[:-300]
+test_veh = veh_list[-300:]
 
-training, norm = deep_learning.make_dataset(vehdict, train_veh)
+training, norm = deep_learning.make_dataset(vehdict, train_veh, window=5)
 testing, unused = deep_learning.make_dataset(vehdict, test_veh)
 #%% initialize model and optimizer
-def no_lc_loss(*args):
-    return 0
+def no_lc_loss(*args):  # may want to comment out the LC output in RNNCFModel so tensorflow does not spam print out
+    return 0.0
 
 params = {"lstm_units" : 64,
-    "learning_rate": 0.001,
+    "learning_rate": 0.008,
     "dropout": 0.2,
     "regularizer": 0.02,
     "batch_size": 32}
 
 model = deep_learning.RNNCFModel(*norm, **params)
-loss = deep_learning.weighted_masked_MSE_loss
-# lc_loss = deep_learning.SparseCategoricalCrossentropy
-lc_loss = no_lc_loss  # train CF model only
+loss = deep_learning.masked_MSE_loss
+lc_loss = deep_learning.SparseCategoricalCrossentropy
+# lc_loss = no_lc_loss  # train CF model only
 opt = tf.keras.optimizers.Adam(learning_rate=params['learning_rate'])
 
-#%%
-deep_learning.training_loop(model, loss, lc_loss, opt, training, 10000, nt=50)
-deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=100)
-deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=300)
-deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=500)
-deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=750)
+#%%  training
+deep_learning.training_loop(model, loss, lc_loss, opt, training, 10000, nt=50, m=100)
+deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=100, m=100)
+deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=200, m=100)
+deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=300, m=100)
+deep_learning.training_loop(model, loss, lc_loss, opt, training, 2000, nt=500, m=100)
 
-#%%
-sim_vehdict = deep_learning.generate_vehicle_data(model, train_veh, training, vehdict, loss)
+
+#%% generate simulated trajectories
+sim_vehdict = deep_learning.generate_vehicle_data(model, train_veh, training, vehdict, deep_learning.weighted_masked_MSE_loss, lc_loss)
+
+#%% examples of plotting
+
+vehid = 2935
+hp.plotTrajectoryProbs(sim_vehdict,vehid)
+
+def cferror(vehid):
+    temp = vehdict[vehid].longest_lead_times
+    return np.abs(np.array(vehdict[vehid].posmem[temp[0]:temp[1]]) - sim_vehdict[vehid].posmem[temp[0]:temp[1]])
+hp.plotCFError(cferror(vehid), vehid)
+
+plt.figure()
+temp = vehdict[vehid].longest_lead_times
+plt.plot(vehdict[vehid].posmem[temp[0]:temp[1]])
+plt.plot(sim_vehdict[vehid].posmem[temp[0]:temp[1]])
+lctimes = [i[1] for i in vehdict[vehid].lanemem.intervals(*vehdict[vehid].longest_lead_times)[1:]]
+plt.plot(np.array(lctimes)-temp[0], [vehdict[vehid].posmem[i] for i in lctimes], '*b')
+plt.legend(['true', 'sim', 'lc time'])

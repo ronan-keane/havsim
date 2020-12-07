@@ -77,7 +77,7 @@ def plotTrajectoryProbs(vehdict, vehid, save=False, output_dir=None):
         # for right_index in idx_of_right:
         #     ax[row_idx].text(right_index + 0.5, 1.3, 'x', color='white')
 
-    intervals = vehdict[vehid].intervals(*vehdict[vehid].longest_lead_times)
+    intervals = vehdict[vehid].lanemem.intervals(*vehdict[vehid].longest_lead_times)
     ET_P = vehdict[vehid].ET_P
     for count in range(len(intervals)):
         ET, P = ET_P[count]
@@ -87,10 +87,12 @@ def plotTrajectoryProbs(vehdict, vehid, save=False, output_dir=None):
             lc_type = 'right'
         else:
             lc_type = 'left'
-        row_index = intervals[count][2] // 50
-        right_index = intervals[count][2] - vehdict[vehid].longest_lead_times[0]
+        row_index = (intervals[count][2] - vehdict[vehid].longest_lead_times[0]) // 50
+        right_index = intervals[count][2] - vehdict[vehid].longest_lead_times[0] - 50*row_index
         ax[row_index].text(right_index + .5, .8, f'{lc_type}, P={P:.4f}', color='white')
-        row_index = ET // 50
+        ET = ET + intervals[count][1] - vehdict[vehid].longest_lead_times[0]
+        row_index = math.ceil(ET) // 50
+        right_index = ET + intervals[count][1] - 50*row_index
         ax[row_index].text(ET, .8, f'ET={ET:.2f}', color='white')
 
     fig.subplots_adjust(right=0.8)
@@ -121,9 +123,9 @@ def plotCFError(cf_error, vehid, save=False, output_dir=None):
     fig.suptitle(f"Error in CF predictions for vehid", y=0.9)
     for row_idx in range(num_rows):
         subset = cf_error[row_idx * 50: (row_idx + 1) * 50]
-        subset = np.hstack((subset, np.zeros(50 - subset.shape[0])))
+        # subset = np.hstack((subset, np.zeros(50 - subset.shape[0])))
 
-        mappable = ax[row_idx].imshow(subset.reshape((1, 50)), vmin=min_error, vmax=max_error)
+        mappable = ax[row_idx].imshow(subset.reshape((1, len(subset))), vmin=min_error, vmax=max_error)
         ax[row_idx].set_xticks([])
         ax[row_idx].set_yticks([])
         ax[row_idx].set_ylabel(f'{row_idx * 50}', rotation='horizontal')

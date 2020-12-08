@@ -131,6 +131,9 @@ def update_lane_events(veh, timeind, remove_vehicles):
     """
     # TODO maybe combine lane events/route events into a single priority queue and keep the next event
     # position in memory? maybe not worth to do.
+    # If this optimization is made, when set_lane_events and set_route_events is called, you would have to
+    # sort all the events and make sure two events with the same positions get sorted such that the route
+    # event occurs after (e.g. add a small constant to route event positions).
     if not veh.lane_events:
         return
     curevent = veh.lane_events[0]

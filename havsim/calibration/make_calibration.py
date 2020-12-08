@@ -7,6 +7,7 @@ import math
 
 # INPROGRESS: add/lc events for make_calibration for LC model
 def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list, all_leadvehicles):
+    """Makes lc and add events for default Calibration."""
     for veh in vehicles:
         curveh = id2obj[veh]
         t0, t1 = vehdict[veh].longest_lead_times
@@ -70,6 +71,7 @@ def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_lis
 
 
 def make_leadvehicles(vehicles, id2obj, vehdict, dt):
+    """Make all the leadvehicle objects needed for Calibration object"""
     # find all LeadVehicles and their start/end times
     all_leadvehicles = {}  # keys are LeadVehicles id, values are tuples of (start, end)
     vehmem_list = ['leadmem', 'lleadmem', 'rleadmem', 'folmem', 'lfolmem', 'rfolmem']

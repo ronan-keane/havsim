@@ -199,7 +199,7 @@ def remove_vehicles(vehicles, endpos, timeind):
 
     return remove_list
 
-def update_calibration(vehicles, leadvehicles, update_lc_fun, update_add_fun, timeind, dt, ending_position):
+def update_calibration(vehicles, leadvehicles, update_lc_fun, update_add_fun, timeind, dt, ending_position, dummy_vec):
     update_lc_fun(timeind, dt)
 
     for veh in vehicles:
@@ -212,20 +212,20 @@ def update_calibration(vehicles, leadvehicles, update_lc_fun, update_add_fun, ti
 
     update_add_fun(timeind, dt)
 
-    remove_list = remove_vehicles_lc(vehicles, ending_position, timeind)
+    remove_list = remove_vehicles_lc(vehicles, ending_position, dummy_vec, timeind)
     for remove_vec in remove_list:
         vehicles.remove(remove_vec)
 
-def remove_vehicles_lc(vehicles, endpos, timeind):
+def remove_vehicles_lc(vehicles, endpos, dummy_vec, timeind):
     remove_list = []
     for veh in vehicles:
         if veh.pos > endpos:
             veh.end = timeind+1
             lfolupdate(veh, veh.lfol, timeind)
             rfolupdate(veh, veh.rfol, timeind)
-            lleadupdate(veh, veh.llead, timeind)
-            rleadupdate(veh, veh.rlead, timeind)
-            leadupdate(veh, veh.lead, timeind)
+            lleadupdate(veh, veh.llead, dummy_vec, timeind)
+            rleadupdate(veh, veh.rlead, dummy_vec, timeind)
+            leadupdate(veh, veh.lead, dummy_vec, timeind)
             folupdate(veh, veh.fol, timeind)
             remove_list.append(veh)
 
@@ -248,42 +248,22 @@ def folupdate(removed_veh, next_veh, timeind):
         next_veh.lead = None
         next_veh.leadmem.append([None, timeind+1])
 
-def lleadupdate(removed_veh, next_veh, timeind):
+def lleadupdate(removed_veh, next_veh, dummy_vec, timeind):
     if type(next_veh) is not LeadVehicle and next_veh is not None and next_veh.rfol is removed_veh:
-        dummy_vec = LeadVehicle([], 0)
-        dummy_vec.pos = 1
-        dummy_vec.acc = 1
-        dummy_vec.speed = 1
-        dummy_vec.len = 0
         next_veh.rfol = dummy_vec
         next_veh.rfolmem.append([None, timeind+1])
-        lleadupdate(removed_veh, next_veh.lead, timeind)
+        lleadupdate(removed_veh, next_veh.lead, dummy_vec, timeind)
 
-def rleadupdate(removed_veh, next_veh, timeind):
+def rleadupdate(removed_veh, next_veh, dummy_vec, timeind):
     if type(next_veh) is not LeadVehicle and next_veh is not None and next_veh.lfol is removed_veh:
-        dummy_vec = LeadVehicle([], 0)
-        dummy_vec.pos = 1
-        dummy_vec.acc = 1
-        dummy_vec.speed = 1
-        dummy_vec.len = 0
         next_veh.lfol = dummy_vec
         next_veh.lfolmem.append([None, timeind+1])
-        rleadupdate(removed_veh, next_veh.lead, timeind)
+        rleadupdate(removed_veh, next_veh.lead, dummy_vec, timeind)
 
-def leadupdate(removed_veh, next_veh, timeind):
+def leadupdate(removed_veh, next_veh, dummy_vec, timeind):
     if type(next_veh) is not LeadVehicle and next_veh is not None:
-        dummy_vec = LeadVehicle([], 0)
-        dummy_vec.pos = 1
-        dummy_vec.acc = 1
-        dummy_vec.speed = 1
-        dummy_vec.len = 0
         next_veh.fol = dummy_vec
         next_veh.folmem.append([None, timeind+1])
-
-
-
-
-
 
 
 class Calibration(CalibrationCF):
@@ -293,6 +273,11 @@ class Calibration(CalibrationCF):
                          parameter_dict=parameter_dict, ending_position=1475)
         self.all_leadvehicles = leadvehicles
         self.leadvehicles = set()
+        self.dummy_vec = LeadVehicle([], 0)
+        self.dummy_vec.pos = 1
+        self.dummy_vec.acc = 1
+        self.dummy_vec.speed = 1
+        self.dummy_vec.len = 0
 
 
     def step(self):
@@ -301,17 +286,17 @@ class Calibration(CalibrationCF):
         for veh in self.vehicles:
             veh.set_lc(self.timeind, self.dt)
 
-        # for veh in self.vehicles:
-        #     print(veh)
-        #     print(veh.pos)
-        #     print(veh.acc)
-        #     print(veh.speed)
-        # print(self.timeind)
-        # print(self.ending_position)
-        # print('-------------------------')
+        for veh in self.vehicles:
+            print(veh)
+            print(veh.pos)
+            print(veh.acc)
+            print(veh.speed)
+        print(self.timeind)
+        print(self.ending_position)
+        print('-------------------------')
 
         # we need to have seperate add events and lc events, but the order of updates is exactly the same.
-        update_calibration(self.vehicles, self.leadvehicles, self.update_lc_events, self.update_add_events, self.timeind, self.dt, self.ending_position)
+        update_calibration(self.vehicles, self.leadvehicles, self.update_lc_events, self.update_add_events, self.timeind, self.dt, self.ending_position, self.dummy_vec)
         # only difference is that when we call veh.update for veh in vehicles, we also need to call
         # veh.update for veh in leadvehicles. Suggest to just write a new update_calibration_lc as it is only
         # like 15 lines of code.
@@ -453,6 +438,7 @@ def apply_calibration_lc_event(event, timeind, dt):
         curveh.r_lc = r_lc
         curveh.l_lc = l_lc
         curveh.update_lc_state(timeind, lc)
+        # problem with set_relax
         # curveh.set_relax(timeind, dt)
 
     else:

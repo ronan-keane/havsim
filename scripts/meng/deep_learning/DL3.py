@@ -6,7 +6,9 @@ import havsim.plotting as hp
 import matplotlib.pyplot as plt
 import numpy as np
 
-with open('recon-ngsim.pkl', 'rb') as f:
+# with open('recon-ngsim.pkl', 'rb') as f:
+#     vehdict = pickle.load(f)
+with open('data/recon-ngsim.pkl', 'rb') as f:
     vehdict = pickle.load(f)
 
 try:
@@ -42,12 +44,15 @@ params = {"lstm_units" : 64,
     "batch_size": 32}
 
 model = deep_learning.RNNCFModel(*norm, **params)
+# model = deep_learning.RNNSeparateModel(*norm, **params)
+
 loss = deep_learning.masked_MSE_loss
 lc_loss = deep_learning.SparseCategoricalCrossentropy
 # lc_loss = no_lc_loss  # train CF model only
 opt = tf.keras.optimizers.Adam(learning_rate=params['learning_rate'])
 
 #%%  training
+# model.load_weights('scripts/meng/deep_learning/saved_lstm_weights/CF_LC_initial')
 deep_learning.training_loop(model, loss, lc_loss, opt, training, 10000, nt=50, m=100)
 deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=100, m=100)
 deep_learning.training_loop(model, loss, lc_loss, opt, training, 1000, nt=200, m=100)
@@ -58,20 +63,25 @@ deep_learning.training_loop(model, loss, lc_loss, opt, training, 2000, nt=500, m
 #%% generate simulated trajectories
 sim_vehdict = deep_learning.generate_vehicle_data(model, train_veh, training, vehdict, deep_learning.weighted_masked_MSE_loss, lc_loss)
 
+hp.plotCFErrorN(sim_vehdict, vehdict, 'outputs/cferror/')
+hp.plotTrajectoriesProb(sim_vehdict, 'outputs/lcprobs/')
+
+hp.plot_confmat(sim_vehdict, save=True, output_dir = 'outputs/')
 #%% examples of plotting
 
-vehid = 1007
-hp.plotTrajectoryProbs(sim_vehdict,vehid)
-
-def cferror(vehid):
-    temp = vehdict[vehid].longest_lead_times
-    return np.abs(np.array(vehdict[vehid].posmem[temp[0]:temp[1]]) - sim_vehdict[vehid].posmem[temp[0]:temp[1]])
-hp.plotCFError(cferror(vehid), vehid)
-
-plt.figure()
-temp = vehdict[vehid].longest_lead_times
-plt.plot(vehdict[vehid].posmem[temp[0]:temp[1]])
-plt.plot(sim_vehdict[vehid].posmem[temp[0]:temp[1]])
-lctimes = [i[1] for i in vehdict[vehid].lanemem.intervals(*vehdict[vehid].longest_lead_times)[1:]]
-plt.plot(np.array(lctimes)-temp[0], [vehdict[vehid].posmem[i] for i in lctimes], '*b')
-plt.legend(['true', 'sim', 'lc time'])
+# vehid = 1007
+# hp.plotTrajectoryProbs(sim_vehdict,vehid)
+#
+# def cferror(vehid):
+#     temp = vehdict[vehid].longest_lead_times
+#     return np.abs(np.array(vehdict[vehid].posmem[temp[0]:temp[1]]) - sim_vehdict[vehid].posmem[temp[0]:temp[1]])
+# hp.plotCFError(cferror(vehid), vehid)
+#
+# plt.figure()
+# temp = vehdict[vehid].longest_lead_times
+# plt.plot(vehdict[vehid].posmem[temp[0]:temp[1]])
+# plt.plot(sim_vehdict[vehid].posmem[temp[0]:temp[1]])
+# lctimes = [i[1] for i in vehdict[vehid].lanemem.intervals(*vehdict[vehid].longest_lead_times)[1:]]
+# plt.plot(np.array(lctimes)-temp[0], [vehdict[vehid].posmem[i] for i in lctimes], '*b')
+# plt.legend(['true', 'sim', 'lc time'])
+# plt.show()

@@ -606,7 +606,7 @@ def interval_binary_search(X,time):
     #X = array
     #time = float
     lo = 0
-    hi = len(X)-2
+    hi = len(X)-1
     m = (lo + hi) //  2
     while (hi - lo) > 1:
         if time < X[m]:
@@ -1757,7 +1757,8 @@ def getentryflows(meas, entrylanes,  timeind, outtimeind):
     return entryflows, entrytimes
 
 
-def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .1):
+def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .1,
+                   time_units=3600, space_units=1000):
     #meas = measurements, in usual format (dictionary where keys are vehicle IDs, values are numpy arrays
  	#spacea - reads as ``space A'' (where A is the region where the macroscopic quantities are being calculated).
         #list of lists, each nested list is a length 2 list which ... represents the starting and ending location on road.
@@ -1777,8 +1778,8 @@ def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .
     q = [[] for i in spacea]
     k = [[] for i in spacea]
 
-    starttime = [i[0,1] for i in meas.values()]
-    starttime = int(min(starttime)) #first time index in data
+    # starttime = [i[0,1] for i in meas.values()]
+    # starttime = int(min(starttime)) #first time index in data
 
     spacealist = []
     for i in spacea:
@@ -1809,11 +1810,23 @@ def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .
 
         #if lane is given we need to find the segments of data inside the lane
         if lane is not None:
-            alldata = alldata[alldata[:,7]==lane] #boolean mask selects data inside lane
-            inds = sequential(alldata) #returns indexes where there are jumps
-            indlist = []
+            # e.g. if data is in lane 2 for times (0-10), lane 1 for times (11-20), and we want lane 1 data,
+            # we want to look at the times (10-20), so we don't lose the interval (10-11)
+            temp = alldata[alldata[:,7]==lane] #boolean mask selects data inside lane
+            if len(temp)==0:
+                continue
+            inds = sequential(temp) #returns indexes where there are jumps
+            indlist2 = []
             for i in range(len(inds)-1):
-                indlist.append([inds[i], inds[i+1]])
+                indlist2.append([inds[i], inds[i+1]])
+            # new code to get the correct intervals
+            mint = alldata[0,1]
+            indlist = []
+            for i in indlist2:
+                temp_start, temp_end = temp[i[0],1], temp[i[1]-1,1]
+                temp_start = max(temp_start-1, mint)
+                indlist.append([int(temp_start-mint), int(temp_end-mint+1)])
+
         else: #otherwise can just use everything
             indlist = [[0,len(alldata)]]
 
@@ -1825,35 +1838,61 @@ def calculateflows(meas, spacea, timea, agg, lane = None, method = 'area', h = .
 #            region_data = {}  # key: tid, sid
 
             for i in range(len(intervals)):
-                start =  int(max(0, intervals[i][0] + starttime - data[0,1])) #indices for slicing data
-                end = int(max(0, intervals[i][1] + starttime - data[0,1])) #its ok if end goes over for slicing - if both zero means no data in current interval
+                # start =  int(max(0, intervals[i][0] + starttime - data[0,1])) #indices for slicing data
+                # end = int(max(0, intervals[i][1] + starttime - data[0,1])) #its ok if end goes over for slicing - if both zero means no data in current interval
+                start =  int(max(0, intervals[i][0] - data[0,1])) #indices for slicing data
+                end = int(max(0, intervals[i][1] + 1 - data[0,1])) #its ok if end goes over for slicing - if both zero means no data in current interval
 
-                if start == end:
-                    continue
                 curdata = data[start:end]
+                if len(curdata)==0:
+                    continue
+
 
                 for j in range(len(spacea)):
                     minspace, maxspace = spacea[j][0], spacea[j][1]
-                    curspacedata = curdata[np.all([curdata[:,2] > minspace, curdata[:,2] < maxspace], axis = 0)]
-                    if len(curspacedata) == 0:
+                    # curspacedata = curdata[np.all([curdata[:,2] > minspace, curdata[:,2] < maxspace], axis = 0)]
+                    # if len(curspacedata) == 0:
+                    #     continue
+                    # new code to interpolate onto regions
+                    minind = interval_binary_search(curdata[:,2],minspace)
+                    maxind = interval_binary_search(curdata[:,2], maxspace)
+                    maxind = min(len(curdata)-1, maxind+1)
+                    if minind == maxind:
                         continue
-                    regions[j][i][0].append(curspacedata[-1,2] - curspacedata[0,2])
-                    regions[j][i][1].append((curspacedata[-1,1] - curspacedata[0,1])*h)
+                    curspacedata = curdata[minind:maxind+1, [1,2]]  #array of times, positions
+                    if curdata[maxind,2] < minspace or curdata[minind,2]> maxspace:
+                        continue
+                    if curdata[minind,2] < minspace:
+                        left = curdata[minind, 2]
+                        right = curdata[minind+1,2]
+                        interp = (minspace-left)/(right-left)
+                        curspacedata[0,0] += interp
+                        curspacedata[0,1] = minspace
+                    if curdata[maxind,2] > maxspace:
+                        left = curdata[maxind-1, 2]
+                        right = curdata[maxind, 2]
+                        interp = (maxspace-left)/(right-left)
+                        curspacedata[-1,0] = curspacedata[-2,0] + interp
+                        curspacedata[-1,1] = maxspace
+
+
+                    regions[j][i][0].append(curspacedata[-1,1] - curspacedata[0,1])
+                    regions[j][i][1].append((curspacedata[-1,0] - curspacedata[0,0]))
                     if method == 'flow':
-                        firstpos, lastpos = curdata[0,2], curdata[-1,2]
-                        if firstpos < spacea[j][0] and lastpos > spacea[j][0]:
+                        firstpos, lastpos = curspacedata[0,1], curspacedata[-1,1]
+                        if firstpos <= spacea[j][0] and lastpos > spacea[j][0]:
                             flows[j][i] += 1
 
     if method == 'area':
         for i in range(len(spacea)):
             for j in range(len(intervals)):
                 area = (spacea[i][1] - spacea[i][0]) * (intervals[j][1] - intervals[j][0])
-                q[i].append(sum(regions[i][j][0]) / area)
-                k[i].append(sum(regions[i][j][1]) / area)
+                q[i].append(sum(regions[i][j][0]) / area / h * time_units)
+                k[i].append(sum(regions[i][j][1]) / area * space_units)
     elif method == 'flow':
         for i in range(len(spacea)):
             for j in range(len(intervals)):
-                q[i].append(flows[i][j] / (h*(intervals[j][1] - intervals[j][0])))
+                q[i].append(flows[i][j] / (intervals[j][1] - intervals[j][0]))
                 try:
                     k[i].append(sum(regions[i][j][0]) / sum(regions[i][j][1]))
                 except:

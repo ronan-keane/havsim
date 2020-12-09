@@ -3,7 +3,7 @@
 Plotting some trajectories from merging vehicles from NGSIM
 """
 import havsim
-from havsim.plotting as hp
+import havsim.plotting as hp
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -21,22 +21,25 @@ lane6vehlist = []
 for i in platooninfo.keys():
     if 6 in np.unique(meas[i][:,7]):
         lane6vehlist.append(i)
-sortedvehlist = havsim.calibration.algs.sortveh3(lane6vehlist, 6, meas, platooninfo)
+sortedvehlist = havsim.calibration.platoon_formation.sortveh(6, meas, lane6vehlist)
 
 #%%
-#animatevhd(meas, None, platooninfo, sortedvehlist[113:115], interval = 30, lane = 6)
+hp.animatevhd(meas, None, platooninfo, sortedvehlist[50:52], interval = 30, lane = 6)
+
+#%%
+hp.animatetraj(meas, platooninfo, platoon = sortedvehlist)
+
+#%%
 veh = mergelist[5]
-plotvhd(meas, None, platooninfo, [mergelist[5]], draw_arrow = True, plot_color_line = True)
+hp.plotvhd(meas, None, platooninfo, [mergelist[5]], draw_arrow = True, plot_color_line = True)
 
 plt.figure()
 t_nstar, t_n = platooninfo[veh][:2]
 plt.plot(meas[veh][0:t_n-t_nstar,3])
 
 #%%
-plt.figure()
-hp.plotflows(meas,[[800,1200]],[0,10*60*14.5],30*10,type = 'FD',lane = 6, method = 'area')
-plt.figure()
-hp.plotflows(meas,[[800,1200]],[0,10*60*14.5],30*10,type = 'FD',lane = 5, method = 'area')
+hp.plotflows(meas,[[670,870],[1200,1400]],[0,10*60*14.5],30*10, method = 'area', space_units=3280.84)
+hp.plotflows(meas,[[670,770]],[0,10*60*14.5],30*10,lane = 6, method = 'area', space_units=3280.84)
 #%%
 hp.platoonplot(meas, None, platooninfo, lane = 5, opacity = 0)
 hp.platoonplot(meas, None, platooninfo, lane = 6, opacity = 0)

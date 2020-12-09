@@ -90,7 +90,8 @@ def make_dataset(veh_dict, veh_list, dt=.1, window=1):
         # vehicle
         vehpos = np.array(veh_data.posmem[start_sim:end_sim+2])
         vehspd = np.array(veh_data.speedmem[start_sim:end_sim+2])
-        true_lc_actions = np.array(generate_lane_data(veh_data, window)[start_sim - start:end_sim+2])
+        # true_lc_actions = np.array(generate_lane_data(veh_data, window)[start_sim - start:end_sim+2])
+        true_lc_actions = np.array(generate_lane_data(veh_data, window)[start_sim - start:end_sim - start + 2])
 
         # generate viable_lc - whether or not left/right change is possible at any given timestep
         contains_lane1 = 1.0 in veh_data.get_unique_mem(veh_data.lanemem)
@@ -147,44 +148,34 @@ def make_dataset(veh_dict, veh_list, dt=.1, window=1):
 
     return ds, (maxheadway, maxspeed, minacc, maxacc)
 
-class RNNCFModel(tf.keras.Model):
-    """Simple RNN based CF model."""
-
-    def __init__(self, maxhd, maxv, mina, maxa, lstm_units=20, dt=.1, l2reg=.02, dropout=.2, **kwargs):
-        """Inits RNN based CF model.
-
-        Args:
-            maxhd: max headway (for nomalization of inputs)
-            maxv: max velocity (for nomalization of inputs)
-            mina: minimum acceleration (for nomalization of outputs)
-            maxa: maximum acceleration (for nomalization of outputs)
-            dt: timestep
-            lstm_units: number of LSTM units
-            l2reg: constant for l2 regularization which is applied to dense layer kernel and LSTM kernel
-            dropout: dropout % applied to LSTM units
-        """
+class RNNBaseModel(tf.keras.Model):
+    num_lstms = None
+    def __init__(self, maxhd, maxv, mina, maxa, dt=.1):
         super().__init__()
-        # architecture
-        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=dropout,
-                                    kernel_regularizer=tf.keras.regularizers.l2(l=l2reg),
-                                    recurrent_regularizer=tf.keras.regularizers.l2(l=l2reg))
-        self.dense1 = tf.keras.layers.Dense(1)
-        self.dense2 = tf.keras.layers.Dense(10, activation='relu',
-                                            kernel_regularizer=tf.keras.regularizers.l2(l=l2reg))
-        self.lc_actions = tf.keras.layers.Dense(3)
-
         # normalization constants
         self.maxhd = maxhd
         self.maxv = maxv
         self.mina = mina
         self.maxa = maxa
-
-        # other constants
+        
         self.dt = dt
-        self.lstm_units = lstm_units
-        self.l2reg = l2reg
-        self.dropout = dropout
-        self.num_hidden_layers = 1
+
+    def compute_output(self, cur_inputs, hidden_states, training=False):
+        """
+        Computes output of model given the cur inputs and the hidden states of the lstm_cells.
+        Args:
+            cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead, 
+                rlead, fol, lfol, rfol)
+            hidden_states: list of hidden_states, each a tensor with shape (nveh, 2). The number of
+                hidden_states depends on the implementation of the model
+            training: Whether to run in training/inference mode. Need to pass training=True if training
+                with dropout
+        Returns:
+            cur_cf: the predicted normalized acceleration
+            cur_lc: the predicted log-probabilities of lane changing
+            updated hidden_states: in same structure as input
+        """
+        raise NotImplementedError
 
     def call(self, leadfol_inputs, init_state, hidden_states, training=False):
         """Updates states for a batch of vehicles.
@@ -212,8 +203,6 @@ class RNNCFModel(tf.keras.Model):
             hidden_states: last hidden states for LSTM. Tuple of tensors, where each tensor has shape of
                 (number of vehicles, number of LSTM units)
         """
-        # prepare data for call
-        # self.lstm_cell.reset_dropout_mask()
         leadfol_inputs = tf.unstack(leadfol_inputs, axis=1)  # unpacked over time dimension
         cur_pos, cur_speed = tf.unstack(init_state, axis=1)
 
@@ -227,16 +216,11 @@ class RNNCFModel(tf.keras.Model):
             cur_inputs = tf.concat([lead_hd, fol_hd, spds], axis=1)
             cur_inputs = tf.where(tf.math.is_nan(cur_inputs), tf.ones_like(cur_inputs), cur_inputs)
 
-            # call to model
-            self.lstm_cell.reset_dropout_mask()
-            x, hidden_states = self.lstm_cell(cur_inputs, hidden_states, training)
-            x = self.dense2(x)
-            cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch
-            x = self.dense1(x)  # current normalized acceleration for the batch
+            cur_cf, cur_lc, hidden_states = self.compute_output(cur_inputs, hidden_states, training)
 
             # update vehicle states
-            x = tf.squeeze(x, axis=1)
-            cur_acc = (self.maxa-self.mina)*x + self.mina
+            cur_cf = tf.squeeze(cur_cf, axis=1)
+            cur_acc = (self.maxa-self.mina)*cur_cf + self.mina
             cur_pos = cur_pos + self.dt*cur_speed
             cur_speed = cur_speed + self.dt*cur_acc
             pred_traj.append(cur_pos)
@@ -244,7 +228,149 @@ class RNNCFModel(tf.keras.Model):
 
         pred_traj = tf.stack(pred_traj, 1)
         pred_lc_action = tf.stack(pred_lc_action, 1)
+
         return pred_traj, pred_lc_action, cur_speed, hidden_states
+
+    def get_config(self):
+        """Return any non-trainable parameters in json format."""
+        raise NotImplementedError
+
+    @classmethod
+    def from_config(self, config):
+        """Inits self from saved config created by get_config."""
+        raise NotImplementedError
+
+class RNNSeparateModel(RNNBaseModel):
+    num_lstms = 2
+
+    def __init__(self, maxhd, maxv, mina, maxa, lstm_units=20, dt=.1, l2reg=.02, dropout=.2, **kwargs):
+        """Inits RNN based CF model.
+
+        Args:
+            maxhd: max headway (for nomalization of inputs)
+            maxv: max velocity (for nomalization of inputs)
+            mina: minimum acceleration (for nomalization of outputs)
+            maxa: maximum acceleration (for nomalization of outputs)
+            dt: timestep
+            lstm_units: number of LSTM units
+            l2reg: constant for l2 regularization which is applied to dense layer kernel and LSTM kernel
+            dropout: dropout % applied to LSTM units
+        """
+        super().__init__(maxhd, maxv, mina, maxa, dt=dt)
+        # architecture
+        self.cf_lstm = tf.keras.layers.LSTMCell(lstm_units, dropout=dropout,
+                                    kernel_regularizer=tf.keras.regularizers.l2(l=l2reg),
+                                    recurrent_regularizer=tf.keras.regularizers.l2(l=l2reg))
+        self.lc_lstm = tf.keras.layers.LSTMCell(lstm_units, dropout=dropout,
+                                    kernel_regularizer=tf.keras.regularizers.l2(l=l2reg),
+                                    recurrent_regularizer=tf.keras.regularizers.l2(l=l2reg))
+
+        self.lc_dense = tf.keras.layers.Dense(10, activation='relu', 
+                                            kernel_regularizer=tf.keras.regularizers.l2(l=l2reg))
+        self.cf_dense = tf.keras.layers.Dense(10, activation='relu', 
+                                            kernel_regularizer=tf.keras.regularizers.l2(l=l2reg))
+
+        self.cf_output = tf.keras.layers.Dense(1)
+        self.lc_output = tf.keras.layers.Dense(3)
+
+        # other constants
+        self.lstm_units = lstm_units
+        self.l2reg = l2reg
+        self.dropout = dropout
+        self.num_hidden_layers = 1
+
+    def compute_output(self, cur_inputs, hidden_states, training=False):
+        """
+        Computes output of model given the cur inputs and the hidden states of the lstm_cells.
+        Args:
+            cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead, 
+                rlead, fol, lfol, rfol)
+            hidden_states: list of hidden_states, each a tensor with shape (nveh, 2). The number of
+                hidden_states depends on the implementation of the model
+            training: Whether to run in training/inference mode. Need to pass training=True if training
+                with dropout
+        Returns:
+            cur_cf: the predicted normalized acceleration
+            cur_lc: the predicted log-probabilities of lane changing
+            updated hidden_states: in same structure as input
+        """
+        self.cf_lstm.reset_dropout_mask()
+        cur_cf, cf_hidden_states = self.cf_lstm(cur_inputs, hidden_states[0], training)
+        cur_cf = self.cf_dense(cur_cf)
+        cur_cf = self.cf_output(cur_cf)
+
+        self.lc_lstm.reset_dropout_mask()
+        cur_lc, lc_hidden_states = self.lc_lstm(cur_inputs, hidden_states[1], training)
+        cur_lc = self.lc_dense(cur_lc)
+        cur_lc = self.lc_output(cur_lc) # logits for LC over {left, stay, right} classes for batch
+        return cur_cf, cur_lc, [cf_hidden_states, lc_hidden_states]
+
+    def get_config(self):
+        """Return any non-trainable parameters in json format."""
+        return {'pos_args': (self.maxhd, self.maxv, self.mina, self.maxa,), \
+                'lstm_units': self.lstm_units, 'dt': self.dt, 'l2reg':self.l2reg, 'dropout':self.dropout}
+
+    @classmethod
+    def from_config(self, config):
+        """Inits self from saved config created by get_config."""
+        pos_args = config.pop('pos_args')
+        return self(*pos_args, **config)
+
+class RNNCFModel(RNNBaseModel):
+    """Simple RNN based CF model."""
+    num_lstms = 1
+
+    def __init__(self, maxhd, maxv, mina, maxa, lstm_units=20, dt=.1, l2reg=.02, dropout=.2, **kwargs):
+        """Inits RNN based CF model.
+
+        Args:
+            maxhd: max headway (for nomalization of inputs)
+            maxv: max velocity (for nomalization of inputs)
+            mina: minimum acceleration (for nomalization of outputs)
+            maxa: maximum acceleration (for nomalization of outputs)
+            dt: timestep
+            lstm_units: number of LSTM units
+            l2reg: constant for l2 regularization which is applied to dense layer kernel and LSTM kernel
+            dropout: dropout % applied to LSTM units
+        """
+        super().__init__(maxhd, maxv, mina, maxa, dt=dt)
+        # architecture
+        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=dropout,
+                                    kernel_regularizer=tf.keras.regularizers.l2(l=l2reg),
+                                    recurrent_regularizer=tf.keras.regularizers.l2(l=l2reg))
+        self.dense1 = tf.keras.layers.Dense(1)
+        self.dense2 = tf.keras.layers.Dense(10, activation='relu',
+                                            kernel_regularizer=tf.keras.regularizers.l2(l=l2reg))
+        self.lc_actions = tf.keras.layers.Dense(3)
+
+        # other constants
+        self.lstm_units = lstm_units
+        self.l2reg = l2reg
+        self.dropout = dropout
+        self.num_hidden_layers = 1
+
+    def compute_output(self, cur_inputs, hidden_states, training=False):
+        """
+        Computes output of model given the cur inputs and the hidden states of the lstm_cells.
+        Args:
+            cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead, 
+                rlead, fol, lfol, rfol)
+            hidden_states: list of hidden_states, each a tensor with shape (nveh, 2). The number of
+                hidden_states depends on the implementation of the model
+            training: Whether to run in training/inference mode. Need to pass training=True if training
+                with dropout
+        Returns:
+            cur_cf: the predicted normalized acceleration
+            cur_lc: the predicted log-probabilities of lane changing
+            updated hidden_states: in same structure as input
+        """
+        # call to model
+        self.lstm_cell.reset_dropout_mask()
+        x, hidden_states = self.lstm_cell(cur_inputs, hidden_states[0], training)
+        x = self.dense2(x)
+        cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch
+        cur_cf = self.dense1(x)  # current normalized acceleration for the batch
+        return cur_cf, cur_lc, [hidden_states]
 
     def get_config(self):
         """Return any non-trainable parameters in json format."""
@@ -377,6 +503,95 @@ def train_step(leadfol_inputs, init_state, hidden_state, true_traj, true_lc_acti
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     return pred_traj, pred_lc_action, cur_speeds, hidden_state, cf_loss, lc_loss
 
+def new_veh_indices(vehs, vehs_counter, nt):
+    """
+    Utilized by training_loop to calculate which vehicles need to be replaced in the next batch
+    Params:
+        vehs: list of vehids that are currently in the batch
+        vehs_counter: stores current time index, maximum time index (length - 1) for each vehicle
+            dict from vehid -> [curr time, max time]
+        nt: number of timesteps in a batch
+    Returns:
+        indices of vehs that need to be replaced
+    """
+    need_new_vehs = []  # list of indices in batch we need to get a new vehicle for
+    for count, veh in enumerate(vehs):
+        vehs_counter[count][0] += nt
+        if vehs_counter[count][0] >= vehs_counter[count][1]:
+            need_new_vehs.append(count)
+    return need_new_vehs
+
+def generate_new_states(ds, vehs, vehlist, vehs_counter, need_new_vehs):
+    """
+    Utilized by training_loop to generate the initial conditions for the new vehicles to be 
+    added in the next batch.
+    Params:
+        ds: dataset generated from make_batch
+        vehs: list of vehids that are in the current batch
+        vehlist: list of all vehids
+        vehs_counter: stores current time index, maximum time index (length - 1) for each vehicle
+            dict from vehid -> [curr time, max time]
+        need_new_vehs: list of indices that need to be replaced. For example, [0, 4] implies that
+            the first and fifth vehicle in vehs need to be replaced
+    Returns:
+        cur_state_updates: tensor version of initial conditions for the new vehicles
+            (with shape (num_new_vehs, 2)
+        inds_to_update: tensor version of need_new_vehs (with shape (num_new_vehs, 1))
+    """
+    np.random.shuffle(vehlist)
+    new_vehs = vehlist[:len(need_new_vehs)]
+    cur_state_updates = []
+    for count, ind in enumerate(need_new_vehs):
+        new_veh = new_vehs[count]
+        vehs[ind] = new_veh
+        vehs_counter[ind] = [0, ds[new_veh]['times'][1]-ds[new_veh]['times'][0], new_veh]
+        cur_state_updates.append(ds[new_veh]['IC'])
+    cur_state_updates = tf.convert_to_tensor(cur_state_updates, dtype='float32')
+    inds_to_update = tf.convert_to_tensor([[j] for j in need_new_vehs], dtype='int32')
+    return cur_state_updates, inds_to_update
+
+def update_hidden_states(hidden_states, inds_to_update, hidden_state_shape):
+    """
+    Updates hidden_states with zeros for the new vehicles to be added in the batch, called by
+    training_loop.
+    Params:
+        hidden_states: list of tensors, each with shape (nveh, num_units). The length
+            of this tensor depends on the model utilized (and the number of lstm units
+            it utilizes)
+        inds_to_update: the indices that need to be replaced (tensor w/shape (num_new_vehs,1))
+        hidden_state_shape: tuple representing the shape of the hidden states
+    Returns:
+        updated hidden_states
+    """
+    hidden_state_updates = tf.zeros(hidden_state_shape)
+    for idx, cur_hidden in enumerate(hidden_states):
+        h, c = cur_hidden
+        h = tf.tensor_scatter_nd_update(h, inds_to_update, hidden_state_updates)
+        c = tf.tensor_scatter_nd_update(c, inds_to_update, hidden_state_updates)
+        hidden_states[idx] = [h, c]
+    return hidden_states
+
+def initialize_states(ds, vehs, num_units, num_hidden_states):
+    """
+    This generates the initial conditions and hidden states at the beginning of training_loop
+    and generate_trajectories.
+    Params:
+        ds: dataset generated from make_batch
+        vehs: vehicles in the batch to be generated
+        num_units: the number of units in the hidden state of each lstm cell
+        num_hidden_states: the number of hidden states/lstm cells in the model
+    Returns:
+        cur_state: the initial conditions of each vehicle
+        hidden_states: list of hidden states each with shape (nveh, num_units)
+    """
+    cur_state = [ds[veh]['IC'] for veh in vehs]
+    cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
+    hidden_states = []
+    for idx in range(num_hidden_states):
+        hidden_states += [tf.stack([tf.zeros((len(vehs), num_units)),  \
+                tf.zeros((len(vehs), num_units))])]
+        hidden_states[idx] = tf.convert_to_tensor(hidden_states[idx], dtype='float32')
+    return cur_state, hidden_states
 
 def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100,
                   resume_state=None):
@@ -408,10 +623,7 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
         vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0], veh]
                         for count, veh in enumerate(vehs)}
         # make inputs for network
-        cur_state = [ds[veh]['IC'] for veh in vehs]
-        cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
-        hidden_states = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
-        hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
+        cur_state, hidden_states = initialize_states(ds, vehs, model.lstm_units, model.num_lstms)
     else:
         vehs_counter, cur_state, hidden_states = resume_state
 
@@ -423,35 +635,24 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
             train_step(leadfol_inputs, cur_state, hidden_states, true_traj, true_lc_action,
                         traj_mask, viable_lc, model, loss, lc_loss_fn, optimizer)
         if i % m == 0:
-            print(f'loss for {i}th batch is {cf_loss:.4f}. LC loss is {lc_loss:.4f}\n')
+            print(f'loss for {i}th batch is {cf_loss:.4f}. LC loss is {lc_loss:.4f}')
 
         #### update iteration by replacing any vehicles which have been fully simulated ####
         cur_state = tf.stack([pred_traj[:, -1], cur_speeds], axis=1)  # current state for vehicles in batch
+
         # check if any vehicles in batch have had their entire trajectory simulated
-        need_new_vehs = []  # list of indices in batch we need to get a new vehicle for
-        for count, veh in enumerate(vehs):
-            vehs_counter[count][0] += nt
-            if vehs_counter[count][0] >= vehs_counter[count][1]:
-                need_new_vehs.append(count)
+        need_new_vehs = new_veh_indices(vehs, vehs_counter, nt)
+
         # update vehicles in batch - update hidden_states and cur_state accordingly
         if len(need_new_vehs) > 0:
-            np.random.shuffle(vehlist)
-            new_vehs = vehlist[:len(need_new_vehs)]
-            cur_state_updates = []
-            for count, ind in enumerate(need_new_vehs):
-                new_veh = new_vehs[count]
-                vehs[ind] = new_veh
-                vehs_counter[ind] = [0, ds[new_veh]['times'][1]-ds[new_veh]['times'][0], new_veh]
-                cur_state_updates.append(ds[new_veh]['IC'])
-            cur_state_updates = tf.convert_to_tensor(cur_state_updates, dtype='float32')
-            hidden_state_updates = tf.zeros((len(need_new_vehs), model.lstm_units))
-            inds_to_update = tf.convert_to_tensor([[j] for j in need_new_vehs], dtype='int32')
+            cur_state_updates, inds_to_update = \
+                    generate_new_states(ds, vehs, vehlist, vehs_counter, need_new_vehs)
 
+            # update cur_state with generated states
             cur_state = tf.tensor_scatter_nd_update(cur_state, inds_to_update, cur_state_updates)
-            h, c = hidden_states
-            h = tf.tensor_scatter_nd_update(h, inds_to_update, hidden_state_updates)
-            c = tf.tensor_scatter_nd_update(c, inds_to_update, hidden_state_updates)
-            hidden_states = [h, c]
+
+            hidden_states = update_hidden_states(hidden_states, inds_to_update, \
+                    (len(need_new_vehs), model.lstm_units))
 
         leadfol_inputs, true_traj, true_lc_action, traj_mask, viable_lc = \
             make_batch(vehs, vehs_counter, ds, nt)
@@ -480,10 +681,7 @@ def generate_trajectories(model, vehs, ds, loss_fn=None, lc_loss_fn=None):
                         for count, veh in enumerate(vehs)}
     nt = max([i[1] for i in vehs_counter.values()])
     # make inputs for network
-    cur_state = [ds[veh]['IC'] for veh in vehs]
-    cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
-    hidden_states = tf.stack([tf.zeros((nveh, model.lstm_units)),  tf.zeros((nveh, model.lstm_units))])
-    hidden_states = tf.convert_to_tensor(hidden_states, dtype='float32')
+    cur_state, hidden_states = initialize_states(ds, vehs, model.lstm_units, model.num_lstms)
     leadfol_inputs, true_traj, true_lc_action, traj_mask, viable_lc = make_batch(vehs, vehs_counter, ds, nt)
 
     pred_traj, pred_lc_action, cur_speeds, hidden_state = \
@@ -503,7 +701,7 @@ def generate_vehicle_data(model, vehs, ds, vehdict, loss_fn=None, lc_loss_fn=Non
 
     pred_traj, pred_lc_action, traj_mask, viable_lc, cf_loss, lc_loss = \
         generate_trajectories(model, vehs, ds, loss_fn, lc_loss_fn)
-    print(f'cf loss is {cf_loss:.4f}. LC loss is {lc_loss:.4f}\n')
+    print(f'cf loss is {cf_loss:.4f}. LC loss is {lc_loss:.4f}')
 
     if lc_loss_fn is not None:
         pred_lc_action = logits_to_probabilities(pred_lc_action, traj_mask, viable_lc)

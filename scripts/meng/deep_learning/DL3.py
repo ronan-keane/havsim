@@ -48,6 +48,8 @@ model = deep_learning.RNNCFModel(*norm, **params)
 
 loss = deep_learning.masked_MSE_loss
 lc_loss = deep_learning.SparseCategoricalCrossentropy
+# lc_loss = deep_learning.expected_LC
+
 # lc_loss = no_lc_loss  # train CF model only
 opt = tf.keras.optimizers.Adam(learning_rate=params['learning_rate'])
 

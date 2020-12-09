@@ -303,7 +303,7 @@ class RNNSeparateModel(RNNBaseModel):
         cur_lc, lc_hidden_states = self.lc_lstm(cur_inputs, hidden_states[1], training)
         cur_lc = self.lc_dense(cur_lc)
         cur_lc = self.lc_output(cur_lc) # logits for LC over {left, stay, right} classes for batch
-        return cur_cf, cur_lc, [cf_hidden_states, lc_hidden_states]
+        return cur_cf, cur_lc, [tf.stack(cf_hidden_states), tf.stack(lc_hidden_states)]
 
     def get_config(self):
         """Return any non-trainable parameters in json format."""
@@ -355,7 +355,7 @@ class RNNCFModel(RNNBaseModel):
         Args:
             cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead, 
                 rlead, fol, lfol, rfol)
-            hidden_states: list of hidden_states, each a tensor with shape (nveh, 2). The number of
+            hidden_states: list of hidden_states, each a tensor with shape (2, nveh, num_units). The number of
                 hidden_states depends on the implementation of the model
             training: Whether to run in training/inference mode. Need to pass training=True if training
                 with dropout
@@ -370,7 +370,7 @@ class RNNCFModel(RNNBaseModel):
         x = self.dense2(x)
         cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch
         cur_cf = self.dense1(x)  # current normalized acceleration for the batch
-        return cur_cf, cur_lc, [hidden_states]
+        return cur_cf, cur_lc, [tf.stack(hidden_states)]
 
     def get_config(self):
         """Return any non-trainable parameters in json format."""
@@ -852,7 +852,8 @@ def calculate_ET_P(pred_lc_action, intervals, count, curtime):
     pred_ET_P = probs*probs2
 
     pred_P = pred_ET_P[-1]
-    pred_ET = tf.tensordot(pred_ET_P[:-1], tf.range(0,int(cur_end-cur_start),dtype='float32'), 1)
+    # pred_ET = tf.tensordot(pred_ET_P[:-1], tf.range(0,int(cur_end-cur_start),dtype='float32'), 1)
+    pred_ET = tf.tensordot(pred_ET_P[:-1], tf.range(0,probs.shape[0]-1,dtype='float32'), 1)
 
     return P, pred_P, ET, pred_ET
 

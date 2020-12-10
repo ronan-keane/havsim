@@ -317,7 +317,14 @@ class Road:
             else:
                 assert isinstance(self_indices, list)
             for ind in self_indices:
-                self.lanes[ind].call_downstream = downstream_wrapper(**downstream).__get__(self.lanes[ind], Lane)
+                # Setup downstream conditions on all lanes on the same track
+                cur_lane = self.lanes[ind].anchor.lane
+                while True:
+                    cur_lane.call_downstream = downstream_wrapper(**downstream).__get__(cur_lane, Lane)
+                    if hasattr(cur_lane, 'connect_to') and isinstance(cur_lane.connect_to, Lane):
+                        cur_lane = cur_lane.connect_to
+                    else:
+                        break
 
     def set_upstream(self, increment_inflow=None, get_inflow=None, new_vehicle=None, self_indices=None):
         """

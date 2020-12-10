@@ -39,7 +39,7 @@ def update_veh_after_lc(lc_actions, veh, timeind):
     # TODO no check for vehicles moving into same gap (store the lcside fol/lead in lc_actions,
     # check if they are the same?)
     # also, this is related to the error in the edge case where a vehicle has None leader, then has 2 vehicles
-    # change in front of it, the leadmem gets 2 things added, and then the relaxation throws error because 
+    # change in front of it, the leadmem gets 2 things added, and then the relaxation throws error because
     # olds = None but it excepts olds is not None.
 
     lc = lc_actions[veh]
@@ -411,7 +411,7 @@ def make_cur_route(p, curlane, nextroadname):
     cur_route = {}
     if change_type == 'continue':  # -> vehicle needs to reach end of lane
         # initialize for lanes which vehicle needs to continue on
-        leftind, rightind = laneind[:]
+        leftind, rightind = laneind[:] if len(laneind) == 2 else laneind[0], laneind[0]
         for i in range(leftind, rightind+1):
             cur_route[curroad[i]] = []
 

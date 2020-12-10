@@ -131,7 +131,7 @@ class Simulation:
         dt: constant float. timestep for the simulation.
     """
 
-    def __init__(self, inflow_lanes=None, merge_lanes=None, vehicles=None, prev_vehicles=None, vehid=0,
+    def __init__(self, inflow_lanes=[], merge_lanes=[], vehicles=None, prev_vehicles=None, vehid=0,
                  timeind=0, dt=.25, roads=None):
         """Inits simulation.
 

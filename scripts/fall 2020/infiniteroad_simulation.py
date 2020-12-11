@@ -9,21 +9,22 @@ import time
 
 #%% Set up
 
-IDM_parameters = [35, 1.1, 2, 1.1, 1.5]  # in order: max speed, time headway, jam spacing, comfortable acceleration,
+IDM_parameters = [30, 1, 4, 1.3, 2]  # in order: max speed, time headway, jam spacing, comfortable acceleration,
 # comfortable deceleration. Units are in meters.
-eql_speed = 20  # define the equilibrium speed you want to perturb around
-nveh = 500  # number of vehicles
-nt = 2500  # number of timesteps
+eql_speed = 28  # define the equilibrium speed you want to perturb around
+nveh = 1000  # number of vehicles
+nt = 3000  # number of timesteps
 dt = .25  # timestep in seconds
 # define speed profile of lead vehicle
 def downstream(timeind, *args):
     if timeind < 50:
-        return eql_speed-10
+        return eql_speed-25
     else:
         return eql_speed
 
 #%% Plot the equiliibrum solution FD and selected equiliibrum point
-tempveh = hs.Vehicle(-1, None, IDM_parameters, None, maxspeed = IDM_parameters[0])
+
+tempveh = hs.Vehicle(-1, None, IDM_parameters, None, maxspeed = IDM_parameters[0], length=5)
 spds = np.arange(0,IDM_parameters[0],.01)
 flows = np.array([tempveh.get_flow(i) for i in spds])
 density = np.divide(flows,spds)
@@ -41,7 +42,7 @@ mainroad.set_downstream({'method':'speed', 'time_series':downstream})
 def newveh(vehid, *args):
     cf_p = IDM_parameters
     unused, lc_p = hs.models.IDM_parameters()
-    kwargs = {'route': ['exit'], 'maxspeed':cf_p[0]}
+    kwargs = {'route': ['exit'], 'maxspeed':cf_p[0], 'length':5}
     return hs.Vehicle(vehid, mainroad[0], cf_p, lc_p, **kwargs)
 
 vehicles = set()

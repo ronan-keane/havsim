@@ -3,12 +3,13 @@
 import havsim.simulation as hs
 import havsim.plotting as hp
 import time
+import numpy as np
 
 #%%
-IDM_parameters = [35, 2, 2, 1.1, 1.5]  # in order: max speed, time headway, jam spacing, comfortable acceleration,
+IDM_parameters = [30, 1, 4, 1.3, 2]  # in order: max speed, time headway, jam spacing, comfortable acceleration,
 # comfortable deceleration. Units are in meters.
-eql_speed = 20  # define the equilibrium speed you want to perturb around
-nveh = 5000  # number of vehicles
+eql_speed = 15  # define the equilibrium speed you want to perturb around
+nveh = 1500  # number of vehicles
 dt = .25  # timestep in seconds
 acc_tolerance = 1e-3  # acc tolerance for adding new vehicles
 speed_tolerance = 1e-1  # speed tolerance for subtracting vehicles
@@ -16,12 +17,14 @@ speed_tolerance = 1e-1  # speed tolerance for subtracting vehicles
 
 # define speed profile of initial vehicle
 def downstream(timeind, *args):
-    if timeind < 50:
-        return eql_speed-15
+    # if timeind < 50:
+    # if timeind < 200:
+    if False:
+        return eql_speed-5
     else:
         return eql_speed
 # define initial headway of the first following vehicle
-init_hd = hs.Vehicle(-1, None, IDM_parameters, None).get_eql(eql_speed)
+init_hd = hs.Vehicle(-1, None, IDM_parameters, None, length=5).get_eql(eql_speed)
 #%%
 
 mainroad_len= 1e10
@@ -31,7 +34,7 @@ mainroad.set_downstream({'method':'speed', 'time_series':downstream})
 def newveh(vehid, *args):
     cf_p = IDM_parameters
     unused, lc_p = hs.models.IDM_parameters()
-    kwargs = {'route': ['exit'], 'maxspeed':cf_p[0]}
+    kwargs = {'route': ['exit'], 'maxspeed':cf_p[0], 'length':5}
     return hs.Vehicle(vehid, mainroad[0], cf_p, lc_p, **kwargs)
 
 def make_waves():
@@ -45,33 +48,34 @@ def make_waves():
 
     At every timestep, we first evaluate whether to add a new vehicle to the simulation. We can calculate
     in closed form the trajectory of the next following vehicle, assuming it stays in equilibrium. This
-    is used to evaluate the acceleration of this potential new vehicle, if it is added to the simulation.
-    If the acceleration is greater than the acc_tolerance threshold, the new vehicle is added and will
-    begin to be fully simulated. Otherwise, we approximate its trajectory by the equilibrium solution.
+    is used to evaluate the acceleration of this potential new vehicle.
+    If the acceleration is greater than the acc_tolerance threshold, the new vehicle is added and will begin
+    to be fully simulated. Otherwise, we continue to approximate its trajectory by the equilibrium solution.
     To evaluate whether to remove the most downstream vehicles from the simulation, we calculate
     the difference between its current speed and the equilibrium speed. If the difference is less than
-    speed_tolerance, then this most downstream vehicle is no longer fully simulated, and we approximate
-    its trajectory by the equilibrium solution.
+    speed_tolerance, and the acceleration is less than the acc_tolerance, then this most downstream vehicle
+    is no longer fully simulated, and we approximate its future trajectory by the equilibrium solution for the
+    remaining upstream vehicles.
     """
     # initialization
     next_initpos = 1e5
-    testveh = newveh(-1)
+    testveh = newveh(-1)  # used to evluate whether to add a new vehicle
     testveh.speed = eql_speed
-    leadveh = newveh(-2)
+    leadveh = newveh(-2)  # used to approximate the downstream most vehicle when it ceases to be fully simulated
     leadveh.speed = eql_speed
     leadveh.pos = 0
     eql_hd = testveh.get_eql(eql_speed)
-    cur_vehicles = []
-    all_vehicles = []
-    prev_veh = None
-    counter = 0
-    curtime = 0
+    cur_vehicles = []  # vehicles currently being fully simulated
+    all_vehicles = []  # vehicles which were previously fully simulated
+    prev_veh = None  # current upstream most vehicle
+    counter = 0  # cumulative number of fully simulated vehicles
+    curtime = 0  # current simulation timestep
     while counter < nveh and (len(cur_vehicles) > 0 or counter==0):
         # check if we need to add a new vehicle
         testveh.pos = next_initpos + curtime*dt*eql_speed
         testhd = hs.get_headway(testveh, prev_veh) if prev_veh is not None else None
         acc = testveh.get_cf(testhd, eql_speed, prev_veh, mainroad[0], curtime, dt, False)
-        if abs(acc*dt) > acc_tolerance:
+        if abs(acc*dt) > acc_tolerance or counter==0:
             veh = newveh(counter)
             veh.lead = prev_veh
             if counter > 0:
@@ -87,6 +91,9 @@ def make_waves():
         # update simulation
         for veh in cur_vehicles:
             veh.set_cf(curtime, dt)
+            ##### acceleration noise #####
+            if curtime < 400:
+                veh.acc += (np.random.rand()-.5)/2
         for veh in cur_vehicles:
             veh.update(curtime, dt)
         leadveh.pos += leadveh.speed*dt
@@ -98,7 +105,7 @@ def make_waves():
         # check if we need to remove vehicles
         # if len(cur_vehicles)>0:
         veh = cur_vehicles[0]
-        if abs(veh.speed-eql_speed)<speed_tolerance:
+        if abs(veh.acc*dt) < acc_tolerance*10 and abs(veh.speed-eql_speed) < speed_tolerance:
             all_vehicles.append(veh)
             veh.end = curtime
             leadveh.pos = veh.pos

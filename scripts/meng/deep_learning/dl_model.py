@@ -72,7 +72,21 @@ class RNNCFModel(tf.keras.Model):
         """
         super().__init__()
         # architecture
-        self.lstm1 = tf.keras.layers.LSTM(lstm_units, dropout=params['dropout'],
+        self.conv1 = tf.keras.layers.Conv1D(filters=32, kernel_size=3, padding='same',activation='relu', 
+                                            use_bias=True, kernel_regularizer=None,bias_regularizer=None,
+                                            input_shape=(None, 3))
+        self.conv2 = tf.keras.layers.Conv1D(filters=64, kernel_size=3, padding='valid',activation='relu', 
+                                            use_bias=True, kernel_regularizer=None,bias_regularizer=None)
+        self.maxPool1 = tf.keras.layers.MaxPool1D(pool_size=2, strides=2, padding='same')
+        self.maxPool2 = tf.keras.layers.MaxPool1D(pool_size=2, strides=2, padding='same')
+        self.flatten = tf.keras.layers.Flatten()
+        self.bn1 = tf.keras.layers.BatchNormalization(axis=-1)
+        self.bn2 = tf.keras.layers.BatchNormalization(axis=-1)
+        self.dropout = tf.keras.layers.Dropout(params['dropout'])
+        self.lstm1 = tf.keras.layers.LSTM(lstm_units, dropout=params['dropout'], return_sequences=True,
+                                            kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']),
+                                            recurrent_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
+        self.lstm2 = tf.keras.layers.LSTM(params["lstm2_units"], dropout=params['dropout'],
                                             kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']),
                                             recurrent_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
         self.dense1 = tf.keras.layers.Dense(1)
@@ -131,8 +145,15 @@ class RNNCFModel(tf.keras.Model):
             cur_mask = mask[:, t:t+past]
 
             x = tf.stack([cur_hds/self.maxhd, cur_speeds/self.maxv, cur_lead_speeds/self.maxv], axis=2)
-            self.lstm1.reset_dropout_mask()
-            x = self.lstm1(x, training=training, mask=cur_mask)
+            # self.lstm1.reset_dropout_mask()
+            # self.lstm2.reset_dropout_mask()
+            # x = self.lstm1(x, training=training, mask=cur_mask)
+            # x = self.lstm2(x, training=training, mask=cur_mask)
+            x = self.conv1(x)
+            x = self.maxPool1(x)
+            x = self.conv2(x)
+            x = self.maxPool2(x)
+            x = self.flatten(x)
             x = self.dense2(x)
             x = self.dense1(x)
             # print('model output shape', x.shape)  #should be batch_size * 1?

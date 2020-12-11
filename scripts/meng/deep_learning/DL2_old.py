@@ -8,11 +8,15 @@ import matplotlib.pyplot as plt
 import nni
 import dl_model
 import random
-from havsim.plotting import plotLaneChangingConfMat, plotTrajectoriesProb, plotCFErrorN
+import time
 from tensorflow.python.profiler import profiler_v2 as profiler
 
-with open('/Users/nkluke/Documents/Cornell/CS5999/havsim/data/recon-ngsim.pkl', 'rb') as f:
-    all_veh_dict = pickle.load(f)
+try:
+    with open('/Users/nkluke/Documents/Cornell/CS5999/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
+        meas, platooninfo = pickle.load(f) #load data
+except:
+    with open('/Users/nkluke/Documents/Cornell/CS5999/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
+        meas, platooninfo = pickle.load(f) #load data
 
 try:
     # Disable all GPUS
@@ -27,11 +31,9 @@ except:
 #%% generate training data and initialize model/optimizer
 
 nolc_list = []
-# remove vehicles that never had a leader
-for veh in all_veh_dict.keys():
-    start_sim, end_sim = all_veh_dict[veh].longest_lead_times
-    if start_sim != end_sim:
-        nolc_list.append(veh)
+# # train on no lc vehicles only
+for veh in meas.keys():
+    temp = nolc_list.append(veh) if len(platooninfo[veh][4]) == 1 else None
 # train on all vehicles
 # for veh in meas.keys():
 #     temp = nolc_list.append(veh) if len(platooninfo[veh][4]) > 0 else None
@@ -43,14 +45,14 @@ train_veh = nolc_list[:-100]
 val_veh = nolc_list[-100:]
 test_veh = []
 
-# TODO
-training, norm = deep_learning.make_dataset(all_veh_dict, train_veh)
+training, norm = dl_model.make_dataset(meas, platooninfo, train_veh)
 maxhd, maxv, mina, maxa = norm
-validation, unused = deep_learning.make_dataset(all_veh_dict, val_veh)
-testing, unused = deep_learning.make_dataset(all_veh_dict, test_veh)
+validation, unused = dl_model.make_dataset(meas, platooninfo, val_veh)
+testing, unused = dl_model.make_dataset(meas, platooninfo, test_veh)
 
 default_params = {
     "lstm_units" : 64,
+    "lstm2_units": 64,
     "learning_rate": 0.001,
     "dropout": 0.2,
     "regularizer": 0.02,
@@ -65,34 +67,33 @@ old_model = False
 if old_model:
     model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=params['lstm_units'], params=params)
     loss = deep_learning.masked_MSE_loss
-    lc_loss = tf.keras.losses.SparseCategoricalCrossentropy()
 else:
     model = dl_model.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=128, past=15, params=params)
     loss = dl_model.masked_MSE_loss
-
 opt = tf.keras.optimizers.Adam(learning_rate=params['learning_rate'])
+
 
 
 #%% train and save results
 early_stopping = False
 
-def test_loss(lc_loss=tf.keras.losses.SparseCategoricalCrossentropy()):
+def test_loss():
     if old_model:
-        return deep_learning.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss).loss
+        return deep_learning.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss)[-1]
     else:
-        return dl_model.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+        return dl_model.generate_trajectories(model, list(testing.keys()), testing, loss=dl_model.weighted_masked_MSE_loss)[-1]
 
-def valid_loss(lc_loss=tf.keras.losses.SparseCategoricalCrossentropy()):
+def valid_loss():
     if old_model:
-        return deep_learning.generate_trajectories(model, list(validation.keys()), validation, loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss).loss
+        return deep_learning.generate_trajectories(model, list(validation.keys()), validation, loss=deep_learning.weighted_masked_MSE_loss)[-1]
     else:
-        return dl_model.generate_trajectories(model, list(validation.keys()), validation, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+        return dl_model.generate_trajectories(model, list(validation.keys()), validation, loss=dl_model.weighted_masked_MSE_loss)[-1]
 
-def train_loss(lc_loss=tf.keras.losses.SparseCategoricalCrossentropy()):
+def train_loss():
     if old_model:
-        return deep_learning.generate_trajectories(model, list(training.keys()), training, loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss).loss
+        return deep_learning.generate_trajectories(model, list(training.keys()), training, loss=deep_learning.weighted_masked_MSE_loss)[-1]
     else:
-        return dl_model.generate_trajectories(model, list(training.keys()), training, loss=deep_learning.weighted_masked_MSE_loss)[-1]
+        return dl_model.generate_trajectories(model, list(training.keys()), training, loss=dl_model.weighted_masked_MSE_loss)[-1]
 
 
 if old_model:
@@ -108,10 +109,9 @@ if old_model:
             nbatches = batches[i]
             steps = 500
             for j in range(nbatches//steps):
-                deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=steps, 
-                        nveh=veh, nt=timesteps[i])
-                valid_loss_val = valid_loss()
-                train_loss_val = train_loss()
+                deep_learning.training_loop(model, loss, opt, training, nbatches=steps, nveh=veh, nt=timesteps[i])
+                valid_loss_val = valid_loss().numpy()
+                train_loss_val = train_loss().numpy()
                 train_losses.append(train_loss_val)
                 valid_losses.append(valid_loss_val)
                 nni.report_intermediate_result(valid_losses[-1])
@@ -130,43 +130,38 @@ if old_model:
         def early_stopping_loss(model):
             return deep_learning.generate_trajectories(model, list(testing.keys()), testing,
                                                         loss=deep_learning.weighted_masked_MSE_loss)[-1]
-        # added one
-        deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=10000, nveh=32, 
-                                    nt=50, m=100, n=20, early_stopping_loss=early_stopping_loss)
-        deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=1000, nveh=32, 
-                                    nt=100, m=50, n=10, early_stopping_loss=early_stopping_loss)
-        deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=1000, nveh=32, 
-                                    nt=200, m=40, n=10, early_stopping_loss=early_stopping_loss)
-        deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=1000, nveh=32, 
-                                    nt=300, m=30, n=10, early_stopping_loss=early_stopping_loss)
-        deep_learning.training_loop(model, loss, lc_loss, opt, training, nbatches=2000, nveh=32, 
-                                    nt=500, m=20, n=10, early_stopping_loss=early_stopping_loss)
+        deep_learning.training_loop(model, loss, opt, training, nbatches=10000, nveh=32, nt=50, m=100, n=20,
+                                    early_stopping_loss=early_stopping_loss)
+        deep_learning.training_loop(model, loss, opt, training, nbatches=1000, nveh=32, nt=100, m=50, n=10,
+                                    early_stopping_loss=early_stopping_loss)
+        deep_learning.training_loop(model, loss, opt, training, nbatches=1000, nveh=32, nt=200, m=40, n=10,
+                                    early_stopping_loss=early_stopping_loss)
+        deep_learning.training_loop(model, loss, opt, training, nbatches=1000, nveh=32, nt=300, m=30, n=10,
+                                    early_stopping_loss=early_stopping_loss)
+        deep_learning.training_loop(model, loss, opt, training, nbatches=2000, nveh=32, nt=500, m=20, n=10,
+                                    early_stopping_loss=early_stopping_loss)
 
-    if not os.path.exists('outputs/lcprobs'):
-        os.makedirs('outputs/lcprobs')
-    if not os.path.exists('outputs/cferror'):
-        os.makedirs('outputs/cferror')
-
-    # save images (default 20 vehicles are selected)
-    plotTrajectoriesProb(test, 'outputs/lcprobs') 
-    plotCFErrorN(test, 'outputs/cferror')
 else:
 
-    epochs = [1, 2, 2, 2, 2, 10]
-    timesteps = [25, 50, 100, 200, 400, 800]
+    epochs = [2, 2, 2, 3, 2, 3, 2, 3, 3, 3]
+    timesteps = [50, 100, 200, 200, 400, 400, 500, 500, 700, 750]
     veh = params['batch_size']
     train_losses = []
     valid_losses = []
+    start_time = time.time()
     for i in range(len(epochs)):
         dl_model.training_loop(model, loss, opt, training, epochs=epochs[i], nveh=veh, nt=timesteps[i])
         valid_loss_val = valid_loss().numpy()
-        # train_loss_val = train_loss().numpy()
+        train_loss_val = train_loss().numpy()
         print('validation loss ', valid_loss_val)
+        print('training loss', train_loss_val)
         valid_losses.append(valid_loss_val)
-        # train_losses.append(train_loss_val)
+        train_losses.append(train_loss_val)
         # nni.report_intermediate_result(valid_losses[-1])
+    end_time = time.time()
+    print("Training took {0:.4f} seconds".format(end_time - start_time))
     plt.figure(1)
-    plt.plot(list(range(epochs)), valid_losses)
+    plt.plot(list(range(len(epochs))), valid_losses)
     plt.title('Validation loss')
     plt.xlabel('epoch')
     plt.ylabel('loss')
@@ -202,3 +197,4 @@ else:
 
 print(' validation loss was '+str(valid_loss()))
 print(' training loss was '+str(train_loss()))
+

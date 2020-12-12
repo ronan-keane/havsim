@@ -7,7 +7,7 @@ import copy
 
 # TODO can't use expected_LC loss because train_step needs to have tensor inputs instad of vehs_counter, ds
 # TODO try training LC model only with expected_LC loss (make new versions of RNNCFModel, train_step, training_loop in DL3_lc_only to do this (feed true_traj into model))
-# TODO ET tends to be quite low and P also tends to be low for intervals with no lane changing. 
+# TODO ET tends to be quite low and P also tends to be low for intervals with no lane changing.
     # might want to try giving the LC model seperate layers
 
 
@@ -26,14 +26,16 @@ def generate_lane_data(veh_data, window=1):
     intervals = veh_data.lanemem.intervals()
     for idx, (val, start, end) in list(enumerate(intervals)):
         lane_data += [1] * max((end - start - window),0)
+        leftover = min(window, end-start)
         if idx < len(intervals) - 1:
-            uselen = min(window, end-start)
             if val < intervals[idx + 1][0]:
-                lane_data.extend([2]*uselen)
-            elif val == intervals[idx + 1][0]:
-                lane_data.extend([1]*uselen)
+                lane_data.extend([2]*leftover)
+            elif val > intervals[idx + 1][0]:
+                lane_data.extend([0]*leftover)
             else:
-                lane_data.extend([0]*uselen)
+                lane_data.extend([1]*leftover)
+        else:
+            lane_data.extend([1]*leftover)
     return lane_data
 
 def make_dataset(veh_dict, veh_list, dt=.1, window=1):
@@ -49,7 +51,7 @@ def make_dataset(veh_dict, veh_list, dt=.1, window=1):
             'times' - list of two int times. First is the first time with an observed leader. Second is the
                 last time with an observed leader +1. The number of times we call the model is equal to
                 times[1] - times[0], which is the length of the lead measurements.
-            'longest lead times' - these 
+            'longest lead times' - these
             'veh posmem' - (1d,) numpy array of observed positions for vehicle, 0 index corresponds
                 to times[0]. Typically this has a longer length than the lead posmem/speedmem.
             'veh speedmem' - (1d,) numpy array of observed speeds for vehicle
@@ -132,7 +134,7 @@ def make_dataset(veh_dict, veh_list, dt=.1, window=1):
             maxheadway = max(max(headway), maxheadway)
             maxspeed = max(max(vehspd), maxspeed)
         else:
-            pass
+            pass  # edge case of vehicle can not be simulated
         vehacc = [(vehpos[i+2] - 2*vehpos[i+1] + vehpos[i])/(dt**2) for i in range(len(vehpos)-2)]
         minacc, maxacc = min(minacc, min(vehacc)), max(maxacc, max(vehacc))
 
@@ -157,14 +159,14 @@ class RNNBaseModel(tf.keras.Model):
         self.maxv = maxv
         self.mina = mina
         self.maxa = maxa
-        
+
         self.dt = dt
 
     def compute_output(self, cur_inputs, hidden_states, training=False):
         """
         Computes output of model given the cur inputs and the hidden states of the lstm_cells.
         Args:
-            cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead, 
+            cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead,
                 rlead, fol, lfol, rfol)
             hidden_states: list of hidden_states, each a tensor with shape (nveh, 2). The number of
                 hidden_states depends on the implementation of the model
@@ -265,9 +267,9 @@ class RNNSeparateModel(RNNBaseModel):
                                     kernel_regularizer=tf.keras.regularizers.l2(l=l2reg),
                                     recurrent_regularizer=tf.keras.regularizers.l2(l=l2reg))
 
-        self.lc_dense = tf.keras.layers.Dense(10, activation='relu', 
+        self.lc_dense = tf.keras.layers.Dense(10, activation='relu',
                                             kernel_regularizer=tf.keras.regularizers.l2(l=l2reg))
-        self.cf_dense = tf.keras.layers.Dense(10, activation='relu', 
+        self.cf_dense = tf.keras.layers.Dense(10, activation='relu',
                                             kernel_regularizer=tf.keras.regularizers.l2(l=l2reg))
 
         self.cf_output = tf.keras.layers.Dense(1)
@@ -283,7 +285,7 @@ class RNNSeparateModel(RNNBaseModel):
         """
         Computes output of model given the cur inputs and the hidden states of the lstm_cells.
         Args:
-            cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead, 
+            cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead,
                 rlead, fol, lfol, rfol)
             hidden_states: list of hidden_states, each a tensor with shape (nveh, 2). The number of
                 hidden_states depends on the implementation of the model
@@ -303,7 +305,7 @@ class RNNSeparateModel(RNNBaseModel):
         cur_lc, lc_hidden_states = self.lc_lstm(cur_inputs, hidden_states[1], training)
         cur_lc = self.lc_dense(cur_lc)
         cur_lc = self.lc_output(cur_lc) # logits for LC over {left, stay, right} classes for batch
-        return cur_cf, cur_lc, [tf.stack(cf_hidden_states), tf.stack(lc_hidden_states)]
+        return cur_cf, cur_lc, [cf_hidden_states, lc_hidden_states]
 
     def get_config(self):
         """Return any non-trainable parameters in json format."""
@@ -353,7 +355,7 @@ class RNNCFModel(RNNBaseModel):
         """
         Computes output of model given the cur inputs and the hidden states of the lstm_cells.
         Args:
-            cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead, 
+            cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead,
                 rlead, fol, lfol, rfol)
             hidden_states: list of hidden_states, each a tensor with shape (2, nveh, num_units). The number of
                 hidden_states depends on the implementation of the model
@@ -370,7 +372,7 @@ class RNNCFModel(RNNBaseModel):
         x = self.dense2(x)
         cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch
         cur_cf = self.dense1(x)  # current normalized acceleration for the batch
-        return cur_cf, cur_lc, [tf.stack(hidden_states)]
+        return cur_cf, cur_lc, [hidden_states]
 
     def get_config(self):
         """Return any non-trainable parameters in json format."""
@@ -447,6 +449,7 @@ def make_batch(vehs, vehs_counter, ds, nt=5):
         curtruelc = np.concatenate((curtruelc, np.zeros((leftover,)))) if leftover>0 else curtruelc
         true_lc_action.append(curtruelc)
 
+
         curviable = cur_viable_lc[t:t+uset,:]
         temp = np.zeros((leftover,3))
         temp[:,0] = 1
@@ -497,7 +500,7 @@ def train_step(leadfol_inputs, init_state, hidden_state, true_traj, true_lc_acti
         lc_loss = lc_loss_fn(pred_lc_action, true_lc_action, traj_mask, viable_lc, leadfol_inputs, true_traj,
                              pred_traj)
         cf_loss = loss_fn(true_traj, pred_traj, traj_mask)
-        loss = cf_loss + sum(model.losses) + lc_loss
+        loss = cf_loss + sum(model.losses) + 300*lc_loss  # magic number for scaling lc loss
 
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
@@ -523,7 +526,7 @@ def new_veh_indices(vehs, vehs_counter, nt):
 
 def generate_new_states(ds, vehs, vehlist, vehs_counter, need_new_vehs):
     """
-    Utilized by training_loop to generate the initial conditions for the new vehicles to be 
+    Utilized by training_loop to generate the initial conditions for the new vehicles to be
     added in the next batch.
     Params:
         ds: dataset generated from make_batch
@@ -584,13 +587,17 @@ def initialize_states(ds, vehs, num_units, num_hidden_states):
         cur_state: the initial conditions of each vehicle
         hidden_states: list of hidden states each with shape (nveh, num_units)
     """
+    nveh = len(vehs)
     cur_state = [ds[veh]['IC'] for veh in vehs]
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
-    hidden_states = []
-    for idx in range(num_hidden_states):
-        hidden_states += [tf.stack([tf.zeros((len(vehs), num_units)),  \
-                tf.zeros((len(vehs), num_units))])]
-        hidden_states[idx] = tf.convert_to_tensor(hidden_states[idx], dtype='float32')
+    hidden_states = [[tf.zeros((nveh, num_units)), tf.zeros((nveh, num_units))]
+                     for i in range(num_hidden_states)]
+
+    # hidden_states = []
+    # for idx in range(num_hidden_states):
+    #     hidden_states += [tf.stack([tf.zeros((len(vehs), num_units)),  \
+    #             tf.zeros((len(vehs), num_units))])]
+    #     hidden_states[idx] = tf.convert_to_tensor(hidden_states[idx], dtype='float32')
     return cur_state, hidden_states
 
 def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100,
@@ -676,7 +683,6 @@ def generate_trajectories(model, vehs, ds, loss_fn=None, lc_loss_fn=None):
         lc_loss_fn: result of lc_loss_fn
     """
     # put all vehicles into a single batch, with the number of timesteps equal to the longest trajectory
-    nveh = len(vehs)
     vehs_counter = {count: [0, ds[veh]['times'][1]-ds[veh]['times'][0], veh]
                         for count, veh in enumerate(vehs)}
     nt = max([i[1] for i in vehs_counter.values()])
@@ -727,7 +733,7 @@ def generate_vehicle_data(model, vehs, ds, vehdict, loss_fn=None, lc_loss_fn=Non
             for count in range(len(intervals)):
                 unused, pred_P, unused, pred_ET = calculate_ET_P(lcmem, intervals, count, starttime)
                 ET_P.append((pred_ET, pred_P))
-    
+
             sim_vehdict[veh].lc_actions = lcmem.numpy()
             sim_vehdict[veh].ET_P = ET_P
 
@@ -748,7 +754,7 @@ def weighted_masked_MSE_loss(y_true, y_pred, mask_weights):
 
 def logits_to_probabilities(pred_lc_action, traj_mask, viable_lc):
     """Converts unnormalized, unmasked logits into masked, normalized probabilities.
-    
+
     To avoid issues with NaN, all predictions past the maximum time have 1 in the 0 index.
     """
     pred_lc_action = tf.math.exp(pred_lc_action)

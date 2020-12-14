@@ -136,8 +136,10 @@ def create_add_events(veh_data, id2obj, curveh, vehdict, vehicles, dt, addevent_
         else:
             # check who if we have both versions for fol_lead_veh
             if fol_lead_veh in id2obj and fol_lead_veh + 0.1 in id2obj:
+
                 cal_veh = id2obj[fol_lead_veh]
                 lead_veh = id2obj[fol_lead_veh + 0.1]
+
                 if start < cal_veh.start:
                     fol_lead_veh = lead_veh
                 elif start >= cal_veh.start:
@@ -193,7 +195,6 @@ def make_calibration(vehicles, vehdict, dt, event_maker=None, lc_event_fun=None,
         else:
             leadstatemem = leadstart = 0
 
-
         newveh = CalibrationVehicle(veh, y, y_lc, initpos, initspd, t0, length=length, lane=lanes[lane])
 
         vehicle_list.append(newveh)
@@ -205,11 +206,14 @@ def make_calibration(vehicles, vehdict, dt, event_maker=None, lc_event_fun=None,
     addevent_list, lcevent_list = event_maker(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list, all_leadvehicles)
 
     leadvehicle_list = []
-    for i in all_leadvehicles:
-        leadvehicle_list.append(id2obj[i])
+    for i in id2obj:
+        curr_veh = id2obj[i]
+        if type(curr_veh) is LeadVehicle:
+            leadvehicle_list.append(curr_veh)
 
     addevent_list.sort(key = lambda x: x[0], reverse = True)
     lcevent_list.sort(key = lambda x: (x[0], len(x)), reverse = True)
+
 
     return Calibration(vehicle_list, leadvehicle_list, addevent_list, lcevent_list, dt, lanes, end=max_end)
 
@@ -268,6 +272,7 @@ def make_calibration_CF(vehicles, vehdict, dt, vehicle_class=None, calibration_c
 
     addevent_list.sort(key = lambda x: x[0], reverse = True)
     lcevent_list.sort(key = lambda x: x[0], reverse = True)
+
 
     return CalibrationCF(vehicle_list, addevent_list, lcevent_list, dt, end=max_end,
                              lc_event_fun=lc_event_fun, **calibration_kwargs)

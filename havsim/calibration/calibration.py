@@ -281,19 +281,23 @@ class Calibration(CalibrationCF):
 
 
     def step(self):
+
+
+
         for veh in self.vehicles:
             veh.set_cf(self.timeind, self.dt)
         for veh in self.vehicles:
             veh.set_lc(self.timeind, self.dt)
 
-        for veh in self.vehicles:
-            print(veh)
-            print(veh.pos)
-            print(veh.acc)
-            print(veh.speed)
-        print(self.timeind)
-        print(self.ending_position)
-        print('-------------------------')
+        # for veh in self.vehicles:
+        #     print(veh)
+        #     print(veh.pos)
+        #     print(veh.acc)
+        #     print(veh.speed)
+        # print(self.timeind)
+        # print(self.ending_position)
+        # print('-------------------------')
+
 
         # we need to have seperate add events and lc events, but the order of updates is exactly the same.
         update_calibration(self.vehicles, self.leadvehicles, self.update_lc_events, self.update_add_events, self.timeind, self.dt, self.ending_position, self.dummy_vec)
@@ -335,8 +339,13 @@ class Calibration(CalibrationCF):
     def simulate(self, parameters):
         self.initialize(parameters)
         # do we simulate until we done with all vehicles? No max_endtime?
-        while self.vehicles or self.add_events:
+        while (self.vehicles or self.add_events) and self.timeind < 30000:
             self.step()
+
+        if self.timeind == 30000:
+            print("THIS IS A PROBLEM")
+        else:
+            print("THIS ONE IS FINE")
 
         loss = 0
         for veh in self.all_vehicles:

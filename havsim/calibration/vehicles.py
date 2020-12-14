@@ -86,6 +86,7 @@ class CalibrationVehicleCF(hs.Vehicle):
 
         self.road = None
         self.lane = lane
+        self.acc = 1
 
         if accbounds is None:
             self.minacc, self.maxacc = -7, 3
@@ -178,6 +179,7 @@ class CalibrationVehicle(CalibrationVehicleCF):
         self.chk_lc = None
         self.disc_cooldown = float("-inf")
         self.coop_veh = None
+        self.lc_urgency = [0,0]
 
     def update(self, timeind, dt):
         super(CalibrationVehicleCF, self).update(timeind, dt)
@@ -247,7 +249,7 @@ class LeadVehicle:
         self.initstate = initstate
 
         # delete later?
-        self.acc = 0
+        self.acc = .5
         self.fol = None
 
     def initialize(self, *args):

@@ -69,7 +69,7 @@ def update_lane_after_lc(veh, lc, timeind):
         lcsidelane = veh.llane
         newroadname = lcsidelane.roadname
         if newroadname != veh.road:
-            veh.pos += -veh.lane.roadlen[newroadname]
+            veh.pos += veh.lane.roadlen[newroadname]
             veh.road = newroadname
             veh.r_lc = None
         else:
@@ -87,7 +87,7 @@ def update_lane_after_lc(veh, lc, timeind):
         lcsidelane = veh.rlane
         newroadname = lcsidelane.roadname
         if newroadname != veh.road:
-            veh.pos += -veh.lane.roadlen[newroadname]
+            veh.pos += veh.lane.roadlen[newroadname]
             veh.road = newroadname
             veh.l_lc = None
         else:
@@ -278,7 +278,7 @@ def update_new_lane(veh, oldlane, newlane, timeind):
     """
     newroadname = newlane.roadname
     if newroadname != veh.road:
-        veh.pos += -oldlane.roadlen[newroadname]  # add the newlane.start?
+        veh.pos += oldlane.roadlen[newroadname]
         veh.road = newroadname
     veh.lane = newlane
     veh.lanemem.append((newlane, timeind))
@@ -645,7 +645,7 @@ def update_merge_anchors(curlane, lc_actions):
             if veh.cf_parameters is None:
                 lead = veh.lead
                 if lead is not None:
-                    temp = curlane.roadlen[lead.road] + lead.pos
+                    temp = -curlane.roadlen[lead.road] + lead.pos
                     if temp - pos < 0:
                         curlane.merge_anchors[i][0] = lead
 
@@ -655,5 +655,5 @@ def update_merge_anchors(curlane, lc_actions):
                 else:
                     curlane.merge_anchors[i][0] = veh.lfol
 
-            elif curlane.roadlen[veh.road]+veh.pos - pos > 0:
+            elif -curlane.roadlen[veh.road]+veh.pos - pos > 0:
                 curlane.merge_anchors[i][0] = veh.fol

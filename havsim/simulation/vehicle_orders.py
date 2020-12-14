@@ -113,7 +113,7 @@ def update_all_lrfol_multiple(vehicles):
         # in the same timestep
         try:
             lfol.rfol.llead.remove(lfol)
-        except:  
+        except:
             pass
         lfol.rfol = veh
         veh.llead.append(lfol)

@@ -5,9 +5,9 @@ import time
 
 main_road = hs.Road(num_lanes=2, length=2000, name='main road')
 main_road.connect('exit', is_exit=True)
-onramp = hs.Road(num_lanes=1, length=[(1000,1300)], name='on ramp')
+onramp = hs.Road(num_lanes=1, length=[(0,300)], name='on ramp')
 onramp.merge(main_road, self_index=0, new_lane_index=1,
-             self_pos=(1100, 1300), new_lane_pos=(1100, 1300))
+             self_pos=(100, 300), new_lane_pos=(1100, 1300))
 
 
 main_road.set_downstream({'method':'free'})

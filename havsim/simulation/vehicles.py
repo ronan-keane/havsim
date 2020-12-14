@@ -470,6 +470,7 @@ class Vehicle:
         # set lane/route events - sets lane_events, route_events, cur_route attributes
         self.cur_route = update_lane_routes.make_cur_route(
             self.route_parameters, self.lane, self.route.pop(0))
+
         # self.route_events = self.cur_route[self.lane].copy()
         update_lane_routes.set_lane_events(self)
         update_lane_routes.set_route_events(self, start)
@@ -510,7 +511,7 @@ class Vehicle:
                 ### relaxation formulations
                 # always use vanilla - can potentially lead to collisions
                 # normal_relax=True
-                
+
                 # safeguard for relaxation
                 ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)
                 if ttc < 1.5 and ttc > 0:
@@ -526,7 +527,7 @@ class Vehicle:
                     # acc = max(acc, self.minacc)
                 else:
                     normal_relax = True
-                
+
                 # alternative formulation applies control to ttc (not recommended)
                 # v_sens = .3+(timeind-self.relax_start)*dt/self.relax_parameters
                 # acc, normal_relax = models.relaxation_model_ttc([1.5, 2, v_sens, 1],
@@ -728,7 +729,7 @@ class Vehicle:
         # acc = self.acc_bounds(self.acc)
         acc = max(self.minacc, self.acc)
         # acc = self.acc  # no bounds
-        
+
 
         # bounds on speed
         temp = acc*dt

@@ -411,7 +411,7 @@ def make_cur_route(p, curlane, nextroadname):
     cur_route = {}
     if change_type == 'continue':  # -> vehicle needs to reach end of lane
         # initialize for lanes which vehicle needs to continue on
-        leftind, rightind = laneind[:] if len(laneind) == 2 else laneind[0], laneind[0]
+        leftind, rightind = laneind[:] if len(laneind)==2 else (laneind[0], laneind[0])
         for i in range(leftind, rightind+1):
             cur_route[curroad[i]] = []
 

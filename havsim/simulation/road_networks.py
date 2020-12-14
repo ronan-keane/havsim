@@ -785,6 +785,7 @@ class Lane:
         self.connect_left = connect_left if connect_left is not None else [(start, None)]
         self.connect_right = connect_right if connect_right is not None else [(start, None)]
         self.connect_to = connect_to
+        self.connections = {}
 
         self.roadlen = {self.roadname: 0}
         self.events = []

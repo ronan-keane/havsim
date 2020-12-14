@@ -22,12 +22,12 @@ except:
     with open('/Users/nathanbala/Desktop/MENG/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
         meas, platooninfo = pickle.load(f) #load data
 
-# try:
-#     with open('/Users/nathanbala/Downloads/platoonlist.pkl', 'rb') as f:
-#         platoon_list = pickle.load(f) #load data
-# except:
-#     with open('/home/rlk268/havsim/data/recon-ngsim.pkl', 'rb') as f:
-#         meas, platooninfo = pickle.load(f) #load data
+try:
+    with open('/Users/nathanbala/Downloads/platoonlist.pkl', 'rb') as f:
+        platoon_list = pickle.load(f) #load data
+except:
+    with open('/home/rlk268/havsim/data/recon-ngsim.pkl', 'rb') as f:
+        meas, platooninfo = pickle.load(f) #load data
 
 # # print(meas)
 
@@ -55,12 +55,17 @@ lanes[7] = lanes[6]
 
 
 
-#%%
-curplatoon = [525, 530, 537, 545]
-calibration_args = {"parameter_dict" : None, "ending_position" : 1475/3.28084}
-cal = mc.make_calibration(curplatoon, data, .1, mc.make_lc_events_new, lanes=lanes, calibration_kwargs = calibration_args)
-pguess =  [40, 1, 1, 94, 10, 25, 10, 1, 2, 20, 10, 40, 25, 15, 40, 68, 15, 20]*len(curplatoon)
-cal.simulate(pguess)
+
+# curplatoon = [525, 530, 537, 545]
+for curplatoon in platoon_list:
+    print(curplatoon)
+    calibration_args = {"parameter_dict" : None, "ending_position" : 1475/3.28084}
+    cal = mc.make_calibration(curplatoon, data, .1, mc.make_lc_events_new, lanes=lanes, calibration_kwargs = calibration_args)
+    pguess =  [40, 1, 1, 94, 10, 25, 10, 1, 2, 20, 10, 40, 25, 15, 40, 68, 15, 20]*len(curplatoon)
+    mybounds = [(20,120), (.1,5), (.1,35), (.1,20), (.1,20), (.1,75),(20,120), (.1,5), (.1,35), (.1,20), (.1,20), (.1,75),(20,120), (.1,5), (.1,35), (.1,20), (.1,20), (.1,75)]*len(curplatoon)
+    bfgs = sc.fmin_l_bfgs_b(cal.simulate, pguess, bounds = mybounds, approx_grad=1)  # BFGS
+    print(bfgs)
+    # cal.simulate(pguess)
 
 # curplatoon = [1013, 1023, 1030, 1037, 1045]
 # platoon_list = [[977.0, 3366.0, 774.0, 788.0]]
@@ -96,5 +101,5 @@ cal.simulate(pguess)
 
 
 # start = time.time()
-# bfgs = sc.fmin_l_bfgs_b(cal.simulate, pguess, bounds = mybounds, approx_grad=1)  # BFGS
+bfgs = sc.fmin_l_bfgs_b(cal.simulate, pguess, bounds = mybounds, approx_grad=1)  # BFGS
 # print('time to calibrate is '+str(time.time()-start)+' to find mse '+str(bfgs[1]))

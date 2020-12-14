@@ -439,7 +439,7 @@ def apply_calibration_lc_event(event, timeind, dt):
         curveh.l_lc = l_lc
         curveh.update_lc_state(timeind, lc)
         # problem with set_relax
-        # curveh.set_relax(timeind, dt)
+        curveh.set_relax(timeind, dt)
 
     else:
         start, curveh, fol_lead_veh, fl_type = event

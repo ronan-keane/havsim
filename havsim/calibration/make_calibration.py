@@ -114,6 +114,8 @@ def create_add_events(veh_data, id2obj, curveh, vehdict, vehicles, dt, addevent_
         # need a better variable name
         fol_lead_veh, start, end = j
 
+
+
         if not fol_lead_veh:
             # if we are looking at followers
             if fl_type == "fol" or fl_type == "lfol" or fl_type == "rfol":
@@ -207,7 +209,7 @@ def make_calibration(vehicles, vehdict, dt, event_maker=None, lc_event_fun=None,
         leadvehicle_list.append(id2obj[i])
 
     addevent_list.sort(key = lambda x: x[0], reverse = True)
-    lcevent_list.sort(key = lambda x: x[0], reverse = True)
+    lcevent_list.sort(key = lambda x: (x[0], len(x)), reverse = True)
 
     return Calibration(vehicle_list, leadvehicle_list, addevent_list, lcevent_list, dt, lanes, end=max_end)
 

@@ -405,7 +405,7 @@ def make_cur_route(p, curlane, nextroadname):
     curroad = curlane.road
     curlaneind = curlane.laneind
     # position or tuple of positions, str, tuple of 2 ints or single int, str, dict for the next road
-    pos, change_type, laneind, side, nextroad = curroad.connect_to[nextroadname][:]  # nextroad unused?
+    pos, change_type, laneind, side, nextroad = curlane.connections[nextroadname][:]  # nextroad unused?
     # roads also have name, len, num_lanes, index lanes using their lane index (0 - num_lanes-1)
 
     cur_route = {}

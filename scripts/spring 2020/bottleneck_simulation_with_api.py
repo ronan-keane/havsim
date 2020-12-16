@@ -79,17 +79,26 @@ main_road.connect('exit', is_exit=True)
 onramp_road = Road(num_lanes=1, length=[(startmerge - 100, endmerge)], name='on ramp')
 onramp_road.merge(main_road, self_index=0, new_lane_index=1,
                   self_pos=(startmerge, endmerge), new_lane_pos=(startmerge, endmerge))
+delattr(main_road, "connect_to")
+delattr(onramp_road, "connect_to")
+
+for i in range(2):
+    main_road[i].connections = {}
+    main_road[i].connections['exit'] = (mainroadlen, 'continue', (0, 1), None, None)
+
+onramp_road[0].connections = {}
+onramp_road[0].connections['main road'] = ((startmerge,endmerge), 'merge', 0, 'l_lc', main_road)
 
 # Define the newveh method for both roads
 def onramp_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route': compute_route(start_road=onramp_road, start_pos=startmerge-100, exit='exit'),
+    kwargs = {'route': ['main road', 'exit'],
               'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15,
               'shift_parameters': [-1.5, 1.5]}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 def mainroad_newveh(self, vehid, *args):
     cf_p, lc_p  = IDM_parameters()
-    kwargs = {'route': compute_route(start_road=main_road, start_pos=0, exit='exit'),
+    kwargs = {'route': ['exit'],
               'maxspeed': cf_p[0]-1e-6, 'relax_parameters':15, 'shift_parameters': [-1.5, 1.5]}
     self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
 

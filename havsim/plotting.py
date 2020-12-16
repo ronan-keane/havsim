@@ -96,7 +96,7 @@ def plotTrajectoryProbs(vehdict, vehid, save=False, output_dir=None):
     min_pred, max_pred = np.min(pred), np.max(pred)
     num_rows = int(np.ceil(pred.shape[0] / 50))
     fig, ax = plt.subplots(num_rows, 1, figsize=(10,0.8 * num_rows))
-    fig.suptitle(f"LC Trajectory Probabilities for vehid", y=0.9)
+    fig.suptitle(f"LC Trajectory Probabilities for vehid ({vehid})", y=0.9)
     for row_idx in range(num_rows):
         mappable = ax[row_idx].imshow(pred[row_idx * 50:(row_idx+1) * 50].T, vmin=min_pred, \
                 vmax=max_pred)

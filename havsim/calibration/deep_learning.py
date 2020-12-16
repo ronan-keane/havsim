@@ -1,5 +1,6 @@
 """Tensorflow.keras car following and lane changing models."""
 
+import pickle
 import tensorflow as tf
 import numpy as np
 from havsim import helper
@@ -166,7 +167,7 @@ class RNNBaseModel(tf.keras.Model):
         Args:
             cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead, 
                 rlead, fol, lfol, rfol)
-            hidden_states: list of hidden_states, each a tensor with shape (nveh, 2). The number of
+            hidden_states: list of hidden_states, each a tensor with shape (2, nveh, num_hidden). The number of
                 hidden_states depends on the implementation of the model
             training: Whether to run in training/inference mode. Need to pass training=True if training
                 with dropout
@@ -240,6 +241,21 @@ class RNNBaseModel(tf.keras.Model):
         """Inits self from saved config created by get_config."""
         raise NotImplementedError
 
+    @classmethod
+    def load_model(self, filepath):
+        config_filepath = filepath + ' config.pkl'
+        with open(config_filepath, 'rb') as f:
+            config = pickle.load(f)
+        loaded_model = self.from_config(config)
+        loaded_model.load_weights(filepath)
+        return loaded_model
+
+    def save_model(self, filepath):
+        config_filepath = filepath + ' config.pkl'
+        with open(config_filepath, 'wb') as f:
+            pickle.dump(model.get_config(), f)
+        self.save_weights(filepath)
+
 class RNNSeparateModel(RNNBaseModel):
     num_lstms = 2
 
@@ -285,7 +301,7 @@ class RNNSeparateModel(RNNBaseModel):
         Args:
             cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead, 
                 rlead, fol, lfol, rfol)
-            hidden_states: list of hidden_states, each a tensor with shape (nveh, 2). The number of
+            hidden_states: list of hidden_states, each a tensor with shape (2, nveh, num_hidden). The number of
                 hidden_states depends on the implementation of the model
             training: Whether to run in training/inference mode. Need to pass training=True if training
                 with dropout
@@ -303,7 +319,7 @@ class RNNSeparateModel(RNNBaseModel):
         cur_lc, lc_hidden_states = self.lc_lstm(cur_inputs, hidden_states[1], training)
         cur_lc = self.lc_dense(cur_lc)
         cur_lc = self.lc_output(cur_lc) # logits for LC over {left, stay, right} classes for batch
-        return cur_cf, cur_lc, [tf.stack(cf_hidden_states), tf.stack(lc_hidden_states)]
+        return cur_cf, cur_lc, [cf_hidden_states, lc_hidden_states]
 
     def get_config(self):
         """Return any non-trainable parameters in json format."""
@@ -370,7 +386,7 @@ class RNNCFModel(RNNBaseModel):
         x = self.dense2(x)
         cur_lc = self.lc_actions(x)  # logits for LC over {left, stay, right} classes for batch
         cur_cf = self.dense1(x)  # current normalized acceleration for the batch
-        return cur_cf, cur_lc, [tf.stack(hidden_states)]
+        return cur_cf, cur_lc, [hidden_states]
 
     def get_config(self):
         """Return any non-trainable parameters in json format."""
@@ -460,6 +476,48 @@ def make_batch(vehs, vehs_counter, ds, nt=5):
             tf.convert_to_tensor(viable_lc, dtype='float32')]
 
 
+def train_step_ETP(leadfol_inputs, init_state, hidden_state, true_traj, true_lc_action, traj_mask, viable_lc,
+               model, loss_fn, lc_loss_fn, optimizer, vehs_counter, ds):
+    """Updates parameters for a single batch of examples.
+
+    Args:
+       leadfol_inputs - tensor with shape (nveh, nt, 12), giving the position and speed of the
+            the leader, follower, lfol, rfol, llead, rllead at each timestep. Padded with zeros.
+            If vehicle is not available at any time, takes value of zero.
+            nveh = len(vehs)
+        init_state: (nveh, 2) tensor giving the current position, speed for all vehicles in batch
+        hidden_state: tensor giving initial hidden state of model
+        true_traj: (nveh, nt) tensor giving the true vehicle position at each time.
+            Padded with zeros
+        true_lc_action: (nveh, nt) tensor giving the class label for lane changing output at each time.
+        traj_mask: (nveh, nt) tensor  with either 1 or 0, corresponds to the padding. If 0, then it means
+            the vehicle is not simulated at that timestep, so it needs to be masked.
+        viable_lc: (nveh, nt, 3) tensor giving whether the lane change class is possible at the given time.
+        model: tf.keras.Model
+        loss_fn: function takes in y_true, y_pred, sample_weight, and returns the loss
+        lc_loss_fn: function takes in y_true, y_pred, and returns the loss for lane changing
+        optimizer: tf.keras.optimizer
+    Returns:
+        pred_traj: output from model
+        pred_lc_actions: output from model
+        cur_speeds: output from model
+        hidden_state: output from model
+        cf_loss: loss value from loss_fn
+        lc_loss: loss value from lc_loss_fn
+    """
+    with tf.GradientTape() as tape:
+        pred_traj, pred_lc_action, cur_speeds, hidden_state = \
+            model(leadfol_inputs, init_state, hidden_state, training=True)
+
+        lc_loss = lc_loss_fn(pred_lc_action, true_lc_action, traj_mask, viable_lc, leadfol_inputs, true_traj,
+                             pred_traj, vehs_counter, ds)
+        cf_loss = loss_fn(true_traj, pred_traj, traj_mask)
+        loss = cf_loss + sum(model.losses) + lc_loss
+
+    gradients = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    return pred_traj, pred_lc_action, cur_speeds, hidden_state, cf_loss, lc_loss
+
 @tf.function
 def train_step(leadfol_inputs, init_state, hidden_state, true_traj, true_lc_action, traj_mask, viable_lc,
                model, loss_fn, lc_loss_fn, optimizer):
@@ -502,6 +560,7 @@ def train_step(leadfol_inputs, init_state, hidden_state, true_traj, true_lc_acti
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     return pred_traj, pred_lc_action, cur_speeds, hidden_state, cf_loss, lc_loss
+
 
 def new_veh_indices(vehs, vehs_counter, nt):
     """
@@ -588,9 +647,8 @@ def initialize_states(ds, vehs, num_units, num_hidden_states):
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
     hidden_states = []
     for idx in range(num_hidden_states):
-        hidden_states += [tf.stack([tf.zeros((len(vehs), num_units)),  \
-                tf.zeros((len(vehs), num_units))])]
-        hidden_states[idx] = tf.convert_to_tensor(hidden_states[idx], dtype='float32')
+        hidden_states += [[tf.zeros((len(vehs), num_units)), tf.zeros((len(vehs), num_units))]]
+        # hidden_states[idx] = tf.convert_to_tensor(hidden_states[idx], dtype='float32')
     return cur_state, hidden_states
 
 def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100,
@@ -631,9 +689,16 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
 
     for i in range(nbatches):
         # call train_step
-        pred_traj, pred_lc_action, cur_speeds, hidden_states, cf_loss, lc_loss = \
-            train_step(leadfol_inputs, cur_state, hidden_states, true_traj, true_lc_action,
-                        traj_mask, viable_lc, model, loss, lc_loss_fn, optimizer)
+        if lc_loss_fn == expected_LC:
+            pred_traj, pred_lc_action, cur_speeds, hidden_states, cf_loss, lc_loss = \
+                train_step_ETP(leadfol_inputs, cur_state, hidden_states, true_traj, true_lc_action,
+                            traj_mask, viable_lc, model, loss, lc_loss_fn, optimizer,
+                            vehs_counter, ds)
+        else:
+            pred_traj, pred_lc_action, cur_speeds, hidden_states, cf_loss, lc_loss = \
+                train_step(leadfol_inputs, cur_state, hidden_states, true_traj, true_lc_action,
+                            traj_mask, viable_lc, model, loss, lc_loss_fn, optimizer)
+
         if i % m == 0:
             print(f'loss for {i}th batch is {cf_loss:.4f}. LC loss is {lc_loss:.4f}')
 
@@ -798,7 +863,6 @@ def expected_LC(pred_lc_action, true_lc_action, traj_mask, viable_lc, lead_input
 
             P_loss_list.append(100*tf.square(pred_P-P))
             E_loss_list.append(tf.square(pred_ET-ET))
-
     return tf.reduce_mean(P_loss_list) + tf.reduce_mean(E_loss_list)
 
 
@@ -848,12 +912,16 @@ def calculate_ET_P(pred_lc_action, intervals, count, curtime):
         probs = 1 - probs2
     probs = tf.concat((tf.ones(1,), probs), axis=0)
     probs2 = tf.concat((probs2, tf.ones(1,)), axis=0)
-    probs = tf.math.cumprod(probs)
-    pred_ET_P = probs*probs2
+    # probs = tf.math.cumprod(probs)
+    # pred_ET_P = probs*probs2
+    probs = tf.math.cumsum(tf.math.log(probs + 1e-5))
+    pred_ET_P = probs + tf.math.log(probs2 + 1e-5)
 
     pred_P = pred_ET_P[-1]
     # pred_ET = tf.tensordot(pred_ET_P[:-1], tf.range(0,int(cur_end-cur_start),dtype='float32'), 1)
-    pred_ET = tf.tensordot(pred_ET_P[:-1], tf.range(0,probs.shape[0]-1,dtype='float32'), 1)
+    # pred_ET = tf.tensordot(pred_ET_P[:-1], tf.range(0,probs.shape[0]-1,dtype='float32'), 1)
+    pred_ET = tf.math.reduce_sum(pred_ET_P[:-1] +  \
+            tf.math.log(tf.range(0,probs.shape[0]-1,dtype='float32') + 1e-5))
 
     return P, pred_P, ET, pred_ET
 

@@ -236,7 +236,7 @@ class LCOnlyModel(tf.keras.Model):
         true_traj = tf.unstack(true_traj, axis=1)
         leadfol_inputs = tf.unstack(leadfol_inputs, axis=1)  # unpacked over time dimension
 
-        pred_traj, pred_lc_action = [], []
+        pred_lc_action = []
         for cur_pos, cur_lead_fol_input in zip(true_traj, leadfol_inputs):
             # extract data for current timestep
             lead_hd = (cur_lead_fol_input[:,:3] - tf.expand_dims(cur_pos, axis=1))/self.maxhd
@@ -890,9 +890,12 @@ def generate_trajectories(model, vehs, ds, loss_fn=None, lc_loss_fn=None):
     cur_state, hidden_states = initialize_states(ds, vehs, model.lstm_units, model.num_lstms)
     leadfol_inputs, true_traj, true_lc_action, traj_mask, viable_lc = make_batch(vehs, vehs_counter, ds, nt)
 
-    pred_traj, pred_lc_action, cur_speeds, hidden_state = \
-        model(leadfol_inputs, cur_state, hidden_states, training=True)
-
+    if model.lc_only:
+        pred_traj, pred_lc_action, cur_speeds, hidden_state = \
+            model(leadfol_inputs, true_traj, hidden_states, training=True)
+    else:
+        pred_traj, pred_lc_action, cur_speeds, hidden_state = \
+            model(leadfol_inputs, cur_state, hidden_states, training=True)
 
     lc_loss = lc_loss_fn(pred_lc_action, true_lc_action, traj_mask, viable_lc, leadfol_inputs, true_traj,
                              pred_traj, vehs_counter, ds) if lc_loss_fn else 0

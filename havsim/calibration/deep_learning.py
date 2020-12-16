@@ -151,8 +151,138 @@ def make_dataset(veh_dict, veh_list, dt=.1, window=1):
 
     return ds, (maxheadway, maxspeed, minacc, maxacc)
 
+class LCOnlyModel(tf.keras.Model):
+    num_lstms = 1
+    lc_only = True
+
+    def __init__(self, maxhd, maxv, mina, maxa, lstm_units=20, dt=.1, l2reg=.02, dropout=.2, **kwargs):
+        """Inits RNN based LC model.
+
+        Args:
+            maxhd: max headway (for nomalization of inputs)
+            maxv: max velocity (for nomalization of inputs)
+            mina: minimum acceleration (for nomalization of outputs)
+            maxa: maximum acceleration (for nomalization of outputs)
+            dt: timestep
+            lstm_units: number of LSTM units
+            l2reg: constant for l2 regularization which is applied to dense layer kernel and LSTM kernel
+            dropout: dropout % applied to LSTM units
+        """
+        super().__init__()
+        self.lstm_units = lstm_units
+        self.lstm_cell = tf.keras.layers.LSTMCell(lstm_units, dropout=dropout,
+                                    kernel_regularizer=tf.keras.regularizers.l2(l=l2reg),
+                                    recurrent_regularizer=tf.keras.regularizers.l2(l=l2reg))
+
+        self.dense = tf.keras.layers.Dense(10, activation='relu',
+                                            kernel_regularizer=tf.keras.regularizers.l2(l=l2reg))
+        self.lc_actions = tf.keras.layers.Dense(3)
+
+        # normalization constants
+        self.maxhd = maxhd
+        self.maxv = maxv
+        self.mina = mina
+        self.maxa = maxa
+
+        self.dt = dt
+
+    def compute_output(self, cur_inputs, hidden_states, training=False):
+        """
+        Computes output of model given the cur inputs and the hidden states of the lstm_cells.
+        Args:
+            cur_inputs: tensor with (nveh, nt, 12), gives normalized headways in order of (lead, llead,
+                rlead, fol, lfol, rfol)
+            hidden_states: list of hidden_states, each a tensor with shape (2, nveh, num_hidden). The number of
+                hidden_states depends on the implementation of the model
+            training: Whether to run in training/inference mode. Need to pass training=True if training
+                with dropout
+        Returns:
+            cur_cf: the predicted normalized acceleration
+            cur_lc: the predicted log-probabilities of lane changing
+            updated hidden_states: in same structure as input
+        """
+        self.lstm_cell.reset_dropout_mask()
+        cur_lc, hidden_states = self.lstm_cell(cur_inputs, hidden_states[0], training)
+        cur_lc = self.dense(cur_lc)
+        cur_lc = self.lc_actions(cur_lc)
+        return None, cur_lc, [hidden_states]
+
+    def call(self, leadfol_inputs, true_traj, hidden_states, training=False):
+        """Updates states for a batch of vehicles.
+
+        Args:
+            leadfol_inputs - tensor with shape (nveh, nt, 12), gives position/speed at given timestep for
+                all surrounding vehicles. order is (lead, llead, rlead, fol, lfol, rfol)
+                for position, then for speed
+            true_traj -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
+                starting timestep.
+            hidden_states - tensor of hidden states with shape (num_hidden_layers, 2, nveh, lstm_units)
+                Initialized as all zeros for the first timestep.
+            training: Whether to run in training or inference mode. Need to pass training=True if training
+                with dropout.
+
+        Returns:
+            pred_traj: tensor of vehicle positions, shape of (number of vehicles, number of timesteps). Note
+                that these are 1 timestep after leadfol_inputs. E.g. if nt = 2 and leadfol_inputs has the lead
+                measurements for time 0 and 1. Then cur_state has the vehicle position/speed for time 0, and
+                outputs has the vehicle positions for time 1 and 2. curspeed would have the speed for time 2,
+                and you can differentiate the outputs to get the speed at time 1 if it's needed.
+            pred_lc_action: (number of vehicles, number of timesteps, 3) tensor giving the predicted logits over
+                {left lc, stay in lane, right lc} classes for each timestep.
+            curspeed: tensor of current vehicle speeds, shape of (number of vehicles, 1)
+            hidden_states: last hidden states for LSTM. Tuple of tensors, where each tensor has shape of
+                (number of vehicles, number of LSTM units)
+        """
+        true_traj = tf.unstack(true_traj, axis=1)
+        leadfol_inputs = tf.unstack(leadfol_inputs, axis=1)  # unpacked over time dimension
+
+        pred_traj, pred_lc_action = [], []
+        for cur_pos, cur_lead_fol_input in zip(true_traj, leadfol_inputs):
+            # extract data for current timestep
+            lead_hd = (cur_lead_fol_input[:,:3] - tf.expand_dims(cur_pos, axis=1))/self.maxhd
+            fol_hd = (tf.expand_dims(cur_pos, axis=1) - cur_lead_fol_input[:,3:6])/self.maxhd
+            spds = cur_lead_fol_input[:,6:]/self.maxv
+
+            cur_inputs = tf.concat([lead_hd, fol_hd, spds], axis=1)
+            cur_inputs = tf.where(tf.math.is_nan(cur_inputs), tf.ones_like(cur_inputs), cur_inputs)
+
+            _, cur_lc, hidden_states = self.compute_output(cur_inputs, hidden_states, training)
+
+            # update vehicle states
+            pred_lc_action.append(cur_lc)
+
+        pred_lc_action = tf.stack(pred_lc_action, 1)
+        return tf.stack(true_traj, axis=1), pred_lc_action, None, hidden_states
+
+    def get_config(self):
+        """Return any non-trainable parameters in json format."""
+        return {'pos_args': (self.maxhd, self.maxv, self.mina, self.maxa,), \
+                'lstm_units': self.lstm_units, 'dt': self.dt, 'l2reg':self.l2reg, 'dropout':self.dropout}
+
+    @classmethod
+    def from_config(self, config):
+        """Inits self from saved config created by get_config."""
+        pos_args = config.pop('pos_args')
+        return self(*pos_args, **config)
+
+    @classmethod
+    def load_model(self, filepath):
+        config_filepath = filepath + ' config.pkl'
+        with open(config_filepath, 'rb') as f:
+            config = pickle.load(f)
+        loaded_model = self.from_config(config)
+        loaded_model.load_weights(filepath)
+        return loaded_model
+
+    def save_model(self, filepath):
+        config_filepath = filepath + ' config.pkl'
+        with open(config_filepath, 'wb') as f:
+            pickle.dump(model.get_config(), f)
+        self.save_weights(filepath)
+
 class RNNBaseModel(tf.keras.Model):
     num_lstms = None
+    lc_only = False
     def __init__(self, maxhd, maxv, mina, maxa, dt=.1):
         super().__init__()
         # normalization constants
@@ -509,8 +639,12 @@ def train_step_ETP(leadfol_inputs, init_state, hidden_state, true_traj, true_lc_
         lc_loss: loss value from lc_loss_fn
     """
     with tf.GradientTape() as tape:
-        pred_traj, pred_lc_action, cur_speeds, hidden_state = \
-            model(leadfol_inputs, init_state, hidden_state, training=True)
+        if model.lc_only:
+            pred_traj, pred_lc_action, cur_speeds, hidden_state = \
+                model(leadfol_inputs, true_traj, hidden_state, training=True)
+        else:
+            pred_traj, pred_lc_action, cur_speeds, hidden_state = \
+                model(leadfol_inputs, init_state, hidden_state, training=True)
 
         lc_loss = lc_loss_fn(pred_lc_action, true_lc_action, traj_mask, viable_lc, leadfol_inputs, true_traj,
                              pred_traj, vehs_counter, ds)
@@ -552,8 +686,12 @@ def train_step(leadfol_inputs, init_state, hidden_state, true_traj, true_lc_acti
         lc_loss: loss value from lc_loss_fn
     """
     with tf.GradientTape() as tape:
-        pred_traj, pred_lc_action, cur_speeds, hidden_state = \
-            model(leadfol_inputs, init_state, hidden_state, training=True)
+        if model.lc_only:
+            pred_traj, pred_lc_action, cur_speeds, hidden_state = \
+                model(leadfol_inputs, true_traj, hidden_state, training=True)
+        else:
+            pred_traj, pred_lc_action, cur_speeds, hidden_state = \
+                model(leadfol_inputs, init_state, hidden_state, training=True)
 
         lc_loss = lc_loss_fn(pred_lc_action, true_lc_action, traj_mask, viable_lc, leadfol_inputs, true_traj,
                              pred_traj)
@@ -651,7 +789,6 @@ def initialize_states(ds, vehs, num_units, num_hidden_states):
     cur_state = tf.convert_to_tensor(cur_state, dtype='float32')
     hidden_states = [[tf.zeros((nveh, num_units)), tf.zeros((nveh, num_units))]
                      for i in range(num_hidden_states)]
-
     return cur_state, hidden_states
 
 def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=32, nt=10, m=100,
@@ -706,7 +843,8 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
             print(f'loss for {i}th batch is {cf_loss:.4f}. LC loss is {lc_loss:.4f}')
 
         #### update iteration by replacing any vehicles which have been fully simulated ####
-        cur_state = tf.stack([pred_traj[:, -1], cur_speeds], axis=1)  # current state for vehicles in batch
+        if not model.lc_only:
+            cur_state = tf.stack([pred_traj[:, -1], cur_speeds], axis=1)  # current state for vehicles in batch
 
         # check if any vehicles in batch have had their entire trajectory simulated
         need_new_vehs = new_veh_indices(vehs, vehs_counter, nt)
@@ -717,7 +855,8 @@ def training_loop(model, loss, lc_loss_fn, optimizer, ds, nbatches=10000, nveh=3
                     generate_new_states(ds, vehs, vehlist, vehs_counter, need_new_vehs)
 
             # update cur_state with generated states
-            cur_state = tf.tensor_scatter_nd_update(cur_state, inds_to_update, cur_state_updates)
+            if not model.lc_only:
+                cur_state = tf.tensor_scatter_nd_update(cur_state, inds_to_update, cur_state_updates)
 
             hidden_states = update_hidden_states(hidden_states, inds_to_update, \
                     (len(need_new_vehs), model.lstm_units))

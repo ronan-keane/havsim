@@ -49,7 +49,8 @@ params = {"lstm_units" : 64,
     "clipnorm": 0.0001}
 
 # model = deep_learning.RNNCFModel(*norm, **params)
-model = deep_learning.RNNSeparateModel(*norm, **params)
+# model = deep_learning.RNNSeparateModel(*norm, **params)
+model = deep_learning.LCOnlyModel(*norm, **params)
 
 loss = deep_learning.masked_MSE_loss
 lc_loss = deep_learning.SparseCategoricalCrossentropy

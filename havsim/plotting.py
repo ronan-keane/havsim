@@ -107,34 +107,24 @@ def plotTrajectoryProbs(vehdict, vehid, save=False, output_dir=None):
 
         ax[row_idx].set_ylabel(f'{row_idx * 50}', rotation='horizontal')
 
-        # # add x on true left changesget_true_lc_action
-        # idx_of_left = np.nonzero(traj.get_true_lc_action(vehid)[row_idx * 50: (row_idx+1)*50] == 0)[0]
-        # for left_index in idx_of_left:
-        #     ax[row_idx].text(left_index + 0.5, 0.3, 'x', color='white')
-
-        # # add x on true right changes
-        # idx_of_right = np.nonzero(traj.get_true_lc_action(vehid)[row_idx * 50: (row_idx+1)*50] == 2)[0]
-        # for right_index in idx_of_right:
-        #     ax[row_idx].text(right_index + 0.5, 1.3, 'x', color='white')
-
-    intervals = vehdict[vehid].lanemem.intervals(*vehdict[vehid].longest_lead_times)
-    ET_P = vehdict[vehid].ET_P
-    for count in range(len(intervals)):
-        ET, P = ET_P[count]
-        if count == len(intervals)-1:
-            lc_type = 'stay'
-        elif intervals[count][0] < intervals[count+1][0]:
-            lc_type = 'right'
-        else:
-            lc_type = 'left'
-        row_index = (intervals[count][2]-1 - vehdict[vehid].longest_lead_times[0]) // 50
-        right_index = intervals[count][2]-1 - vehdict[vehid].longest_lead_times[0] - 50*(row_index)
-        right_index = right_index -1 if count == len(intervals)-1 else right_index
-        ax[row_index].text(right_index, .8, f'{lc_type}, P={P:.4f}', color='C1')
-        ET = ET + intervals[count][1] - vehdict[vehid].longest_lead_times[0]
-        row_index = (math.ceil(ET)) // 50
-        right_index = ET - 50*row_index
-        ax[row_index].text(right_index.numpy(), .8, f'ET={ET:.2f}', color='C1')
+    # intervals = vehdict[vehid].lanemem.intervals(*vehdict[vehid].longest_lead_times)
+    # ET_P = vehdict[vehid].ET_P
+    # for count in range(len(intervals)):
+    #     ET, P = ET_P[count]
+    #     if count == len(intervals)-1:
+    #         lc_type = 'stay'
+    #     elif intervals[count][0] < intervals[count+1][0]:
+    #         lc_type = 'right'
+    #     else:
+    #         lc_type = 'left'
+    #     row_index = (intervals[count][2]-1 - vehdict[vehid].longest_lead_times[0]) // 50
+    #     right_index = intervals[count][2]-1 - vehdict[vehid].longest_lead_times[0] - 50*(row_index)
+    #     right_index = right_index -1 if count == len(intervals)-1 else right_index
+    #     ax[row_index].text(right_index, .8, f'{lc_type}, P={P:.4f}', color='C1')
+    #     ET = ET + intervals[count][1] - vehdict[vehid].longest_lead_times[0]
+    #     row_index = (math.ceil(ET)) // 50
+    #     right_index = ET - 50*row_index
+    #     ax[row_index].text(right_index.numpy(), .8, f'ET={ET:.2f}', color='C1')
 
     fig.subplots_adjust(right=0.8)
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])

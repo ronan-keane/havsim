@@ -197,7 +197,7 @@ class LCOnlyModel(tf.keras.Model):
             training: Whether to run in training/inference mode. Need to pass training=True if training
                 with dropout
         Returns:
-            cur_cf: the predicted normalized acceleration
+            cur_cf: the predicted normalized acceleration (this model returns None)
             cur_lc: the predicted log-probabilities of lane changing
             updated hidden_states: in same structure as input
         """
@@ -214,8 +214,7 @@ class LCOnlyModel(tf.keras.Model):
             leadfol_inputs - tensor with shape (nveh, nt, 12), gives position/speed at given timestep for
                 all surrounding vehicles. order is (lead, llead, rlead, fol, lfol, rfol)
                 for position, then for speed
-            true_traj -  tensor with shape (nveh, 2) giving the vehicle position and speed at the
-                starting timestep.
+            true_traj -  tensor with shape (nveh, nt) giving the vehicle position at each timestep
             hidden_states - tensor of hidden states with shape (num_hidden_layers, 2, nveh, lstm_units)
                 Initialized as all zeros for the first timestep.
             training: Whether to run in training or inference mode. Need to pass training=True if training

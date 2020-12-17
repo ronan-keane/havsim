@@ -500,12 +500,13 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
     # to get the positions of connection. These values could then be used instead of .start and .end
     # Those connections could also be stored in road or lane, so they don't have to be recomputed
     # during simulation.
+    nexttemplane = None
     if curlaneind < laneind:
         curind = laneind - 1
         prevtemplane = curroad[curind+1]
         templane = curroad[curind]
-        cur_route[templane] = []
         while not curind < curlaneind:
+            cur_route[templane] = []
             # determine curpos = where the mandatory change starts (different meaning than the 'curpos'
             # which is passed in)
             if templane.end < curpos:  # in case templane ends before the curpos
@@ -523,7 +524,7 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
 
             # there is always a mandatory event
             cur_route[templane].append({'pos': curpos, 'event': 'mandatory', 'side': 'r_lc',
-                                        'urgency': [curpos, curpos + p[1]]})
+                                        'lc_urgency': [curpos, curpos + p[1]]})
 
             # update iteration
             curind += -1
@@ -535,8 +536,8 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
         curind = laneind+1
         prevtemplane = curroad[curind - 1]
         templane = curroad[curind]
-        cur_route[templane] = []
         while not curind > curlaneind:
+            cur_route[templane] = []
             # determine curpos = where the mandatory change starts
             if templane.end < curpos:
                 curpos = templane.end
@@ -550,7 +551,7 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
                 cur_route[templane].append({'pos': enddiscpos, 'event': 'end discretionary', 'side': 'r_lc'})
 
             cur_route[templane].append({'pos': curpos, 'event': 'mandatory', 'side': 'l_lc',
-                                        'urgency': [curpos, curpos + p[1]]})
+                                        'lc_urgency': [curpos, curpos + p[1]]})
 
             # update iteration
             curind += -1

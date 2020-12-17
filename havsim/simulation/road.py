@@ -88,7 +88,6 @@ def connect_lane_left_right(left_lane, right_lane, left_connection, right_connec
     if left_lane is None or right_lane is None:
         return
 
-    assert left_lane.connect_right and left_lane.connect_right[0] == (left_lane.start, None)
     if left_connection[0] == left_lane.start:
         left_lane.connect_right[0] = (left_lane.start, right_lane)
     else:
@@ -105,7 +104,6 @@ def connect_lane_left_right(left_lane, right_lane, left_connection, right_connec
             {'event': 'update lr', 'right': 'remove', 'left': None,
              'pos': left_connection[1]})
 
-    assert right_lane.connect_left and right_lane.connect_left[0] == (right_lane.start, None)
     if right_connection[0] == right_lane.start:
         right_lane.connect_left[0] = (right_lane.start, left_lane)
     else:

@@ -79,15 +79,6 @@ main_road.connect('exit', is_exit=True)
 onramp_road = Road(num_lanes=1, length=[(startmerge - 100, endmerge)], name='on ramp')
 onramp_road.merge(main_road, self_index=0, new_lane_index=1,
                   self_pos=(startmerge, endmerge), new_lane_pos=(startmerge, endmerge))
-delattr(main_road, "connect_to")
-delattr(onramp_road, "connect_to")
-
-for i in range(2):
-    main_road[i].connections = {}
-    main_road[i].connections['exit'] = (mainroadlen, 'continue', (0, 1), None, None)
-
-onramp_road[0].connections = {}
-onramp_road[0].connections['main road'] = ((startmerge,endmerge), 'merge', 0, 'l_lc', main_road)
 
 # Define the newveh method for both roads
 def onramp_newveh(self, vehid, *args):

@@ -1,6 +1,5 @@
 from havsim.simulation.road_networks import Lane, downstream_wrapper, get_inflow_wrapper, increment_inflow_wrapper
 
-
 def compute_route(start_road, start_pos, exit):
     """
     start_road: object for the start road
@@ -142,7 +141,6 @@ class Road:
         """
         self.num_lanes = num_lanes
         self.name = name
-        self.connect_to = {}
 
         # Validate connections arg
         if connections is not None:
@@ -189,6 +187,18 @@ class Road:
 
         if self_indices is None:
             self_indices = list(range(self.num_lanes))
+        self_indices.sort()
+
+        # We should check that self_indices is a continuous list of numbers, because the laneind in lane's
+        # connections attribute makes this assumption (if 'continue', it's a tuple of 2 ints, giving the
+        # leftmost and rightmost lanes which will continue to the desired lane. if 'merge', it's the laneind
+        # of the lane we need to be on to merge.)
+        def is_continuously_increasing(nums):
+            for i in range(len(nums) - 1):
+                if nums[i] + 1 != nums[i+1]:
+                    return False
+            return True
+        assert is_continuously_increasing(self_indices)
 
         # If passing in a string, new_road is assumed to be the name of the exit
         if isinstance(new_road, str):
@@ -196,14 +206,17 @@ class Road:
             all_lanes_end = tuple([self.lanes[i].end for i in self_indices])
             # It's assumed that all exits have the same end position
             assert all_lanes_end and min(all_lanes_end) == max(all_lanes_end)
-            self.connect_to[new_road] = (all_lanes_end[0], 'continue', self_indices, None, None)
             # We don't need to update roadlen for exit type roads
             for i in self_indices:
                 self.lanes[i].events.append({'event': 'exit', 'pos': self.lanes[i].end})
+            for i in range(self.num_lanes):
+                cur_lane = self.lanes[i]
+                cur_lane.connections[new_road] = (all_lanes_end[0], 'continue', (self_indices[0],self_indices[-1]), None, None)
         else:
             if new_road_indices is None:
                 new_road_indices = list(range(new_road.num_lanes))
 
+            new_road_indices.sort()
             # It is assumed that self_indices and new_road_indices have the same length
             assert len(self_indices) == len(new_road_indices)
 
@@ -213,14 +226,31 @@ class Road:
             # have the same start position
             assert all_self_lanes_end and min(all_self_lanes_end) == max(all_self_lanes_end)
             assert all_new_lanes_start and min(all_new_lanes_start) == max(all_new_lanes_start)
-            self.connect_to[new_road.name] = (all_self_lanes_end[0], 'continue', self_indices, None, new_road)
             # Since roadlen dict is shared across all lanes, we only need to update it via one of
             # the lanes
             self.lanes[0].roadlen[new_road.name] = all_new_lanes_start[0] - all_self_lanes_end[0]
+
+            # Update connections attribute for all lanes
+            new_connection = (all_self_lanes_end[0], 'continue',(min(self_indices), max(self_indices)), None, new_road)
+            for i in range(self.num_lanes):
+                if new_road.name not in self.lanes[i].connections:
+                    self.lanes[i].connections[new_road.name] = new_connection
+                else:
+                    if self.lanes[i].connections[new_road.name][1] == 'continue':
+                        left, right = self.lanes[i].connections[new_road.name][2]
+                        old_dist = 0 if i in range(left, right + 1) else min(abs(left - i), abs(right - i))
+                    else:
+                        left_or_right = self.lanes[i].connections[new_road.name][2]
+                        old_dist = abs(i - left_or_right)
+                    new_dist = 0 if i in range(self_indices[0], self_indices[-1] + 1) else min(abs(i - self_indices[0]), abs(i - self_indices[-1]))
+                    if new_dist < old_dist:
+                        self.lanes[i].connections[new_road.name] = new_connection
+
+            # Update lane events, connect_to, merge anchors
             for self_ind, new_road_ind in zip(self_indices, new_road_indices):
                 self_lane = self.lanes[self_ind]
                 new_lane = new_road[new_road_ind]
-                # Update connect_to attribute the self_lane
+                # Update connect_to attribute for the self_lane
                 self_lane.connect_to = new_lane
 
                 # Update merge anchors for current track
@@ -292,10 +322,22 @@ class Road:
         else:
             assert side is None
             change_side = 'l_lc' if self_index == 0 else 'r_lc'
-        # Update self road and new road's connect_to
-        self.connect_to[new_road.name] = (self_pos, 'merge', self_index, change_side, new_road)
-        new_road.connect_to[self.name] = (
-            new_lane_pos, 'merge', new_lane_index, 'r_lc' if change_side == 'l_lc' else 'l_lc', self)
+        # Update connections attribute for all lanes
+        new_connection = (self_pos, 'merge', self_index, change_side, new_road)
+        for i in range(self.num_lanes):
+            if new_road.name not in self.lanes[i].connections:
+                self.lanes[i].connections[new_road.name] = new_connection
+            else:
+                if self.lanes[i].connections[new_road.name][1] == 'continue':
+                    left, right = self.lanes[i].connections[new_road.name][2]
+                    old_dist = 0 if i in range(left, right + 1) else min(abs(left - i), abs(right - i))
+                else:
+                    left_or_right = self.lanes[i].connections[new_road.name][2]
+                    old_dist = abs(i - left_or_right)
+                new_dist = abs(i - self_index)
+                if new_dist < old_dist:
+                    self.lanes[i].connections[new_road.name] = new_connection
+
         assert isinstance(self_pos, tuple) and isinstance(new_lane_pos, tuple)
         # Update roadlen
         self.lanes[0].roadlen[new_road.name] = new_lane_pos[0] - self_pos[0]

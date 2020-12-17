@@ -98,16 +98,16 @@ def update_net(vehicles, lc_actions, inflow_lanes, merge_lanes, vehid, timeind, 
     for veh in remove_vehicles:
         vehicles.remove(veh)
 
+    # update inflow, adding vehicles if necessary
+    for curlane in inflow_lanes:
+        vehid = curlane.increment_inflow(vehicles, vehid, timeind, dt)
+
     # for veh in vehicles:  # debugging
     #     if not veh._chk_leadfol(verbose = False):
     #         # print('-------- Report for Vehicle '+str(veh.vehid)+' at time '+str(timeind)+'--------')
     #         # veh._leadfol()
     #         veh._chk_leadfol()
     #         # raise ValueError('incorrect vehicle order')
-
-    # update inflow, adding vehicles if necessary
-    for curlane in inflow_lanes:
-        vehid = curlane.increment_inflow(vehicles, vehid, timeind, dt)
 
     return vehid, remove_vehicles
 

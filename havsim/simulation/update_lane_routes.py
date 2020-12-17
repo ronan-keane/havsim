@@ -501,7 +501,7 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
     # Those connections could also be stored in road or lane, so they don't have to be recomputed
     # during simulation.
     nexttemplane = None
-    if curlaneind < laneind:
+    if curlaneind < laneind:  # populate route events in lanes left of target
         curind = laneind - 1
         prevtemplane = curroad[curind+1]
         templane = curroad[curind]
@@ -532,7 +532,7 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
             templane = nexttemplane
 
     # same code but for opposite side
-    elif curlaneind > laneind:
+    elif curlaneind > laneind:  # populate route events in lanes right of target
         curind = laneind+1
         prevtemplane = curroad[curind - 1]
         templane = curroad[curind]
@@ -554,7 +554,7 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
                                         'lc_urgency': [curpos, curpos + p[1]]})
 
             # update iteration
-            curind += -1
+            curind += 1
             prevtemplane = templane
             templane = nexttemplane
 
@@ -599,7 +599,7 @@ def set_route_events(veh, timeind):
                 curpos = prevlane_events[0]['pos'] + p[0] + p[1]
             else:  # mandatory event
                 curpos = prevlane_events[0]['pos']
-            make_route_helper(p, veh.cur_route, veh.road, newlane.laneind, prevlane.laneind, curpos)
+            make_route_helper(p, veh.cur_route, veh.lane.road, newlane.laneind, prevlane.laneind, curpos)
         else:  # on new road - we need to generate new cur_route and update the vehicle's route
             veh.cur_route = make_cur_route(p, newlane, veh.route.pop(0))
 

@@ -832,6 +832,10 @@ class Vehicle:
                 else:
                     lfolpass = False
                     lfolmsg.append('lfol is not correct vehicle - should be '+str(fol))
+        elif self.llane is not None:
+            unused, fol = self.llane.leadfol_find(self, self.llane.anchor)
+            lfolpass = False
+            lfolmsg.append('lfol is None - should be '+str(fol))
         rfolpass = True
         rfolmsg = []
         if self.rfol is not None:
@@ -858,6 +862,10 @@ class Vehicle:
                 else:
                     rfolpass = False
                     rfolmsg.append('rfol is not correct vehicle - should be '+str(fol))
+        elif self.rlane is not None:
+            unused, fol = self.rlane.leadfol_find(self, self.rlane.anchor)
+            rfolpass = False
+            rfolmsg.append('lfol is None - should be '+str(fol))
         rleadpass = True
         rleadmsg = []
         for i in self.rlead:

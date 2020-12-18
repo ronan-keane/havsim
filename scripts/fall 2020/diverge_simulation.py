@@ -7,7 +7,6 @@ import havsim.plotting as hp
 import time
 import numpy as np
 
-
 split_ratio = .2  # ratio of vehicles that go to road2 (left)
 road1len = 1000
 road2len = 1000
@@ -22,17 +21,15 @@ road1.merge(road3, self_index=1, new_lane_index=0,
 road1.connect(road3, self_indices=[2], new_road_indices=[1])
 road2.connect('exit', is_exit=True)
 road3.connect('exit 2', is_exit=True)
-
+road1[1].events = [{'event': 'update lr', 'left': None, 'right': 'add', 'right anchor': 0, 'pos': 800},
+                   {'event': 'new lane', 'pos': 1000, 'left': 'update', 'right': 'remove'}]
 
 road2.set_downstream({'method':'free'})
 road3.set_downstream({'method':'free'})
 
 def mainroad_newveh(self, vehid, *args):
-    if np.random.rand() < split_ratio:
-        route = ['road 2', 'exit']
-    else:
-        route = ['road 3', 'exit 2']
-    cf_p = [35, 1.3, 2, 1.1, 1.5]
+    route = ['road 3', 'exit 2']
+    cf_p = [15, 1.3, 2, 1.1, 1.5]
     lc_p = [-8, -20, .6, .1, 0, .2, .1, 20, 20]
     kwargs = {'route': route, 'maxspeed': cf_p[0]-1e-6, 'relax_parameters':8.7,
               'shift_parameters': [-2, 2], 'hdbounds':(cf_p[2]+1e-6, 1e4)}

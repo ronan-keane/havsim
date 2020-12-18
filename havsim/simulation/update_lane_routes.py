@@ -215,7 +215,11 @@ def update_lane_lr(veh, curlane, curevent):
         merge_anchor = newllane.merge_anchors[curevent['left anchor']][0]
         unused, newfol = curlane.leadfol_find(veh, merge_anchor, 'l')
 
-        veh.lfol = newfol  # assumes that veh.lfol is None
+        if veh.lfol is None:
+            veh.lfol = newfol
+        else:
+            veh.lfol.rlead.remove(veh)
+            veh.lfol = newfol
         newfol.rlead.append(veh)
         if newllane.roadname == curlane.roadname:
             veh.l_lc = 'discretionary'
@@ -247,7 +251,11 @@ def update_lane_lr(veh, curlane, curevent):
         merge_anchor = newrlane.merge_anchors[curevent['right anchor']][0]
         unused, newfol = curlane.leadfol_find(veh, merge_anchor, 'r')
 
-        veh.rfol = newfol
+        if veh.rfol is None:
+            veh.rfol = newfol
+        else:
+            veh.rfol.llead.remove(veh)
+            veh.rfol = newfol
         newfol.llead.append(veh)
         if newrlane.roadname == curlane.roadname:
             veh.r_lc = 'discretionary'

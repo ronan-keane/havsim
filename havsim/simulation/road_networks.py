@@ -707,7 +707,7 @@ def get_headway(veh, lead):
     """Calculates distance from Vehicle veh to the back of Vehicle lead."""
     hd = lead.pos - veh.pos - lead.len
     if veh.road != lead.road:
-        hd -= veh.lane.roadlen[lead.road]  # lead.road is hashable because its a string
+        hd += veh.lane.roadlen[lead.road]  # lead.road is hashable because its a string
     return hd
 
 
@@ -715,7 +715,7 @@ def get_dist(veh, lead):
     """Calculates distance from veh to the front of lead."""
     dist = lead.pos-veh.pos
     if veh.road != lead.road:
-        dist -= veh.lane.roadlen[lead.road]  # lead.road is hashable because its a string
+        dist += veh.lane.roadlen[lead.road]  # lead.road is hashable because its a string
     return dist
 
 

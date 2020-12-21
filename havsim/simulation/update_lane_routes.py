@@ -69,7 +69,7 @@ def update_lane_after_lc(veh, lc, timeind):
         lcsidelane = veh.llane
         newroadname = lcsidelane.roadname
         if newroadname != veh.road:
-            veh.pos += veh.lane.roadlen[newroadname]
+            veh.pos -= veh.lane.roadlen[newroadname]
             veh.road = newroadname
             veh.r_lc = None
         else:
@@ -87,7 +87,7 @@ def update_lane_after_lc(veh, lc, timeind):
         lcsidelane = veh.rlane
         newroadname = lcsidelane.roadname
         if newroadname != veh.road:
-            veh.pos += veh.lane.roadlen[newroadname]
+            veh.pos -= veh.lane.roadlen[newroadname]
             veh.road = newroadname
             veh.l_lc = None
         else:
@@ -116,9 +116,10 @@ def update_lane_events(veh, timeind, remove_vehicles):
         'update lr' - occurs when the current lane's left or right connections change
         'exit' - occurs when a vehicle reaches the end of its current lane and exits the road network
     'left': for 'new lane' or 'update lr', if the left connection changes, 'left' has a value of either
-        'add' - if there is a new left lane
+        'add' - Used when the current left lane changes from None to a new lane, or when the current left
+            lane changes tracks.
         'remove' -  if the current left connection is no longer possible
-        'update' - if there is still a left connection but it is now a new lane
+        'update' - if there is still a left lane in the same track, but now it refers to a new lane object
     'left anchor': if 'left' is 'add', 'left anchor' is an index giving the merge anchor for the
         new left lane
     'right': same as left, for right side
@@ -191,7 +192,8 @@ def update_lane_lr(veh, curlane, curevent):
     go from None to some Lane, or some Lane to None, there needs to be 'add' or 'remove' events for the
     corresponding sides. This handles those events.
     Updates the vehicle orders and defaults the lane change states to the correct behavior (by default,
-    enter discretionary only if the left/right lane is in the same road as the current lane)
+    enter discretionary only if the left/right lane is in the same road as the current lane).
+    This updates the left/right followers, l/r lane, and l/r_lc attributes.
 
     Args:
         veh: Vehicle object to update
@@ -202,8 +204,6 @@ def update_lane_lr(veh, curlane, curevent):
         None (Modifies veh attributes in place.)
     """
     if curevent['left'] == 'remove':
-        # # handle edge case where veh overtakes lfol in same timestep the left lane ends
-        # vehicle_orders.update_lrfol(veh.lfol)
         # update lead/fol order
         veh.lfol.rlead.remove(veh)
         veh.lfol = None
@@ -212,15 +212,17 @@ def update_lane_lr(veh, curlane, curevent):
 
     elif curevent['left'] == 'add':
         newllane = curlane.get_connect_left(curevent['pos'])
+
+        # get the new follower in the new track
         merge_anchor = newllane.merge_anchors[curevent['left anchor']][0]
         unused, newfol = curlane.leadfol_find(veh, merge_anchor, 'l')
-
         if veh.lfol is None:
             veh.lfol = newfol
         else:
             veh.lfol.rlead.remove(veh)
             veh.lfol = newfol
         newfol.rlead.append(veh)
+
         if newllane.roadname == curlane.roadname:
             veh.l_lc = 'discretionary'
         else:
@@ -239,8 +241,6 @@ def update_lane_lr(veh, curlane, curevent):
     # same thing for right
     if curevent['right'] == 'remove':
 
-        # vehicle_orders.update_lrfol(veh.rfol)
-
         veh.rfol.llead.remove(veh)
         veh.rfol = None
         veh.r_lc = None
@@ -248,15 +248,16 @@ def update_lane_lr(veh, curlane, curevent):
 
     elif curevent['right'] == 'add':
         newrlane = curlane.get_connect_right(curevent['pos'])
+
         merge_anchor = newrlane.merge_anchors[curevent['right anchor']][0]
         unused, newfol = curlane.leadfol_find(veh, merge_anchor, 'r')
-
         if veh.rfol is None:
             veh.rfol = newfol
         else:
             veh.rfol.llead.remove(veh)
             veh.rfol = newfol
         newfol.llead.append(veh)
+
         if newrlane.roadname == curlane.roadname:
             veh.r_lc = 'discretionary'
         else:
@@ -286,7 +287,7 @@ def update_new_lane(veh, oldlane, newlane, timeind):
     """
     newroadname = newlane.roadname
     if newroadname != veh.road:
-        veh.pos += oldlane.roadlen[newroadname]
+        veh.pos -= oldlane.roadlen[newroadname]
         veh.road = newroadname
     veh.lane = newlane
     veh.lanemem.append((newlane, timeind))
@@ -654,7 +655,7 @@ def update_merge_anchors(curlane, lc_actions):
             if veh.cf_parameters is None:
                 lead = veh.lead
                 if lead is not None:
-                    temp = -curlane.roadlen[lead.road] + lead.pos
+                    temp = curlane.roadlen[lead.road] + lead.pos
                     if temp - pos < 0:
                         curlane.merge_anchors[i][0] = lead
 
@@ -664,5 +665,5 @@ def update_merge_anchors(curlane, lc_actions):
                 else:
                     curlane.merge_anchors[i][0] = veh.lfol
 
-            elif -curlane.roadlen[veh.road]+veh.pos - pos > 0:
+            elif curlane.roadlen[veh.road]+veh.pos - pos > 0:
                 curlane.merge_anchors[i][0] = veh.fol

@@ -371,7 +371,7 @@ class Road:
         increment_inflow: dictionary of keyword args which defines increment_inflow method, or None
         get_inflow: dictionary of keyword args which defines increment_inflow method, or None
         new_vehicle: new_vehicle method, or None
-        self_indices: a list of lane indices to set downstream condition to
+        self_indices: a list of lane indices to set upstream condition to
         """
         if self_indices is None:
             self_indices = list(range(self.num_lanes))
@@ -386,8 +386,7 @@ class Road:
             if increment_inflow is not None:
                 lane.inflow_buffer = 0
                 lane.newveh = None
-                # cf_parameters, lc_parameters, kwargs = self.new_vehicle()  # done in Simulation.__init__
-                # self.newveh = vehicle(vehid, self, cf_parameters, lc_parameters, **kwargs)
+
                 lane.increment_inflow = increment_inflow_wrapper(**increment_inflow).__get__(lane, Lane)
 
     def diverge(self):

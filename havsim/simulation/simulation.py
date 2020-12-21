@@ -150,6 +150,7 @@ class Simulation:
             None. Note that we keep references to all vehicles through vehicles and prev_vehicles,
             a Vehicle stores its own memory.
         """
+        # automatically get inflow/merge lanes
         if roads is None:
             self.inflow_lanes = inflow_lanes
             self.merge_lanes = merge_lanes
@@ -163,6 +164,7 @@ class Simulation:
                         self.inflow_lanes.append(lane)
                     if hasattr(lane, "merge_anchors") and lane.merge_anchors:
                         self.merge_lanes.append(lane)
+
         self.vehicles = set() if vehicles is None else vehicles
         self.prev_vehicles = [] if prev_vehicles is None else prev_vehicles
         self.vehid = vehid
@@ -171,8 +173,6 @@ class Simulation:
 
         for curlane in self.inflow_lanes:  # need to generate parameters of the next vehicles
             if curlane.newveh is None:
-                # cf_parameters, lc_parameters, kwargs = curlane.new_vehicle()
-                # curlane.newveh = Vehicle(self.vehid, curlane, cf_parameters, lc_parameters, **kwargs)
                 curlane.new_vehicle(self.vehid)
                 self.vehid += 1
 

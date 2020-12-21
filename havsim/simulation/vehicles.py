@@ -685,6 +685,7 @@ class Vehicle:
             activated_disc_side = False
 
         # main logic is to determine lside, rside, in_disc attributes.
+        # note that this assumes that only one of lside, rside can be mandatory at a time.
         l_lc, r_lc = self.l_lc, self.r_lc
         if l_lc is None:
             if r_lc is None:

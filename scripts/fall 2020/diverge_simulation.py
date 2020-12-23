@@ -75,6 +75,6 @@ print('simulation time is '+str(end-start)+' over '+str(sum([timesteps - veh.sta
                                                          for veh in all_vehicles]))+' timesteps')
 
 #%%
-laneinds = {road1[0]:0, road1[1]:1, road1[2]:2, road2[0]:3, road2[1]:4, road3[0]:5, road3[1]:6}
-sim, siminfo = hp.plot_format(all_vehicles, laneinds)
-hp.platoonplot(sim, None, siminfo, lane = 5, opacity = 0, colorcode=False)
+# laneinds = {road1[0]:0, road1[1]:1, road1[2]:2, road2[0]:3, road2[1]:4, road3[0]:5, road3[1]:6}
+# sim, siminfo = hp.plot_format(all_vehicles, laneinds)
+# hp.platoonplot(sim, None, siminfo, lane = 5, opacity = 0, colorcode=False)

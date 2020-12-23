@@ -614,15 +614,19 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
             llane = self.get_connect_left(pos)
             if llane is not None:
                 leftanchor = llane.anchor
-                newveh.lfol = leftanchor
-                leftanchor.rlead.append(newveh)
+                new_lfol = leftanchor if (leftanchor.lead is None or
+                                          leftanchor.lead.pos > newveh.pos) else leftanchor.lead
+                newveh.lfol = new_lfol
+                new_lfol.rlead.append(newveh)
             else:
                 newveh.lfol = None
             rlane = self.get_connect_right(pos)
             if rlane is not None:
                 rightanchor = rlane.anchor
-                newveh.rfol = rightanchor
-                rightanchor.llead.append(newveh)
+                new_rfol = rightanchor if (rightanchor.lead is None or
+                                           rightanchor.lead.pos > newveh.pos) else rightanchor.lead
+                newveh.rfol = new_rfol
+                new_rfol.llead.append(newveh)
             else:
                 newveh.rfol = None
 

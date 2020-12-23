@@ -424,6 +424,7 @@ def make_cur_route(p, curlane, nextroadname):
         for i in range(leftind, rightind+1):
             cur_route[curroad[i]] = []
 
+        # TODO no mandatory here? seems like a bug
         if leftind > 0:
             templane = curroad[leftind]
             curpos = min(templane.end, curroad[leftind-1].end)  # check case where templane.start > curpos?

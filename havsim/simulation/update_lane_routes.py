@@ -216,11 +216,9 @@ def update_lane_lr(veh, curlane, curevent):
         # get the new follower in the new track
         merge_anchor = newllane.merge_anchors[curevent['left anchor']][0]
         unused, newfol = curlane.leadfol_find(veh, merge_anchor, 'l')
-        if veh.lfol is None:
-            veh.lfol = newfol
-        else:
+        if veh.lfol is not None:
             veh.lfol.rlead.remove(veh)
-            veh.lfol = newfol
+        veh.lfol = newfol
         newfol.rlead.append(veh)
 
         if newllane.roadname == curlane.roadname:
@@ -251,11 +249,9 @@ def update_lane_lr(veh, curlane, curevent):
 
         merge_anchor = newrlane.merge_anchors[curevent['right anchor']][0]
         unused, newfol = curlane.leadfol_find(veh, merge_anchor, 'r')
-        if veh.rfol is None:
-            veh.rfol = newfol
-        else:
+        if veh.rfol is not None:
             veh.rfol.llead.remove(veh)
-            veh.rfol = newfol
+        veh.rfol = newfol
         newfol.llead.append(veh)
 
         if newrlane.roadname == curlane.roadname:
@@ -414,8 +410,12 @@ def make_cur_route(p, curlane, nextroadname):
     curroad = curlane.road
     curlaneind = curlane.laneind
     # position or tuple of positions, str, tuple of 2 ints or single int, str, dict for the next road
-    pos, change_type, laneind, side, nextroad = curlane.connections[nextroadname][:]  # nextroad unused?
-    # roads also have name, len, num_lanes, index lanes using their lane index (0 - num_lanes-1)
+    try:  # band aid for case when vehicles cannot follow their planned route
+        pos, change_type, laneind, side, nextroad = curlane.connections[nextroadname][:]  # nextroad unused?
+        # roads also have name, len, num_lanes, index lanes using their lane index (0 - num_lanes-1)
+    except:
+        print(' vehicle on '+str(curlane)+' missed route which planned for going to '+nextroadname)
+        return {i:[] for i in curroad.lanes}
 
     cur_route = {}
     if change_type == 'continue':  # -> vehicle needs to reach end of lane

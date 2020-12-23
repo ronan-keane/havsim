@@ -26,9 +26,11 @@ road2.set_downstream({'method':'free'})
 road3.set_downstream({'method':'free'})
 
 # manually fixing bugs in road network
+# events
 road1[1].events = [{'event': 'update lr', 'left': None, 'right': 'add', 'right anchor': 0, 'pos': 800},
                    {'event': 'new lane', 'pos': 1000, 'left': 'update', 'right': 'remove'}]
 road1[2].events = [{'event': 'new lane', 'pos': 800, 'left': 'add', 'left anchor': 0, 'right': None}]
+# roadlen
 road1[0].roadlen = {'road 1': 0, 'road 2': 1000, 'road 3': 800}
 road1[1].roadlen = {'road 1': 0, 'road 2': 1000, 'road 3': 800}
 road1[2].roadlen = {'road 1': 0, 'road 2': 1000, 'road 3': 800}
@@ -36,6 +38,8 @@ road2[0].roadlen = {'road 1': -1000, 'road 2': 0, 'road 3': -200}
 road2[1].roadlen = {'road 1': -1000, 'road 2': 0, 'road 3': -200}
 road3[0].roadlen = {'road 1': -800, 'road 2': 200, 'road 3': 0}
 road3[1].roadlen = {'road 1': -800, 'road 2': 200, 'road 3': 0}
+# connect_left/right
+road1[1].connect_right = [(0, road1[2]), (800, road3[0])]
 
 
 def newveh_wrapper(split_ratio):  # split ratio is what % of vehicles go left
@@ -52,7 +56,7 @@ def newveh_wrapper(split_ratio):  # split ratio is what % of vehicles go left
     return mainroad_newveh
 # boundary conditions
 increment_inflow = {'method': 'seql2', 'kwargs':{'c':.8, 'eql_speed':True, 'transition':19}}
-mainroad_inflow = lambda *args: .3
+mainroad_inflow = lambda *args: .65
 road1.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': mainroad_inflow}, new_vehicle=newveh_wrapper(.95), self_indices=[0])
 road1.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': mainroad_inflow}, new_vehicle=newveh_wrapper(.5), self_indices=[1])
 road1.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': mainroad_inflow}, new_vehicle=newveh_wrapper(.05), self_indices=[2])
@@ -60,7 +64,7 @@ road1.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series':
 # Make simulation
 simulation = hs.Simulation(roads=[road1, road2, road3], dt = .25)
 #%%
-timesteps=2000
+timesteps=10000
 start = time.time()
 simulation.simulate(timesteps)
 end = time.time()

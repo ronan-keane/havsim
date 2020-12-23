@@ -229,19 +229,19 @@ def update_leadfol_after_lc(veh, lcsidelane, newlcsidelane, side, timeind):
     else:
         lead.fol = fol
 
-    # update opposite/lc side leaders
+    # update cur opposite/lc side leaders
     for j in getattr(veh, opsidelead):
         setattr(j, lcsidefol, fol)
     for j in getattr(veh, lcsidelead):
         setattr(j, opsidefol, fol)
 
-    # update follower
+    # update cur follower
     getattr(fol, lcsidelead).extend(getattr(veh, lcsidelead))
     getattr(fol, opsidelead).extend(getattr(veh, opsidelead))
     fol.lead = lead
     fol.leadmem.append((lead, timeind+1))
 
-    # update opposite side for vehicle
+    # update cur opposite side follower
     vehopsidefol = getattr(veh, opsidefol)
     if vehopsidefol is not None:
         getattr(vehopsidefol, lcsidelead).remove(veh)
@@ -254,13 +254,13 @@ def update_leadfol_after_lc(veh, lcsidelane, newlcsidelane, side, timeind):
     lcfol.leadmem.append((veh, timeind+1))
     getattr(lcfol, opsidelead).remove(veh)
     veh.fol = lcfol
-    # update lc side leader
+    # update cur lc side leader
     veh.lead = lclead
     veh.leadmem.append((lclead, timeind+1))
-
     if lclead is not None:
         lclead.fol = veh
-    # update for new left/right leaders - opside first
+
+    # new opside leaders
     newleads = []
     oldleads = getattr(lcfol, opsidelead)
     for j in oldleads.copy():
@@ -270,34 +270,34 @@ def update_leadfol_after_lc(veh, lcsidelane, newlcsidelane, side, timeind):
             newleads.append(j)
             oldleads.remove(j)
     setattr(veh, opsidelead, newleads)
-    # lcside leaders
+    # new lcside leaders
     newleads = []
     oldleads = getattr(lcfol, lcsidelead)
     mindist = math.inf
     minveh = None
+    newlcsidelane_anchor = newlcsidelane.anchor if newlcsidelane is not None else None
     for j in oldleads.copy():
         curdist = get_dist(veh, j)
         if curdist > 0:
             setattr(j, opsidefol, veh)
             newleads.append(j)
             oldleads.remove(j)
-            if curdist < mindist:
+            if curdist < mindist and j.lane.anchor is newlcsidelane_anchor:
                 mindist = curdist
                 minveh = j  # minveh is the leader of new lc side follower
     setattr(veh, lcsidelead, newleads)
 
-    # update new lcside leaders/follower
+    # update new lcside follower
     if newlcsidelane is None:
         setattr(veh, lcsidefol, None)
+    elif minveh is not None:
+        setattr(veh, lcsidefol, minveh.fol)
+        getattr(minveh.fol, opsidelead).append(veh)
     else:
-        if minveh is not None:
-            setattr(veh, lcsidefol, minveh.fol)
-            getattr(minveh.fol, opsidelead).append(veh)
-        else:
-            guess = get_guess(lcfol, lclead, veh, lcsidefol, newlcsidelane)
-            unused, newlcsidefol = lcsidelane.leadfol_find(veh, guess, side)
-            setattr(veh, lcsidefol, newlcsidefol)
-            getattr(newlcsidefol, opsidelead).append(veh)
+        guess = get_guess(lcfol, lclead, veh, lcsidefol, newlcsidelane)
+        unused, newlcsidefol = lcsidelane.leadfol_find(veh, guess, side)
+        setattr(veh, lcsidefol, newlcsidefol)
+        getattr(newlcsidefol, opsidelead).append(veh)
 
 
 def get_guess(lcfol, lclead, veh, lcsidefol, newlcsidelane):

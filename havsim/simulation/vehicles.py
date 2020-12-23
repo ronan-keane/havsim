@@ -806,7 +806,7 @@ class Vehicle:
 
     def _chk_leadfol(self, verbose=True):
         """Returns True if the leader/follower relationships of the Vehicle are correct."""
-        # If verbose = True, we print whether each relationship is passing or not.
+        # If verbose = True, we print whether each test is passing or not.
         lfolpass = True
         lfolmsg = []
         if self.lfol is not None:
@@ -876,6 +876,9 @@ class Vehicle:
             if get_dist(self, i) < 0:
                 rleadpass = False
                 rleadmsg.append('rlead is behind self')
+        if len(self.rlead) != len(set(self.rlead)):
+            rleadpass = False
+            rleadmsg.append('repeated rlead')
         lleadpass = True
         lleadmsg = []
         for i in self.llead:
@@ -885,6 +888,9 @@ class Vehicle:
             if get_dist(self, i) < 0:
                 lleadpass = False
                 lleadmsg.append('llead is behind self')
+        if len(self.llead) != len(set(self.llead)):
+            lleadpass = False
+            lleadmsg.append('repeated llead')
         leadpass = True
         leadmsg = []
         if self.lead is not None:

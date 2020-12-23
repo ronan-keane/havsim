@@ -5,11 +5,11 @@ import havsim.plotting as hp
 import time
 import numpy as np
 
-#%%
-IDM_parameters = [30, 1, 4, 1.3, 2]  # in order: max speed, time headway, jam spacing, comfortable acceleration,
+#%%  set up parameters
+IDM_parameters = [30, 1.5, 4, 1.3, 2]  # in order: max speed, time headway, jam spacing, comfortable acceleration,
 # comfortable deceleration. Units are in meters.
-eql_speed = 15  # define the equilibrium speed you want to perturb around
-nveh = 1500  # number of vehicles
+eql_speed = 5  # define the equilibrium speed you want to perturb around
+nveh = 1000  # number of vehicles
 dt = .25  # timestep in seconds
 acc_tolerance = 1e-3  # acc tolerance for adding new vehicles
 speed_tolerance = 1e-1  # speed tolerance for subtracting vehicles
@@ -17,14 +17,15 @@ speed_tolerance = 1e-1  # speed tolerance for subtracting vehicles
 
 # define speed profile of initial vehicle
 def downstream(timeind, *args):
-    # if timeind < 50:
+    if timeind < 10:
     # if timeind < 200:
-    if False:
-        return eql_speed-5
+    # if False:
+        return eql_speed-3
     else:
         return eql_speed
 # define initial headway of the first following vehicle
 init_hd = hs.Vehicle(-1, None, IDM_parameters, None, length=5).get_eql(eql_speed)
+# to add noise, uncomment code marked as acceleration noise
 #%%
 
 mainroad_len= 1e10

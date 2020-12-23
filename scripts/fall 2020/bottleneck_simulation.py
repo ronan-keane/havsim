@@ -31,10 +31,6 @@ onramp_inflow = lambda *args: .11111
 main_road.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series':mainroad_inflow}, new_vehicle=mainroad_newveh)
 onramp.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series':onramp_inflow}, new_vehicle=onramp_newveh)
 
-# fix road bugs
-main_road[0].roadlen = {'main road': 0, 'on ramp': 1000}
-main_road[1].roadlen = {'main road': 0, 'on ramp': 1000}
-onramp[0].roadlen = {'main road': -1000, 'on ramp': 0}
 
 simulation = hs.Simulation(roads=[main_road, onramp], dt=.25)
 
@@ -50,6 +46,6 @@ print('simulation time is '+str(end-start)+' over '+str(sum([10000 - veh.start+1
                                                          for veh in all_vehicles]))+' timesteps')
 
 #%%
-laneinds = {main_road[0]:0, main_road[1]:1, onramp[0]:2}
-sim, siminfo = hp.plot_format(all_vehicles, laneinds)
-hp.platoonplot(sim, None, siminfo, lane = 1, opacity = 0)
+# laneinds = {main_road[0]:0, main_road[1]:1, onramp[0]:2}
+# sim, siminfo = hp.plot_format(all_vehicles, laneinds)
+# hp.platoonplot(sim, None, siminfo, lane = 1, opacity = 0)

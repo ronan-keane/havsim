@@ -226,7 +226,8 @@ class Road:
             assert all_new_lanes_start and min(all_new_lanes_start) == max(all_new_lanes_start)
             # Since roadlen dict is shared across all lanes, we only need to update it via one of
             # the lanes
-            self.lanes[0].roadlen[new_road.name] = all_new_lanes_start[0] - all_self_lanes_end[0]
+            self.lanes[0].roadlen[new_road.name] = all_self_lanes_end[0] - all_new_lanes_start[0]
+            new_road.lanes[0].roadlen[self.name] = all_new_lanes_start[0] - all_self_lanes_end[0]
 
             # Update connections attribute for all lanes
             new_connection = (all_self_lanes_end[0], 'continue',(min(self_indices), max(self_indices)), None, new_road)
@@ -280,7 +281,7 @@ class Road:
                 elif self_lane_left is None:
                     event_to_add['left'] = 'add'
                     merge_anchor_pos = (new_lane.start if new_lane.road is new_lane_left.road
-                                        else new_lane.start + new_lane.roadlen[new_lane_left.road.name])
+                                        else new_lane.start - new_lane.roadlen[new_lane_left.road.name])
                     merge_anchor_ind = add_or_get_merge_anchor_index(new_lane_left, merge_anchor_pos)
                     event_to_add['left anchor'] = merge_anchor_ind
                 else:
@@ -296,7 +297,7 @@ class Road:
                 elif self_lane_right is None:
                     event_to_add['right'] = 'add'
                     merge_anchor_pos = (new_lane.start if new_lane.road is new_lane_right.road
-                                        else new_lane.start + new_lane.roadlen[new_lane_right.road.name])
+                                        else new_lane.start - new_lane.roadlen[new_lane_right.road.name])
                     merge_anchor_ind = add_or_get_merge_anchor_index(new_lane_right, merge_anchor_pos)
                     event_to_add['right anchor'] = merge_anchor_ind
                 else:
@@ -338,8 +339,8 @@ class Road:
 
         assert isinstance(self_pos, tuple) and isinstance(new_lane_pos, tuple)
         # Update roadlen
-        self.lanes[0].roadlen[new_road.name] = new_lane_pos[0] - self_pos[0]
-        new_road.lanes[0].roadlen[self.name] = self_pos[0] - new_lane_pos[0]
+        self.lanes[0].roadlen[new_road.name] = self_pos[0] - new_lane_pos[0]
+        new_road.lanes[0].roadlen[self.name] = new_lane_pos[0] - self_pos[0]
         # Update lane events and connect_left/connect_right for both lanes
         if change_side == 'l_lc':
             connect_lane_left_right(new_road[new_lane_index], self.lanes[self_index], new_lane_pos, self_pos)

@@ -30,14 +30,6 @@ road3.set_downstream({'method':'free'})
 road1[1].events = [{'event': 'update lr', 'left': None, 'right': 'add', 'right anchor': 0, 'pos': 800},
                    {'event': 'new lane', 'pos': 1000, 'left': 'update', 'right': 'remove'}]
 road1[2].events = [{'event': 'new lane', 'pos': 800, 'left': 'add', 'left anchor': 0, 'right': None}]
-# roadlen
-road1[0].roadlen = {'road 1': 0, 'road 2': 1000, 'road 3': 800}
-road1[1].roadlen = {'road 1': 0, 'road 2': 1000, 'road 3': 800}
-road1[2].roadlen = {'road 1': 0, 'road 2': 1000, 'road 3': 800}
-road2[0].roadlen = {'road 1': -1000, 'road 2': 0, 'road 3': -200}
-road2[1].roadlen = {'road 1': -1000, 'road 2': 0, 'road 3': -200}
-road3[0].roadlen = {'road 1': -800, 'road 2': 200, 'road 3': 0}
-road3[1].roadlen = {'road 1': -800, 'road 2': 200, 'road 3': 0}
 # connect_left/right
 road1[1].connect_right = [(0, road1[2]), (800, road3[0])]
 

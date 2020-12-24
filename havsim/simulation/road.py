@@ -71,6 +71,31 @@ def compute_route(start_road, start_pos, exit):
     return []
 
 
+def add_lane_events(events, event_to_add):
+    for cur_event in events:
+        # If we found an event that we can update
+        if cur_event['event'] == event_to_add['event'] and abs(cur_event['pos'] - event_to_add['pos']) < 1e-6:
+            assert cur_event['event'] == 'update lr'
+            if event_to_add['left'] is not None:
+                if cur_event['left'] is None or cur_event['left'] == 'remove':
+                    cur_event['left'] = event_to_add['left']
+                    if 'left anchor' in event_to_add:
+                        cur_event['left anchor'] = event_to_add['left anchor']
+                else:
+                    assert 0, (event_to_add, event_to_add)
+            if event_to_add['right'] is not None:
+                if cur_event['right'] is None or cur_event['right'] == 'remove':
+                    cur_event['right'] = event_to_add['right']
+                    if 'right anchor' in event_to_add:
+                        cur_event['right anchor'] = event_to_add['right anchor']
+                else:
+                    assert 0, (event_to_add, event_to_add)
+            return
+    # If we did not find an event to update, we append the event to the end and sort the list
+    events.append(event_to_add)
+    events.sort(key=lambda x: x['pos'])
+
+
 def add_or_get_merge_anchor_index(lane, pos):
     """
     Add a merge anchor at pos if needed, return the index of the merge anchor
@@ -85,46 +110,49 @@ def add_or_get_merge_anchor_index(lane, pos):
 
 
 def connect_lane_left_right(left_lane, right_lane, left_connection, right_connection):
+    def update_or_insert(connect_obj, pos, lane_obj):
+        for i in range(len(connect_obj)):
+            if abs(connect_obj[i][0] - pos) < 1e-6:
+                if lane_obj is not None:
+                    connect_obj[i] = (pos, lane_obj)
+                return
+        connect_obj.append((pos, lane_obj))
+        connect_obj.sort(key=lambda d: d[0])
+
     if left_lane is None or right_lane is None:
         return
 
     if left_connection[0] == left_lane.start:
-        left_lane.connect_right[0] = (left_lane.start, right_lane)
+        update_or_insert(left_lane.connect_right, left_lane.start, right_lane)
     else:
         assert left_connection[0] > left_lane.start
-        left_lane.connect_right.append((left_connection[0], right_lane))
+        update_or_insert(left_lane.connect_right, left_connection[0], right_lane)
         merge_anchor_ind = add_or_get_merge_anchor_index(right_lane, right_connection[0])
-        left_lane.events.append(
+        add_lane_events(left_lane.events,
             {'event': 'update lr', 'right': 'add', 'left': None, 'right anchor': merge_anchor_ind,
              'pos': left_connection[0]})
 
     if left_connection[1] < left_lane.end:
-        left_lane.connect_right.append((left_connection[1], None))
-        left_lane.events.append(
+        update_or_insert(left_lane.connect_right, left_connection[1], None)
+        add_lane_events(left_lane.events,
             {'event': 'update lr', 'right': 'remove', 'left': None,
              'pos': left_connection[1]})
 
     if right_connection[0] == right_lane.start:
-        right_lane.connect_left[0] = (right_lane.start, left_lane)
+        update_or_insert(right_lane.connect_left, right_lane.start, left_lane)
     else:
         assert right_connection[0] > right_lane.start
-        right_lane.connect_left.append((right_connection[0], left_lane))
+        update_or_insert(right_lane.connect_left, right_connection[0], left_lane)
         merge_anchor_ind = add_or_get_merge_anchor_index(left_lane, left_connection[0])
-        right_lane.events.append(
+        add_lane_events(right_lane.events,
             {'event': 'update lr', 'left': 'add', 'right': None, 'left anchor': merge_anchor_ind,
              'pos': right_connection[0]})
 
     if right_connection[1] < right_lane.end:
-        right_lane.connect_left.append((right_connection[1], None))
-        right_lane.events.append(
+        update_or_insert(right_lane.connect_left, right_connection[1], None)
+        add_lane_events(right_lane.events,
             {'event': 'update lr', 'left': 'remove', 'right': None,
              'pos': right_connection[1]})
-
-    # Sort lane events by position
-    left_lane.connect_right.sort(key=lambda d: d[0])
-    right_lane.connect_left.sort(key=lambda d: d[0])
-    left_lane.events.sort(key=lambda d: d['pos'])
-    right_lane.events.sort(key=lambda d: d['pos'])
 
 
 class Road:
@@ -206,7 +234,7 @@ class Road:
             assert all_lanes_end and min(all_lanes_end) == max(all_lanes_end)
             # We don't need to update roadlen for exit type roads
             for i in self_indices:
-                self.lanes[i].events.append({'event': 'exit', 'pos': self.lanes[i].end})
+                add_lane_events(self.lanes[i].events, {'event': 'exit', 'pos': self.lanes[i].end})
             for i in range(self.num_lanes):
                 cur_lane = self.lanes[i]
                 cur_lane.connections[new_road] = (all_lanes_end[0], 'continue', (self_indices[0],self_indices[-1]), None, None)
@@ -278,7 +306,7 @@ class Road:
                     event_to_add['left'] = None
                 elif new_lane_left is None:
                     event_to_add['left'] = 'remove'
-                elif self_lane_left is None:
+                elif self_lane_left is None or not hasattr(self_lane_left, 'connect_to') or self_lane_left.connect_to != new_lane_left:
                     event_to_add['left'] = 'add'
                     merge_anchor_pos = (new_lane.start if new_lane.road is new_lane_left.road
                                         else new_lane.start - new_lane.roadlen[new_lane_left.road.name])
@@ -294,7 +322,7 @@ class Road:
                     event_to_add['right'] = None
                 elif new_lane_right is None:
                     event_to_add['right'] = 'remove'
-                elif self_lane_right is None:
+                elif self_lane_right is None or not hasattr(self_lane_right, 'connect_to') or self_lane_right.connect_to != new_lane_right:
                     event_to_add['right'] = 'add'
                     merge_anchor_pos = (new_lane.start if new_lane.road is new_lane_right.road
                                         else new_lane.start - new_lane.roadlen[new_lane_right.road.name])
@@ -303,7 +331,7 @@ class Road:
                 else:
                     event_to_add['right'] = 'update'
 
-                self_lane.events.append(event_to_add)
+                add_lane_events(self_lane.events, event_to_add)
 
     def merge(self, new_road, self_index, new_lane_index, self_pos, new_lane_pos, side=None):
         """
@@ -346,6 +374,14 @@ class Road:
             connect_lane_left_right(new_road[new_lane_index], self.lanes[self_index], new_lane_pos, self_pos)
         else:
             connect_lane_left_right(self.lanes[self_index], new_road[new_lane_index], self_pos, new_lane_pos)
+
+        # We might need to update the new lane event under this corner case
+        if hasattr(self.lanes[self_index], "connect_to") and abs(self_pos[-1] - self.lanes[self_index].end) < 1e-6:
+            for event in self.lanes[self_index].events:
+                if event['event'] == 'new lane':
+                    side_k = 'left' if change_side == 'l_lc' else 'right'
+                    if event[side_k] is None:
+                        event[side_k] = 'remove'
 
     def set_downstream(self, downstream, self_indices=None):
         """

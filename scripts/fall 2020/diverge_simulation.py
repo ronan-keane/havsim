@@ -27,11 +27,8 @@ road3.set_downstream({'method':'free'})
 
 # manually fixing bugs in road network
 # events
-road1[1].events = [{'event': 'update lr', 'left': None, 'right': 'add', 'right anchor': 0, 'pos': 800},
-                   {'event': 'new lane', 'pos': 1000, 'left': 'update', 'right': 'remove'}]
-road1[2].events = [{'event': 'new lane', 'pos': 800, 'left': 'add', 'left anchor': 0, 'right': None}]
 # connect_left/right
-road1[1].connect_right = [(0, road1[2]), (800, road3[0])]
+assert road1[1].connect_right == [(0, road1[2]), (800, road3[0])], road1[1].connect_right
 
 
 def newveh_wrapper(split_ratio):  # split ratio is what % of vehicles go left

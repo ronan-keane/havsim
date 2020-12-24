@@ -25,11 +25,6 @@ road3.connect('exit 2', is_exit=True)
 road2.set_downstream({'method':'free'})
 road3.set_downstream({'method':'free'})
 
-# manually fixing bugs in road network
-# events
-# connect_left/right
-assert road1[1].connect_right == [(0, road1[2]), (800, road3[0])], road1[1].connect_right
-
 
 def newveh_wrapper(split_ratio):  # split ratio is what % of vehicles go left
     def mainroad_newveh(self, vehid, *args):

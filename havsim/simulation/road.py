@@ -256,6 +256,10 @@ class Road:
             # the lanes
             self.lanes[0].roadlen[new_road.name] = all_self_lanes_end[0] - all_new_lanes_start[0]
             new_road.lanes[0].roadlen[self.name] = all_new_lanes_start[0] - all_self_lanes_end[0]
+            for i in range(self.num_lanes):
+                if i not in self_indices and hasattr(self.lanes[i], "connect_to") and self.lanes[i].connect_to is not None:
+                    self.lanes[i].connect_to.roadlen[new_road.name] = self.lanes[0].roadlen[new_road.name] - self.lanes[0].roadlen[self.lanes[i].connect_to.road.name]
+                    new_road.lanes[0].roadlen[self.lanes[i].connect_to.road.name] = self.lanes[0].roadlen[self.lanes[i].connect_to.road.name] - self.lanes[0].roadlen[new_road.name]
 
             # Update connections attribute for all lanes
             new_connection = (all_self_lanes_end[0], 'continue',(min(self_indices), max(self_indices)), None, new_road)

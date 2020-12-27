@@ -144,8 +144,8 @@ p = np.array([-1., -1., 1., 1.])
 pp = np.array([-1., -1., 1., 1.])
 # p = np.array([-.5, .5, -.2, 1.5])
 r = np.random.rand(10,)
-lr = 1e-3
-lr2 = 1e-3
+lr = 5e-4
+lr2 = 5e-4
 
 objlist = []
 for i in range(100):
@@ -156,19 +156,19 @@ print('initial obj is '+str(np.mean(objlist)))
 
 objlist = []
 objlist2 = []
-for i in range(300):
+for i in range(500):
     r = np.random.rand(10,)
     # curobj, curgrad = findiff(p, r, yhat)
     curobj, curgrad = obj_and_grad(p, r, yhat)
-    # for j in range(9):
-    #     r = np.random.rand(10,)
-    #     curobj, curgrad2 = obj_and_grad(p, r, yhat)
-    #     curgrad += curgrad2
+    for j in range(9):
+        r = np.random.rand(10,)
+        curobj, curgrad2 = obj_and_grad(p, r, yhat)
+        curgrad += curgrad2
     curobj2, curpgrad = policy_grad(pp, r, yhat)
-    # for j in range(9):
-    #     r = np.random.rand(10,)
-    #     curobj, curpgrad2 = obj_and_grad(p, r, yhat)
-    #     curpgrad += curpgrad2
+    for j in range(9):
+        r = np.random.rand(10,)
+        curobj, curpgrad2 = obj_and_grad(p, r, yhat)
+        curpgrad += curpgrad2
     p = p - lr*np.nan_to_num(curgrad)
     pp = pp - lr2*np.nan_to_num(curpgrad)
     if p[3] < 5e-2:
@@ -185,8 +185,19 @@ plt.plot(objlist2)
 temp = []
 for i in range(100):
     r = np.random.rand(10,)
-    curobj = obj(p, r, yhat)
+    curobj = obj(pp, r, yhat)
     temp.append(curobj)
 print('finalobj is '+str(np.mean(temp)))
 
-
+#%%
+gradlist = []
+gradlist2 = []
+for i in range(3000):
+    r = np.random.rand(10,)
+    # curobj, curgrad = findiff(p, r, yhat)
+    curobj, curgrad = obj_and_grad(p, r, yhat)
+    curobj2, curpgrad = policy_grad(p, r, yhat)
+    gradlist.append(curgrad)
+    gradlist2.append(curpgrad)
+gradlist = np.array(gradlist)
+gradlist2 = np.array(gradlist2)

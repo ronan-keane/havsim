@@ -43,20 +43,30 @@ for veh in meas.keys():
 random.Random(2020).shuffle(nolc_list)
 train_veh = nolc_list[:-100]
 val_veh = nolc_list[-100:]
-test_veh = []
 
 training, norm = dl_model.make_dataset(meas, platooninfo, train_veh)
 maxhd, maxv, mina, maxa = norm
 validation, unused = dl_model.make_dataset(meas, platooninfo, val_veh)
-testing, unused = dl_model.make_dataset(meas, platooninfo, test_veh)
+
+# default_params = {
+#     "lstm_units" : 64,
+#     "lstm2_units": 64,
+#     "learning_rate": 0.001,
+#     "dropout": 0.2,
+#     "regularizer": 0.02,
+#     "batch_size": 32
+# }
 
 default_params = {
     "lstm_units" : 64,
     "lstm2_units": 64,
-    "learning_rate": 0.001,
+    "learning_rate": 0.01,
     "dropout": 0.2,
-    "regularizer": 0.02,
-    "batch_size": 32
+    "regularizer": 0.002,
+    "batch_size": 32,
+    "kernel_size": 3,
+    "filters1": 16,
+    "filters2": 32
 }
 
 tuned_params = nni.get_next_parameter()
@@ -68,7 +78,7 @@ if old_model:
     model = deep_learning.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=params['lstm_units'], params=params)
     loss = deep_learning.masked_MSE_loss
 else:
-    model = dl_model.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=128, past=15, params=params)
+    model = dl_model.RNNCFModel(maxhd, maxv, 0, 1, lstm_units=128, past=50, params=params)
     loss = dl_model.masked_MSE_loss
 opt = tf.keras.optimizers.Adam(learning_rate=params['learning_rate'])
 
@@ -76,12 +86,6 @@ opt = tf.keras.optimizers.Adam(learning_rate=params['learning_rate'])
 
 #%% train and save results
 early_stopping = False
-
-def test_loss():
-    if old_model:
-        return deep_learning.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss)[-1]
-    else:
-        return dl_model.generate_trajectories(model, list(testing.keys()), testing, loss=dl_model.weighted_masked_MSE_loss)[-1]
 
 def valid_loss():
     if old_model:
@@ -153,8 +157,8 @@ else:
         dl_model.training_loop(model, loss, opt, training, epochs=epochs[i], nveh=veh, nt=timesteps[i])
         valid_loss_val = valid_loss().numpy()
         train_loss_val = train_loss().numpy()
-        print('validation loss ', valid_loss_val)
-        print('training loss', train_loss_val)
+        print('validation loss ', valid_loss_val, timesteps[i])
+        print('training loss', train_loss_val, timesteps[i])
         valid_losses.append(valid_loss_val)
         train_losses.append(train_loss_val)
         # nni.report_intermediate_result(valid_losses[-1])

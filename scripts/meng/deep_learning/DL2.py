@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import nni
 import dl_model
 import random
+import time
 from havsim.plotting import plotLaneChangingConfMat, plotTrajectoriesProb, plotCFErrorN
 from tensorflow.python.profiler import profiler_v2 as profiler
 
@@ -41,20 +42,22 @@ for veh in all_veh_dict.keys():
 random.Random(2020).shuffle(nolc_list)
 train_veh = nolc_list[:-100]
 val_veh = nolc_list[-100:]
-test_veh = []
 
 # TODO
 training, norm = deep_learning.make_dataset(all_veh_dict, train_veh)
 maxhd, maxv, mina, maxa = norm
 validation, unused = deep_learning.make_dataset(all_veh_dict, val_veh)
-testing, unused = deep_learning.make_dataset(all_veh_dict, test_veh)
 
 default_params = {
     "lstm_units" : 64,
+    "lstm2_units": 64,
     "learning_rate": 0.001,
     "dropout": 0.2,
     "regularizer": 0.02,
-    "batch_size": 32
+    "batch_size": 32,
+    "kernel_size": 3,
+    "filters1": 16,
+    "filters2": 32
 }
 
 tuned_params = nni.get_next_parameter()
@@ -76,11 +79,6 @@ opt = tf.keras.optimizers.Adam(learning_rate=params['learning_rate'])
 #%% train and save results
 early_stopping = False
 
-def test_loss(lc_loss=tf.keras.losses.SparseCategoricalCrossentropy()):
-    if old_model:
-        return deep_learning.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss, lc_loss=lc_loss).loss
-    else:
-        return dl_model.generate_trajectories(model, list(testing.keys()), testing, loss=deep_learning.weighted_masked_MSE_loss)[-1]
 
 def valid_loss(lc_loss=tf.keras.losses.SparseCategoricalCrossentropy()):
     if old_model:
@@ -152,21 +150,25 @@ if old_model:
     plotCFErrorN(test, 'outputs/cferror')
 else:
 
-    epochs = [1, 2, 2, 2, 2, 10]
-    timesteps = [25, 50, 100, 200, 400, 800]
+    epochs = [2, 2, 2, 3, 2, 3, 2, 3, 3, 3]
+    timesteps = [50, 100, 200, 200, 400, 400, 500, 500, 700, 750]
     veh = params['batch_size']
     train_losses = []
     valid_losses = []
+    start_time = time.time()
     for i in range(len(epochs)):
         dl_model.training_loop(model, loss, opt, training, epochs=epochs[i], nveh=veh, nt=timesteps[i])
         valid_loss_val = valid_loss().numpy()
-        # train_loss_val = train_loss().numpy()
-        print('validation loss ', valid_loss_val)
+        train_loss_val = train_loss().numpy()
+        print('validation loss ', valid_loss_val, timesteps[i])
+        print('training loss', train_loss_val, timesteps[i])
         valid_losses.append(valid_loss_val)
-        # train_losses.append(train_loss_val)
+        train_losses.append(train_loss_val)
         # nni.report_intermediate_result(valid_losses[-1])
+    end_time = time.time()
+    print("Training took {0:.4f} seconds".format(end_time - start_time))
     plt.figure(1)
-    plt.plot(list(range(epochs)), valid_losses)
+    plt.plot(list(range(len(epochs))), valid_losses)
     plt.title('Validation loss')
     plt.xlabel('epoch')
     plt.ylabel('loss')

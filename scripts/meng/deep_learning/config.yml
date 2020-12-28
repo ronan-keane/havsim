@@ -18,6 +18,6 @@ assessor:
       optimize_mode: minimize
       start_step: 10
 trial:
-  command: python DL2.py
+  command: python3 DL2.py
   codeDir: .
   gpuNum: 0

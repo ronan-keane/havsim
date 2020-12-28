@@ -6,12 +6,14 @@ import tensorflow as tf
 import math
 import matplotlib.pyplot as plt
 import nni
-import dl_model
 import random
+import dl_model
 from havsim.plotting import plotLaneChangingConfMat, plotTrajectoriesProb, plotCFErrorN
 from tensorflow.python.profiler import profiler_v2 as profiler
 
-with open('/Users/nkluke/Documents/Cornell/CS5999/havsim/data/recon-ngsim.pkl', 'rb') as f:
+# with open('/Users/nkluke/Documents/Cornell/CS5999/havsim/data/recon-ngsim.pkl', 'rb') as f:
+#     all_veh_dict = pickle.load(f)
+with open('/home/rlk268/havsim/data/recon-ngsim.pkl', 'rb') as f:
     all_veh_dict = pickle.load(f)
 
 try:
@@ -51,6 +53,7 @@ testing, unused = deep_learning.make_dataset(all_veh_dict, test_veh)
 
 default_params = {
     "lstm_units" : 64,
+    "lstm2_units" : 64,
     "learning_rate": 0.001,
     "dropout": 0.2,
     "regularizer": 0.02,
@@ -152,7 +155,7 @@ if old_model:
     plotCFErrorN(test, 'outputs/cferror')
 else:
 
-    epochs = [1, 2, 2, 2, 2, 10]
+    epochs = [1, 2, 2, 2, 2, 2]
     timesteps = [25, 50, 100, 200, 400, 800]
     veh = params['batch_size']
     train_losses = []
@@ -164,32 +167,32 @@ else:
         print('validation loss ', valid_loss_val)
         valid_losses.append(valid_loss_val)
         # train_losses.append(train_loss_val)
-        # nni.report_intermediate_result(valid_losses[-1])
-    plt.figure(1)
-    plt.plot(list(range(epochs)), valid_losses)
-    plt.title('Validation loss')
-    plt.xlabel('epoch')
-    plt.ylabel('loss')
-    plt.savefig('plots/validLoss.png')
+        nni.report_intermediate_result(valid_losses[-1])
+    # plt.figure(1)
+    # plt.plot(list(range(epochs)), valid_losses)
+    # plt.title('Validation loss')
+    # plt.xlabel('epoch')
+    # plt.ylabel('loss')
+    # plt.savefig('plots/validLoss.png')
 
     # print('train loss', *train_losses)
-    print('validation_loss', *valid_losses)
-    # nni.report_final_result(valid_losses[-1])
+    print('validation_loss', *valid_losses[-1])
+    nni.report_final_result(valid_losses[-1])
 
     # profiler.warmup()
     # profiler.start(logdir='logs')
-    # dl_model.training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=25)
+    # training_loop(model, loss, opt, training, epochs=1, nveh=32, nt=25)
     # print('val loss', valid_loss())
     # profiler.stop()
-    # dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=50)
+    # training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=50)
     # print('val loss', valid_loss())
-    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=100)
+    # training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=100)
     # print('val loss', valid_loss())
-    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=200)
+    # training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=200)
     # print('val loss', valid_loss())
-    # dl_model.training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=400)
+    # training_loop(model, loss, opt, training, epochs=2, nveh=32, nt=400)
     # print('val loss', valid_loss())
-    # dl_model.training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=800)
+    # training_loop(model, loss, opt, training, epochs=5, nveh=32, nt=800)
     # print('val loss', valid_loss())
 
 

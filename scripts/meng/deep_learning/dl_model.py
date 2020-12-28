@@ -4,7 +4,6 @@ import numpy as np
 from havsim import helper
 import math
 from time import time
-from memory_profiler import profile
 
 def make_dataset(meas, platooninfo, veh_list, dt=.1):
     """Makes dataset from meas and platooninfo.
@@ -86,7 +85,7 @@ class RNNCFModel(tf.keras.Model):
         self.lstm1 = tf.keras.layers.LSTM(lstm_units, dropout=params['dropout'], return_sequences=True,
                                             kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']),
                                             recurrent_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
-        self.lstm2 = tf.keras.layers.LSTM(params["lstm2_units"], dropout=params['dropout'],
+        self.lstm2 = tf.keras.layers.LSTM(lstm_units, dropout=params['dropout'],
                                             kernel_regularizer=tf.keras.regularizers.l2(l=params['regularizer']),
                                             recurrent_regularizer=tf.keras.regularizers.l2(l=params['regularizer']))
         self.dense1 = tf.keras.layers.Dense(1)

@@ -32,7 +32,7 @@ nolc_list = []
 # remove vehicles that never had a leader
 for veh in all_veh_dict.keys():
     start_sim, end_sim = all_veh_dict[veh].longest_lead_times
-    if start_sim != end_sim:
+    if start_sim != end_sim and len(all_veh_dict[veh].leads)==1:
         nolc_list.append(veh)
 # train on all vehicles
 # for veh in meas.keys():
@@ -176,7 +176,7 @@ else:
     # plt.savefig('plots/validLoss.png')
 
     # print('train loss', *train_losses)
-    print('validation_loss', *valid_losses[-1])
+    print('validation_loss', *valid_losses)
     nni.report_final_result(valid_losses[-1])
 
     # profiler.warmup()

@@ -7,7 +7,12 @@ import math
 
 # INPROGRESS: add/lc events for make_calibration for LC model
 def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_list, all_leadvehicles):
-    """Makes lc and add events for default Calibration."""
+    """Makes lc and add events for default Calibration.
+    
+    Adds to add_events an event in the form (start_time, the curr_veh object, boolean stating if it is a CalibrationVehicle, if it is an add event, current LC_event):
+    Adds to lc_events an event in the form (start_time, the curr_veh object, the following or leading vehicle object, the follow/leader relationship type)
+
+    """
     for veh in vehicles:
         curveh = id2obj[veh]
         t0, t1 = vehdict[veh].longest_lead_times
@@ -25,9 +30,9 @@ def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_lis
             tup = info_list[tup_index]
             info, fl_type = tup[0], tup[1]
             if tup_index == 0:
-                create_add_events(info, id2obj, curveh, vehdict, vehicles, dt, addevent_list, lcevent_list, all_leadvehicles, fl_type, True)
+                create_add_events(info, id2obj, veh, vehdict, vehicles, dt, addevent_list, lcevent_list, all_leadvehicles, fl_type, True)
             else:
-                create_add_events(info, id2obj, curveh, vehdict, vehicles, dt, addevent_list, lcevent_list, all_leadvehicles, fl_type)
+                create_add_events(info, id2obj, veh, vehdict, vehicles, dt, addevent_list, lcevent_list, all_leadvehicles, fl_type)
 
         #lc events for CalibrationVeh
         lc_intervals = vehdict[veh].lanemem.intervals(t0,t1)
@@ -37,7 +42,11 @@ def make_lc_events_new(vehicles, id2obj, vehdict, dt, addevent_list, lcevent_lis
                 start = lc_intervals[i][1]
                 new_lane = lc_intervals[i][0]
 
-                if last_lane == 7:
+                #lane 6 -> r_lc = None, l_lc = discretionary
+                if last_lane == 6:
+                    r_lc = None
+                    l_lc = "discretionary"
+                elif last_lane == 7:
                     r_lc = None
                     l_lc = "mandatory"
                 elif last_lane == 1:
@@ -108,8 +117,15 @@ def make_leadvehicles(vehicles, id2obj, vehdict, dt):
 
 
 # INPROGRESS: Helper function to create lc/add events for LC model
-def create_add_events(veh_data, id2obj, curveh, vehdict, vehicles, dt, addevent_list, lcevent_list, all_leadvehicles, fl_type, first_call=False):
+def create_add_events(veh_data, id2obj, veh, vehdict, vehicles, dt, addevent_list, lcevent_list, all_leadvehicles, fl_type, first_call=False):
+    """Creates add events and lc events associated with them.
+
+    Adds to add_events an event in the form (start_time, the curr_veh object, boolean stating if it is a CalibrationVehicle, if it is an add event, current LC_event):
+    Adds to lc_events an event in the form (start_time, the curr_veh object, the following or leading vehicle object, the follow/leader relationship type)
+
+    """
     # enumerating through the data for fol/lead vehs for a certain simulated veh
+    curveh = id2obj[veh]
     for count, j in enumerate(veh_data):
         # need a better variable name
         fol_lead_veh, start, end = j
@@ -157,6 +173,24 @@ def create_add_events(veh_data, id2obj, curveh, vehdict, vehicles, dt, addevent_
                 curevent = (start, curveh, fol_lead_veh, fl_type)
                 # only needed for the first time to create the add cur_veh event
                 if first_call:
+                    # setting r_lc and l_lc for adding vehicle
+                    t0, t1 = vehdict[veh].longest_lead_times
+                    lc_interval = vehdict[veh].lanemem.intervals(t0,t1)[0]
+                    curr_lane = lc_interval[0]
+                    if curr_lane == 6:
+                        curveh.r_lc = None
+                        curveh.l_lc = "discretionary"
+                    elif curr_lane == 7:
+                        curveh.r_lc = None
+                        curveh.l_lc = "mandatory"
+                    elif curr_lane == 1:
+                        curveh.r_lc = "discretionary"
+                        curveh.l_lc = None
+                    else:
+                        curveh.r_lc = "discretionary"
+                        curveh.l_lc = "discretionary"
+
+
                     curevent = (start, curveh, True, True, curevent)
                     addevent_list.append(curevent)
                 else:

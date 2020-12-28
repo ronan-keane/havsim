@@ -8,7 +8,7 @@ Either single vehicles, or strings (platoons) of vehicles can be simulated.
 
 import numpy as np
 from havsim.simulation.road_networks import get_headway
-from havsim.calibration.vehicles import LeadVehicle
+from havsim.calibration.vehicles import LeadVehicle, CalibrationVehicle
 import math
 
 
@@ -294,6 +294,9 @@ class Calibration(CalibrationCF):
         #     print(veh.pos)
         #     print(veh.acc)
         #     print(veh.speed)
+        #     print(veh.lead)
+        #     if veh.lead is not None:
+        #         print(veh.lead.pos)
         # print(self.timeind)
         # print(self.ending_position)
         # print('-------------------------')
@@ -404,11 +407,15 @@ def apply_calibration_add_event(event, vehicles, leadvehicles, timeind, dt, lc_e
         if is_add:
             leadvehicles.add(fol_lead_veh)
         else:
+            # need to change the relationship for the veh that have this as their lead vehicles, lead vehicles have no follow, need to add a lane change event
+            # When we remove a leadvehicle from the leadVehicles set.
+            for veh in vehicles:
+                if veh.lead is fol_lead_veh:
+                    veh.lead = None
+
             leadvehicles.remove(fol_lead_veh)
     else:
         unused, curveh, unused, unused, lcevent = event
-        curveh.r_lc = "discretionary"
-        curveh.l_lc = "discretionary"
         curveh.update_lc_state(timeind, None)
         vehicles.add(curveh)
         lc_event_fun(lcevent, timeind, dt)

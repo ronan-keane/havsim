@@ -15,6 +15,7 @@ eql_speed = 28  # define the equilibrium speed you want to perturb around
 nveh = 1000  # number of vehicles
 nt = 3000  # number of timesteps
 dt = .25  # timestep in seconds
+
 # define speed profile of lead vehicle
 def downstream(timeind, *args):
     if timeind < 50:

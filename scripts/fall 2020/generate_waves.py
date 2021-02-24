@@ -95,6 +95,7 @@ def make_waves():
             ##### acceleration noise #####
             if curtime < 400:
                 veh.acc += (np.random.rand()-.5)/2
+            #####
         for veh in cur_vehicles:
             veh.update(curtime, dt)
         leadveh.pos += leadveh.speed*dt

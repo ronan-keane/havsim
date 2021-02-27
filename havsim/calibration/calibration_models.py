@@ -52,7 +52,6 @@ class OVMCalibrationVehicle(hc.CalibrationVehicle):
         self.eql_type = 's'  # you are supposed to set this in __init__
 
 
-# for Newell
 class NewellCalibrationVehicle(hc.CalibrationVehicle):
     """Implementation of Newell model in Differential form, example of 1st order ODE implementation."""
     def cf_model(self, p, state):
@@ -112,6 +111,29 @@ class NewellCalibrationVehicle(hc.CalibrationVehicle):
         # after the first cf call, in this case the speed will simply be the speed from the previous timestep
         self.speedmem = []  # note that speedmem will be 1 len shorter than posmem for a 1st order model
         self.maxspeed = parameters[2]
+
+
+class T3CalibrationVehicle(hc.CalibrationVehicle):
+    """T3 Model proposed by Bosch (Helbing, Tilch, 1999)."""
+    # p[2] must be >0, p[3] must be <0, p[1] must be <0, p[4] must be >0
+    def cf_model(self, p, state):
+        s = state[0]
+        v = state[1]
+        vl = state[2]
+        vvl = v*vl
+        vs = v*s
+        hi = 1+p[1]*v+p[2]*s+p[3]*vs+p[4]*vl+p[5]*vvl
+        lo = p[0] + p[6]*v+p[7]*s+p[8]*vs+p[9]*vl+p[10]*vvl
+        return hi/lo
+
+    def eqlfun(self, p, v):
+        return -(1+(p[1]+p[4])*v+p[5]*v**2)/(p[2]+p[3]*v)
+
+    def initialize(self, parameters):
+        super().initialize(parameters)
+        self.cf_parameters = parameters
+        self.relax_parameters = None
+        self.maxspeed = -parameters[2]/parameters[3]
 
 
 class SKA_IDM(hc.CalibrationVehicle):
@@ -565,4 +587,4 @@ class NoRelaxNewell(NewellCalibrationVehicle):
     def initialize(self, parameters):
         super().initialize(parameters)
         self.cf_parameters = parameters
-        
+

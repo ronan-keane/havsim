@@ -5,16 +5,17 @@ Tests the simulation.calibration code. Compare to scripts dothecalibration, rela
 Need data loaded in meas/platooninfo format
 """
 
-import havsim.simulation.calibration as hc
+import havsim.calibration as hc
 import time
 import scipy.optimize as sc
 import matplotlib.pyplot as plt
-import havsim.simulation.calibration_models as hm
+import havsim.calibration.calibration_models as hm
 import math
 
-use_model = '2vhdIDM'   # change to one of IDM, OVM, Newell
-platoonlist = [[lc_list[i]] for i in [255]]  # test vehicle to calibrate
-use_method = 'GA' # GA or BFGS
+use_model = 'T3'   # change to one of IDM, OVM, Newell etc.
+# platoonlist = [[lc_list[i]] for i in [255]]  # test vehicle to calibrate
+platoonlist = [[1013]]
+use_method = 'BFGS' # GA or BFGS
 if __name__ == '__main__':
     for curplatoon in platoonlist:
         if use_model == 'IDM':
@@ -58,6 +59,12 @@ if __name__ == '__main__':
             pguess =  [40,1,1,3,10,15]
             mybounds = [(20,120),(.1,5),(.1,35),(.1,20),(.1,20),(.1,75)]
             cal = hc.make_calibration(curplatoon, meas, platooninfo, .1, hm.RelaxExpIDM)
+        elif use_model =='T3':
+            pguess = [0.1910479, -0.17384205, 0.20569427, -0.40989588, 0.64067768, 0.48721555,
+                      -0.13793132, 0.18327771, -0.05461281, -0.08321112, 0.02858983]
+            mybounds = [(-1, 15), (-2,-.001), (.001, 2), (-2, -.001), (.001, 2), (-.5, .5),
+                        (-2, 2),(-2, 2),(-2, 2),(-2, 2),(-.5,.5)]
+            cal = hc.make_calibration(curplatoon, meas, platooninfo, .1, hm.T3CalibrationVehicle)
 
         start = time.time()
         cal.simulate(pguess)

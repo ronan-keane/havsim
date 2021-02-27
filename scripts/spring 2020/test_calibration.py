@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import havsim.calibration.calibration_models as hm
 import math
 
-use_model = 'T3'   # change to one of IDM, OVM, Newell etc.
+use_model = 'v2'   # change to one of IDM, OVM, Newell etc.
 # platoonlist = [[lc_list[i]] for i in [255]]  # test vehicle to calibrate
 platoonlist = [[1013]]
 use_method = 'BFGS' # GA or BFGS
@@ -65,6 +65,18 @@ if __name__ == '__main__':
             mybounds = [(-1, 15), (-2,-.001), (.001, 2), (-2, -.001), (.001, 2), (-.5, .5),
                         (-2, 2),(-2, 2),(-2, 2),(-2, 2),(-.5,.5)]
             cal = hc.make_calibration(curplatoon, meas, platooninfo, .1, hm.T3CalibrationVehicle)
+        elif use_model =='v1':
+            pguess = [1, .1, -.5, .3, -1]
+            mybounds = [(0,5), (.01, 2), (-2, -.01), (.01, 2), (-1, -.01)]
+            cal = hc.make_calibration(curplatoon, meas, platooninfo, .1, hm.V1CalibrationVehicle)
+        elif use_model =='v2':
+            pguess = [-1, .1, -.5, .3, -3, -.001]
+            mybounds = [(-5,0), (.01, 2), (-2, -.01), (.001, 2), (-5, -.01), (-.5, 0)]
+            cal = hc.make_calibration(curplatoon, meas, platooninfo, .1, hm.V2CalibrationVehicle)
+        elif use_model =='v3':
+            pguess = [1, .1, -.5, .3, -.5, .01]
+            mybounds = [(0,5), (.01, 2), (-2, -.01), (.01, 2), (-1, -.01), (.001, 2)]
+            cal = hc.make_calibration(curplatoon, meas, platooninfo, .1, hm.V3CalibrationVehicle)
 
         start = time.time()
         cal.simulate(pguess)

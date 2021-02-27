@@ -133,7 +133,56 @@ class T3CalibrationVehicle(hc.CalibrationVehicle):
         super().initialize(parameters)
         self.cf_parameters = parameters
         self.relax_parameters = None
-        self.maxspeed = -parameters[2]/parameters[3]
+        self.maxspeed = None
+
+
+class V1CalibrationVehicle(hc.CalibrationVehicle):
+    """Linear model with nonlinear accident free term."""
+    def cf_model(self, p, state):
+        return p[0]+p[1]*state[0]+p[2]*state[1]+p[3]*state[2]+p[4]*state[1]/state[0]
+
+    def eqlfun(self, p, s):
+        return -(p[0]+p[1]*s)/(p[2]+p[3]+p[4]/s)
+
+    def initialize(self, parameters):
+        super().initialize(parameters)
+        self.eql_type = 's'
+        self.cf_parameters = parameters
+        self.relax_paramters = None
+        self.maxspeed = None
+
+
+class V2CalibrationVehicle(hc.CalibrationVehicle):
+    """Linear model with nonlinear accident free term and velocity saturation term."""
+    def cf_model(self, p, state):
+        return p[0]+p[1]*state[0]+p[2]*state[1]+p[3]*state[2]+p[4]*state[1]/state[0]+p[5]*state[1]*state[0]
+
+    def eqlfun(self, p, s):
+        return -(p[0]+p[1]*s)/(p[2]+p[3]+p[4]/s+p[5]*s)
+
+    def initialize(self, parameters):
+        super().initialize(parameters)
+        self.eql_type = 's'
+        self.cf_parameters = parameters
+        self.relax_paramters = None
+        self.maxspeed = None
+
+
+class V3CalibrationVehicle(hc.CalibrationVehicle):
+    """Linear model with nonlinear accident free term and velocity saturation term."""
+    def cf_model(self, p, state):
+        return p[0]+p[1]*state[0]+p[2]*state[1]+p[3]*state[2]+p[4]*state[1]/state[0]+\
+            p[5]*state[0]**.5
+
+    def eqlfun(self, p, s):
+        return -(p[0]+p[1]*s+p[5]*s**.5)/(p[2]+p[3]+p[4]/s)
+
+    def initialize(self, parameters):
+        super().initialize(parameters)
+        self.eql_type = 's'
+        self.cf_parameters = parameters
+        self.relax_paramters = None
+        self.maxspeed = None
 
 
 class SKA_IDM(hc.CalibrationVehicle):

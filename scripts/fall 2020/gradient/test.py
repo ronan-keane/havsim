@@ -1,6 +1,6 @@
 
 """
-@author: rlk268@cornell.edu
+some early tests of pathwise/likelihood estimators but the likelihood estimator is coded wrong
 """
 import numpy as np
 import scipy.stats as ss
@@ -156,48 +156,50 @@ print('initial obj is '+str(np.mean(objlist)))
 
 objlist = []
 objlist2 = []
-for i in range(500):
+for i in range(2000):
     r = np.random.rand(10,)
     # curobj, curgrad = findiff(p, r, yhat)
-    curobj, curgrad = obj_and_grad(p, r, yhat)
-    for j in range(9):
-        r = np.random.rand(10,)
-        curobj, curgrad2 = obj_and_grad(p, r, yhat)
-        curgrad += curgrad2
-    curobj2, curpgrad = policy_grad(pp, r, yhat)
-    for j in range(9):
-        r = np.random.rand(10,)
-        curobj, curpgrad2 = obj_and_grad(p, r, yhat)
-        curpgrad += curpgrad2
+    # curobj, curgrad = obj_and_grad(p, r, yhat)
+    curobj, curgrad = policy_grad(p, r, yhat)
+
+    # for j in range(9):
+    #     r = np.random.rand(10,)
+    #     curobj, curgrad2 = obj_and_grad(p, r, yhat)
+    #     curgrad += curgrad2
+    # curobj2, curpgrad = policy_grad(pp, r, yhat)
+    # for j in range(9):
+    #     r = np.random.rand(10,)
+    #     curobj, curpgrad2 = obj_and_grad(p, r, yhat)
+    #     curpgrad += curpgrad2
     p = p - lr*np.nan_to_num(curgrad)
-    pp = pp - lr2*np.nan_to_num(curpgrad)
+    # pp = pp - lr2*np.nan_to_num(curpgrad)
     if p[3] < 5e-2:
         p[3] = 5e-2
-    if pp[3] < 5e-2:
-        pp[3] = 5e-2
+    # if pp[3] < 5e-2:
+    #     pp[3] = 5e-2
     objlist.append(curobj)
-    objlist2.append(curobj2)
+    # objlist2.append(curobj2)
 
 plt.plot(objlist)
-plt.figure()
-plt.plot(objlist2)
+# plt.figure()
+# plt.plot(objlist2)
 
 temp = []
 for i in range(100):
     r = np.random.rand(10,)
-    curobj = obj(pp, r, yhat)
+    curobj = obj(p, r, yhat)
     temp.append(curobj)
 print('finalobj is '+str(np.mean(temp)))
 
 #%%
-gradlist = []
-gradlist2 = []
+gradlist = np.zeros((4,))
+gradlist2 = np.zeros((4,))
 for i in range(3000):
     r = np.random.rand(10,)
     # curobj, curgrad = findiff(p, r, yhat)
     curobj, curgrad = obj_and_grad(p, r, yhat)
     curobj2, curpgrad = policy_grad(p, r, yhat)
-    gradlist.append(curgrad)
-    gradlist2.append(curpgrad)
-gradlist = np.array(gradlist)
-gradlist2 = np.array(gradlist2)
+    gradlist += curgrad
+    gradlist2 += curpgrad
+gradlist = gradlist/3000
+gradlist2 = gradlist2/3000

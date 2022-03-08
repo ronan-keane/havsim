@@ -333,7 +333,9 @@ import copy
 import pickle
 import havsim
 
-with open('/home/rlk268/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
+# with open('/home/rlk268/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
+#     meas, platooninfo = pickle.load(f)
+with open('C:/Users/rlk268/OneDrive - Cornell University/havsim/data/recon-ngsim-old.pkl', 'rb') as f:
     meas, platooninfo = pickle.load(f)
 
 model, modeladjsys, modeladj = daganzo, daganzoadjsys, daganzoadj
@@ -443,7 +445,7 @@ def update2(val):
     ax4art.set_ydata(obj)
     ax5art.set_ydata(grad[3])
     fig.canvas.draw_idle()
-    
+
 axp2 = plt.axes([.15, 0.1, 0.65, 0.03])
 axp = plt.axes([.15, 0.05, 0.65, 0.03])
 p_values2 = Slider(axp, 'relaxation', .1, 15, valinit=pinit[3])

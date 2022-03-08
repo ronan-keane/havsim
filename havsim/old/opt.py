@@ -519,7 +519,7 @@ def rescaledobjfn_objder(p, rescale, model, modeladjsys, modeladj, meas, sim, pl
     obj, grad = platoonobjfn_objder(p, model, modeladjsys, modeladj, meas, sim, platooninfo, platoons, leadinfo, folinfo, rinfo, use_r = use_r, m=m, dim = dim, h = h, datalen = datalen)
     return obj, grad
 
-def platoonobjfn_objder(p, model, modeladjsys, modeladj, meas, sim, platooninfo, platoons, leadinfo, folinfo, rinfo, use_r=False, m = 5, dim = 2, h = .1, datalen = 9):
+def platoonobjfn_objder(p, model, modeladjsys, modeladj, meas, sim, platooninfo, platoons, leadinfo, folinfo, rinfo, use_r=False, m = 5,dim = 2, h = .1, datalen = 9, return_regime=False,):
     #this is here because l-bfgs-b wants the function to return both obj and gradient
 
     lead = {} #dictionary where we put the relevant lead vehicle information
@@ -627,7 +627,8 @@ def platoonobjfn_objder(p, model, modeladjsys, modeladj, meas, sim, platooninfo,
         temp = np.sum(lang,0)*h
         grad[m*i:m*(i+1)] = temp
 
-
+    if return_regime:
+        return obj, grad, extra
     return obj, grad
 
 def platoonobjfn_objder2(p, model, modeladjsys, modeladj, meas, sim, platooninfo, platoons, leadinfo, folinfo, rinfo, use_r=False, m = 5, dim = 2, h = .1, datalen = 9):

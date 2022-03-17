@@ -11,14 +11,14 @@ import time
 
 IDM_parameters = [30, 1, 4, 1.3, 2]  # in order: max speed, time headway, jam spacing, comfortable acceleration,
 # comfortable deceleration. Units are in meters.
-eql_speed = 28  # define the equilibrium speed you want to perturb around
+eql_speed = 15  # define the equilibrium speed you want to perturb around
 nveh = 1000  # number of vehicles
 nt = 3000  # number of timesteps
 dt = .25  # timestep in seconds
 
 # define speed profile of lead vehicle
 def downstream(timeind, *args):
-    if timeind < 50:
+    if False:
         return eql_speed-25
     else:
         return eql_speed

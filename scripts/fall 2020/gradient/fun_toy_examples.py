@@ -364,11 +364,12 @@ def helper(p, rediff=True, process_regime=True):
         regimes = [temp, relax]
     return obj, grad, regimes
 
-gs = gridspec.GridSpec(4,2)
+gs = gridspec.GridSpec(3,2)
 fig = plt.figure(figsize=(10, 10))
 plt.subplots_adjust(bottom = .18, top=.97)
 ax = plt.subplot(gs[:2,:])
-ax2, ax3, ax4, ax5 = plt.subplot(gs[2,0]), plt.subplot(gs[2,1]), plt.subplot(gs[3,0]), plt.subplot(gs[3,1])
+# ax2, ax3, ax4, ax5 = plt.subplot(gs[2,0]), plt.subplot(gs[2,1]), plt.subplot(gs[3,0]), plt.subplot(gs[3,1])
+ax3, ax5 = plt.subplot(gs[2,0]), plt.subplot(gs[2,1])
 
 # ax plots
 initobj, initgrad, regimes = helper(pinit)
@@ -388,9 +389,9 @@ ax2p = np.linspace(25, 45, 10000)
 #     pickle.dump([objlist, gradlist], f)
 with open('gradlist1.pkl', 'rb') as f:
     objlist, gradlist = pickle.load(f)
-ax2.plot(ax2p, objlist, 'k.', markersize=2)
+# ax2.plot(ax2p, objlist, 'k.', markersize=2)
 ax3.plot(ax2p, gradlist, 'k.', markersize=2)
-ax2art, = ax2.plot(pinit[2], initobj, 'r.')
+# ax2art, = ax2.plot(pinit[2], initobj, 'r.')
 ax3art, = ax3.plot(pinit[2], initgrad[2], 'r.')
 # for relax
 ax4p = np.linspace(.1, 15, 10000)
@@ -404,15 +405,15 @@ ax4p = np.linspace(.1, 15, 10000)
 # p[3] = pinit[3]
 with open('gradlist2.pkl', 'rb') as f:
     objlist, gradlist = pickle.load(f)
-ax4.plot(ax4p, objlist, 'k.', markersize=2)
+# ax4.plot(ax4p, objlist, 'k.', markersize=2)
 ax5.plot(ax4p, gradlist, 'k.', markersize=2)
-ax4art, = ax4.plot(pinit[3], initobj, 'r.')
+# ax4art, = ax4.plot(pinit[3], initobj, 'r.')
 ax5art, = ax5.plot(pinit[3], initgrad[3], 'r.')
 ax.set_ylabel('speed')
-ax2.set_ylabel('objective')
-ax2.set_xlabel('free flow speed')
+# ax2.set_ylabel('objective')
+# ax2.set_xlabel('free flow speed')
 ax3.set_ylabel('gradient')
-ax4.set_ylabel('objective')
+# ax4.set_ylabel('objective')
 # ax4.set_xlabel('relaxation time')
 ax5.set_ylabel('gradient')
 
@@ -423,11 +424,11 @@ def update(val):
     artist2.set_array(np.array(regime[0][:end]))
     artist3.set_array(np.array(regime[1][:end]))
 
-    ax2art.set_xdata(val)
+    # ax2art.set_xdata(val)
     ax3art.set_xdata(val)
-    ax2art.set_ydata(obj)
+    # ax2art.set_ydata(obj)
     ax3art.set_ydata(grad[2])
-    ax4art.set_ydata(obj)
+    # ax4art.set_ydata(obj)
     ax5art.set_ydata(grad[3])
     fig.canvas.draw_idle()
 
@@ -438,11 +439,11 @@ def update2(val):
     artist2.set_array(np.array(regime[0][:end]))
     artist3.set_array(np.array(regime[1][:end]))
 
-    ax4art.set_xdata(val)
+    # ax4art.set_xdata(val)
     ax5art.set_xdata(val)
-    ax2art.set_ydata(obj)
+    # ax2art.set_ydata(obj)
     ax3art.set_ydata(grad[2])
-    ax4art.set_ydata(obj)
+    # ax4art.set_ydata(obj)
     ax5art.set_ydata(grad[3])
     fig.canvas.draw_idle()
 

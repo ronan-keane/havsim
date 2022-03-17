@@ -1,5 +1,5 @@
 """More efficient implementation of infiniteroad_simulation which only partially simulates vehicles."""
-
+# note to self - might make more sense to perturb leader continuously instead of current way of perturbing all vehicles in beginning
 import havsim.simulation as hs
 import havsim.plotting as hp
 import time
@@ -8,7 +8,7 @@ import numpy as np
 #%%  set up parameters
 IDM_parameters = [30, 1.5, 4, 1.3, 2]  # in order: max speed, time headway, jam spacing, comfortable acceleration,
 # comfortable deceleration. Units are in meters.
-eql_speed = 5  # define the equilibrium speed you want to perturb around
+eql_speed = 10  # define the equilibrium speed you want to perturb around
 nveh = 1000  # number of vehicles
 dt = .25  # timestep in seconds
 acc_tolerance = 1e-3  # acc tolerance for adding new vehicles
@@ -17,9 +17,9 @@ speed_tolerance = 1e-1  # speed tolerance for subtracting vehicles
 
 # define speed profile of initial vehicle
 def downstream(timeind, *args):
-    if timeind < 10:
+    # if timeind < 10:
     # if timeind < 200:
-    # if False:
+    if False:
         return eql_speed-3
     else:
         return eql_speed
@@ -126,9 +126,16 @@ print('simulation time is '+str(end-start)+' over '+str(sum([timesteps - veh.sta
                                                          for veh in all_vehicles]))+' timesteps')
 all_vehicles.extend(cur_vehicles)
 
+# add beginning traj to first 500 vehicles
+for i in all_vehicles[:500]:
+    start = i.start
+    i.start = 0
+    i.speedmem = [eql_speed]*start+i.speedmem
+    initpos = i.posmem[0]-start*dt*eql_speed
+    i.posmem = list(np.arange(initpos,i.posmem[0],dt*eql_speed)) + i.posmem
+
 laneinds = {mainroad[0]:0}
 sim, siminfo = hp.plot_format(all_vehicles, laneinds)
-
 hp.platoonplot(sim,None, siminfo, lane=0, opacity=0)
 
 

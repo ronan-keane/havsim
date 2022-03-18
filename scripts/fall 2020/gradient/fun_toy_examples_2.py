@@ -1,3 +1,5 @@
+"""
+"""
 
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
@@ -6,8 +8,8 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-lead = list(range(8))+list(np.arange(7,7.5,.1))+list(np.arange(7.5,15.5,1))
-tar = np.array(list(range(-2,7)) + list(np.arange(6,6.5,.1)) + list(np.arange(6.5,13.5,1)))
+lead = list(range(8))+list(np.arange(7.1,7.6,.1))+list(np.arange(7.6,15.6,1))
+tar = np.array(list(range(-2,7)) + list(np.arange(6.1,6.6,.1)) + list(np.arange(6.6,13.6,1)))
 timesteps = len(lead)
 
 def forward(p, return_traj=False):
@@ -49,7 +51,7 @@ for p2 in x2:
 obj, traj, branches = forward(pinit, True)
 ax.plot(lead, 'k.-')
 ax.plot(tar, 'C0', alpha=.5)
-artist_switch, = ax.plot(np.array(lead)-pinit[0], 'k--', alpha=.2, linewidth=1)
+artist_switch, = ax.plot(np.array(lead)-pinit[0], 'C2--', alpha=.2, linewidth=1)
 artist_traj, = ax.plot(traj, 'C1.-')
 ax.legend(['leader', 'target trajectory', 'switching condition', 'trajectory'])
 artist_branch = ax.scatter(list(range(0,len(lead)-1)), [-3]*(len(lead)-1), s=4, c=branches, cmap='viridis')
@@ -92,8 +94,8 @@ p_values2 = Slider(axp2, 'branch', x2[0], x2[-1], valinit=pinit[1])
 p_values2.on_changed(update2)
 
 
-#%%
-pinit = [1.6, -1, .1]
+#%%  solve problem by using stochastic model + SGD
+pinit = [2.1, 0, np.log(.1)]  #p[1] and p[2] are taken to be positive
 norm_dist = tfp.distributions.Normal(tf.convert_to_tensor(0, dtype=tf.float32), tf.convert_to_tensor(1, dtype=tf.float32))
 
 def obj_and_grad(p):  # note - no variance reduction used
@@ -106,7 +108,7 @@ def obj_and_grad(p):  # note - no variance reduction used
         z = tf.random.normal((1,))
         zlist.append(z)
         if  np.exp(eps)*float(z)<= mu - (lead[i] - cur):
-            cur = cur + p2
+            cur = cur + np.exp(p2)
             out2.append(1)
         else:
             cur = cur + 1
@@ -121,14 +123,14 @@ def obj_and_grad(p):  # note - no variance reduction used
         dfdx = 2*(out[i+1] - tar[i+1])
         dhdx = 1
         if out2[i]==1:
-            dhdp = np.array([0, 0, 1])
+            dhdp = np.array([0, 0, np.exp(p2)])
         else:
             dhdp = np.array([0, 0, 0])
 
         z = zlist[i]
         cur = tf.convert_to_tensor(out[i], dtype=tf.float32)
         cur_lead = tf.convert_to_tensor(lead[i], dtype=tf.float32)
-        grad_log_probs = diff_prob(mu, eps, z, cur_lead, cur)
+        grad_log_probs = diff_prob(mu, eps, z, cur_lead, cur, tf.cast(out2[i], tf.bool))
         lam = lam + dfdx
 
         ghat = ghat + lam*dhdp + obj*np.array([grad_log_probs[0].numpy(), grad_log_probs[1].numpy(), 0])
@@ -137,23 +139,24 @@ def obj_and_grad(p):  # note - no variance reduction used
 
 
 @tf.function
-def diff_prob(mu, eps, z, lead, cur):
+def diff_prob(mu, eps, z, lead, cur, branch):
     with tf.GradientTape() as g:
         g.watch([cur, mu, eps])
         x = (mu-(lead-cur))/tf.math.exp(eps)
         y = norm_dist.log_cdf(x)
+        y = tf.cond(branch, lambda: y, lambda: tf.math.log(1-tf.math.exp(y)))
     return g.gradient(y, [mu, eps, cur])
 
 
-def train(pinit, nsteps=500, lr=1e-2, clipnorm=10):
+def train(pinit, nsteps=1000, lr=1e-3, clipnorm=10):
     p = pinit.copy()
     objlist = []
     outlist = []
     plist = []
     for i in range(nsteps):
         obj, grad, out = obj_and_grad(p)
-        if np.linalg.norm(grad) > clipnorm:
-            grad = grad/np.linalg.norm(grad)*clipnorm
+        # if np.linalg.norm(grad) > clipnorm:
+        #     grad = grad/np.linalg.norm(grad)*clipnorm
         p = p-lr*grad
         objlist.append(obj)
         outlist.append(out)
@@ -163,5 +166,32 @@ def train(pinit, nsteps=500, lr=1e-2, clipnorm=10):
 trainobj, traintraj, plist = train(pinit)
 
 
+#%% plot results of above
 
+fig = plt.figure(figsize=(10,10))
+ax = plt.subplot()
+plt.subplots_adjust(bottom=.2)
 
+ax.plot(lead, 'k.-')
+ax.plot(tar, 'C0', alpha=.5)
+leadarray = np.array(lead)
+leadtime = list(range(len(lead)))
+artist_mean, = ax.plot(leadtime, leadarray-pinit[0], 'C2--', alpha=.2, linewidth=1)
+artist_stdev = ax.fill_between(leadtime, leadarray-pinit[0]-np.exp(pinit[1]), leadarray-pinit[0]+np.exp(pinit[1]),
+                                alpha=.2, facecolor='C2')
+artist_traj, = ax.plot(traintraj[0], 'C1.-')
+
+def update(val): #slider plots iteration number
+    val = int(val)
+    curtraj = traintraj[val]
+    curp = plist[val]
+    artist_mean.set_ydata(leadarray-curp[0])
+    ax.collections.clear()
+    artist_stdev = ax.fill_between(leadtime, leadarray-curp[0]-np.exp(curp[1]), leadarray-curp[0]+np.exp(curp[1]),
+                                alpha=.2, facecolor='C2')
+    artist_traj.set_ydata(curtraj)
+    fig.canvas.draw_idle()
+
+axp = plt.axes([.15, .1, .65, .03])
+p_values = Slider(axp, 'iteration', 0, 399, valinit=0)
+p_values.on_changed(update)

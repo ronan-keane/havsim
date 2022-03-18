@@ -451,7 +451,7 @@ axp2 = plt.axes([.15, 0.1, 0.65, 0.03])
 axp = plt.axes([.15, 0.05, 0.65, 0.03])
 p_values2 = Slider(axp, 'relaxation', .1, 15, valinit=pinit[3])
 p_values2.on_changed(update2)
-p_values = Slider(axp2, 'free flow', 25, 45, valinit=pinit[2])
+p_values = Slider(axp2, 'max speed', 25, 45, valinit=pinit[2])
 p_values.on_changed(update)
 
 

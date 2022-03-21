@@ -7,7 +7,75 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+#%% no objective plots
+lead = list(range(8))+list(np.arange(7.1,7.6,.1))+list(np.arange(7.6,15.6,1))
+tar = np.array(list(range(-2,7)) + list(np.arange(6.1,6.6,.1)) + list(np.arange(6.6,13.6,1)))
+timesteps = len(lead)
 
+def forward(p, return_traj=False):
+    out = [-2]
+    out2 = []
+    p1, p2 = p[0], p[1]
+    cur = out[-1]
+    for i in range(len(lead)-1):
+        if (lead[i] - cur) <= p1:
+            cur = cur + p2
+            out2.append(1)
+        else:
+            cur = cur + 1
+            out2.append(0)
+        out.append(cur)
+    if return_traj:
+        return np.sum(np.square(np.array(out) - tar)), out, out2
+    else:
+        return np.sum(np.square(np.array(out) - tar))
+
+fig = plt.figure(figsize=(10,10))
+ax = plt.subplot()
+plt.subplots_adjust(bottom=.2)
+
+pinit = [2.1, .1]
+p = pinit.copy()
+x1, x2 = np.linspace(0, 3, 5000), np.linspace(-1,1, 5000)
+objlist1, objlist2 = [], []
+for p1 in x1:
+    p[0] = p1
+    objlist1.append(forward(p))
+p = pinit.copy()
+for p2 in x2:
+    p[1]= p2
+    objlist2.append(forward(p))
+#main plot
+obj, traj, branches = forward(pinit, True)
+ax.plot(lead, 'k.-')
+ax.plot(tar, 'C0', alpha=.5)
+artist_switch, = ax.plot(np.array(lead)-pinit[0], 'C2--', alpha=.5, linewidth=1)
+artist_traj, = ax.plot(traj, 'C1.-')
+ax.legend(['leader', 'target trajectory', 'switching condition', 'trajectory'])
+artist_branch = ax.scatter(list(range(0,len(lead)-1)), [-3]*(len(lead)-1), s=4, c=branches, cmap='viridis')
+
+def update(val): #slider for parameter 0
+    pinit[0] = val
+    obj, traj, branches = forward(pinit, True)
+    artist_branch.set_array(np.array(branches))
+    artist_switch.set_ydata(np.array(lead)-val)
+    artist_traj.set_ydata(traj)
+
+def update2(val): # slider for parameter 1
+    pinit[1] = val
+    obj, traj, branches = forward(pinit, True)
+    artist_branch.set_array(np.array(branches))
+    artist_traj.set_ydata(traj)
+    fig.canvas.draw_idle()
+
+axp = plt.axes([.15, .1, .65, .03]) # for slider
+axp2 = plt.axes([.15, .05, .65, .03])
+p_values = Slider(axp, 'switching condition', x1[0], x1[-1], valinit=pinit[0])
+p_values.on_changed(update)
+p_values2 = Slider(axp2, 'slow branch speed', x2[0], x2[-1], valinit=pinit[1])
+p_values2.on_changed(update2)
+
+#%% with objective plots
 lead = list(range(8))+list(np.arange(7.1,7.6,.1))+list(np.arange(7.6,15.6,1))
 tar = np.array(list(range(-2,7)) + list(np.arange(6.1,6.6,.1)) + list(np.arange(6.6,13.6,1)))
 timesteps = len(lead)
@@ -51,7 +119,7 @@ for p2 in x2:
 obj, traj, branches = forward(pinit, True)
 ax.plot(lead, 'k.-')
 ax.plot(tar, 'C0', alpha=.5)
-artist_switch, = ax.plot(np.array(lead)-pinit[0], 'C2--', alpha=.2, linewidth=1)
+artist_switch, = ax.plot(np.array(lead)-pinit[0], 'C2--', alpha=.5, linewidth=1)
 artist_traj, = ax.plot(traj, 'C1.-')
 ax.legend(['leader', 'target trajectory', 'switching condition', 'trajectory'])
 artist_branch = ax.scatter(list(range(0,len(lead)-1)), [-3]*(len(lead)-1), s=4, c=branches, cmap='viridis')
@@ -61,7 +129,7 @@ ax3.plot(x2, objlist2, 'k.', markersize=2)
 ax2.set_ylabel('objective')
 ax2.set_xlabel('value of switching parameter')
 ax3.set_ylabel('objective')
-ax3.set_xlabel('value of branch parameter')
+ax3.set_xlabel('value of slow speed')
 artist2, = ax2.plot(pinit[0], obj, 'r.')
 artist3, = ax3.plot(pinit[1], obj, 'r.')
 
@@ -88,13 +156,16 @@ def update2(val): # slider for parameter 1
 
 axp = plt.axes([.15, .1, .65, .03]) # for slider
 axp2 = plt.axes([.15, .05, .65, .03])
-p_values = Slider(axp, 'switching', x1[0], x1[-1], valinit=pinit[0])
+p_values = Slider(axp, 'switching condition', x1[0], x1[-1], valinit=pinit[0])
 p_values.on_changed(update)
-p_values2 = Slider(axp2, 'branch', x2[0], x2[-1], valinit=pinit[1])
+p_values2 = Slider(axp2, 'slow branch speed', x2[0], x2[-1], valinit=pinit[1])
 p_values2.on_changed(update2)
 
 
 #%%  solve problem by using stochastic model + SGD
+lead = list(range(8))+list(np.arange(7.1,7.6,.1))+list(np.arange(7.6,15.6,1))
+tar = np.array(list(range(-2,7)) + list(np.arange(6.1,6.6,.1)) + list(np.arange(6.6,13.6,1)))
+timesteps = len(lead)
 pinit = [2.1, 0, np.log(.1)]  #p[1] and p[2] are taken to be positive
 norm_dist = tfp.distributions.Normal(tf.convert_to_tensor(0, dtype=tf.float32), tf.convert_to_tensor(1, dtype=tf.float32))
 
@@ -167,7 +238,9 @@ trainobj, traintraj, plist = train(pinit)
 
 
 #%% plot results of above
-
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
+pinit = [2.1, 0, np.log(.1)]
 fig = plt.figure(figsize=(10,10))
 ax = plt.subplot()
 plt.subplots_adjust(bottom=.2)
@@ -176,10 +249,17 @@ ax.plot(lead, 'k.-')
 ax.plot(tar, 'C0', alpha=.5)
 leadarray = np.array(lead)
 leadtime = list(range(len(lead)))
-artist_mean, = ax.plot(leadtime, leadarray-pinit[0], 'C2--', alpha=.2, linewidth=1)
+artist_mean, = ax.plot(leadtime, leadarray-pinit[0], 'C2--', alpha=.5, linewidth=1)
 artist_stdev = ax.fill_between(leadtime, leadarray-pinit[0]-np.exp(pinit[1]), leadarray-pinit[0]+np.exp(pinit[1]),
                                 alpha=.2, facecolor='C2')
 artist_traj, = ax.plot(traintraj[0], 'C1.-')
+
+legend_elements = [Line2D([0],[0], color='k', label='leader'),
+                   Line2D([0], [0], color='C0', label='target trajectory', alpha=.5),
+                   Patch(facecolor='C2', alpha=.2, label='switching mean '+u'\u00b1'+' std dev'),
+                   Line2D([0], [0], color='C1', label='trajectory'),
+                   ]
+ax.legend(handles=legend_elements)
 
 def update(val): #slider plots iteration number
     val = int(val)

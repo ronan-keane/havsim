@@ -134,3 +134,9 @@ scripts/spring 2020/testaccidentfree.nb
 
 # vim
 **.swp
+.idea/havsim.iml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
+.idea/workspace.xml

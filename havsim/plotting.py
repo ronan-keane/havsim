@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 import matplotlib.animation as animation
 from matplotlib import cm
-import pywt
+# import pywt
 from statistics import harmonic_mean
 from matplotlib.widgets import PolygonSelector
 import palettable
@@ -1024,10 +1024,10 @@ def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsi
     return out
 
 
-def wt(series, scale):
-    out, out2 = pywt.cwt(series, scale, 'mexh')
-    energy = np.sum(np.abs(out), 0)
-    return energy
+# def wt(series, scale):
+#     out, out2 = pywt.cwt(series, scale, 'mexh')
+#     energy = np.sum(np.abs(out), 0)
+#     return energy
 
 
 def plotspacetime(meas, platooninfo, timeint = 50, xint = 70, lane=1, use_avg='mean'):

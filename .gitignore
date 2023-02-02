@@ -140,3 +140,4 @@ scripts/spring 2020/testaccidentfree.nb
 .idea/modules.xml
 .idea/vcs.xml
 .idea/workspace.xml
+*.xml

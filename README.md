@@ -1,4 +1,4 @@
-# havsim - an open source traffic microsimulator for highways
+## havsim - an open source traffic microsimulator for highways
 In the future, I hope to call havsim the first differentiable traffic simulator
 
 # Install

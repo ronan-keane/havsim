@@ -29,6 +29,7 @@ def make_follower_trajectory(lead_pos, lead_speed, dt, l, veh_pos, veh_speed, p)
     for i in range(len(lead_pos)-1):
         l_pos, l_speed = lead_pos[i], lead_speed[i]
         s = l_pos - veh_pos - l
+
         veh_acc = IDM(s, veh_speed, l_speed, p)
         veh_pos += dt*veh_speed
         veh_speed += dt*veh_acc
@@ -36,8 +37,32 @@ def make_follower_trajectory(lead_pos, lead_speed, dt, l, veh_pos, veh_speed, p)
         xn_dot.append(veh_speed)
     return xn, xn_dot
 
-def plot_log_normal(mu, sigma):
 
+def lognormal_pdf(x, mu, sigma):
+    return 1 / ((2 * 3.1415926) ** .5 * sigma) / x * np.exp(-(np.log(x) - mu) ** 2 / (2 * sigma ** 2))
+
+
+def pareto_pdf(x, scale, shape):
+    return (shape*scale**shape)/(x + scale)**(shape+1)
+
+
+def frechet_pdf(x, scale, shape):
+    x = x/scale
+    return shape/scale*x**(-1-shape)*np.exp(-x**(-1*shape))
+
+
+def weibull_pdf(x, scale, shape):
+    x = x / scale
+    return shape / scale * x ** (shape-1) * np.exp(-x ** shape)
+
+
+def plot_pdf(pdf_param, pdf_fn=None, end_value=10):
+    """pdf_param = iterable of parameter values, pdf_fn=function return pdf values, end_value=last x value in plot."""
+    x = np.linspace(.01, end_value, 200)
+    y = pdf_fn(x, *pdf_param)
     plt.figure()
+    plt.plot(x, y)
     plt.show()
+
 p = [35, 1.3, 2, 1.1, 1.5]
+lognormal_p = [np.log(1.85), .894]

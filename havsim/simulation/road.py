@@ -390,6 +390,7 @@ class Road:
     def set_downstream(self, downstream, self_indices=None):
         """
         downstream: dictionary of keyword args which defines call_downstream method
+            (see road_networks.downstream_wrapper)
         self_indices: a list of lane indices to set downstream condition to
         """
         if downstream is not None:
@@ -410,7 +411,9 @@ class Road:
     def set_upstream(self, increment_inflow=None, get_inflow=None, new_vehicle=None, self_indices=None):
         """
         increment_inflow: dictionary of keyword args which defines increment_inflow method, or None
-        get_inflow: dictionary of keyword args which defines increment_inflow method, or None
+            (see road_networks.increment_inflow_wrapper)
+        get_inflow: dictionary of keyword args which defines get_inflow method, or None
+            (see road_networks.get_inflow_wrapper)
         new_vehicle: new_vehicle method, or None
         self_indices: a list of lane indices to set upstream condition to
         """

@@ -185,30 +185,38 @@ def get_inflow_wrapper(time_series=None, args=(None,), inflow_type='flow'):
         inflow_type: Method to add vehicles. One of 'flow', 'speed', 'congested'
             'flow' - time_series returns the flow explicitly
 
+            'flow speed' - time_series returns both flow and speed. Note that if the speed is not given, we assume
+                a speed close to the maximum speed.
+
             'speed' - time_series returns a speed, we get a flow from the speed using the get_eql method of
             the Vehicle.
 
             'congested' - This is meant to add a vehicle with ~0 acceleration as soon as it is possible to do
             so. This is similar to 'speed', but instead of getting speed from time_series, we get it from
-            the anchor's lead vehicle. This may help remove artifacts from the downstream boundary
+            the anchor's lead vehicle. This may help remove artifacts from the upstream boundary
             condition caused by simulations with different Vehicle parameters.
             Requires get_eql method of the Vehicle.
 
             'arrivals' - We sample from some distribution to generate the next (continuous) arrival time.
             When we pass that time in the simulation (time index >= next arrival time), we add 1 flow. *args
             is passed to arrival_time_inflow.__init__
+            Note that the 'arrivals' get_inflow type does not give an instantaneous flow rate, which means it is not
+            compatible with the eql_inflow_congested or eql_inflow_free incremental_inflow types.
 
     Returns:
         get_inflow method for a Lane. Takes in (timeind) and returns instantaneous flow, vehicle speed,
         at that time. If we return None for the speed, increment_inflow will obtain the speed.
     """
-    # TODO - refactor this to modify the inflow buffer directly and return the flow amount - this will allow
-    # the 'arrivals' type inflow to correctly interact with the methods such as eql_inflow_congested.
+    # todo
 
     # give flow series - simple
     if inflow_type == 'flow':
         def get_inflow(self, timeind):
             return time_series(timeind), None
+
+    elif inflow_type == 'flow speed':
+        def get_inflow(self, timeind):
+            return time_series(timeind)
 
     # give speed series, we convert to equilibrium flow using the parameters of the next vehicle to be added
     # note that if all vehicles have same parameters/length, this is exactly equivalent to the 'flow' method
@@ -556,7 +564,7 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
     elif method == 'speed':
         method_fun = speed_inflow
     elif method == 'newell':
-        method_fun == newell_inflow
+        method_fun = newell_inflow
 
     def increment_inflow(self, vehicles, vehid, timeind, dt):
         inflow, spd = self.get_inflow(timeind)
@@ -573,7 +581,7 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
                 #             spd = self.newveh.inv_flow(inflow, congested=True)
 
                 # new rule
-                spd = self.newveh.maxspeed*.9
+                spd = self.newveh.maxspeed*.9 if spd is None else spd
                 out = (self.start, spd, None)
             else:  # normal rule for adding vehicles
                 out = method_fun(self, inflow, timeind, dt, **kwargs)
@@ -754,10 +762,6 @@ class Lane:
         merge_anchors: any merge anchors for the lane (see update_merge_anchors)
         events: lane events (see update_lane_events)
     """
-    # TODO need a RoadNetwork object, possibly Road object as well.
-    # should create common road configurations.
-    # E.g. of good design - create road network by specifying types of roads (e.g. road, on/off ramp, merge)
-    # add boundary conditions to road network.
 
     def __init__(self, start, end, road, laneind, connect_left=None, connect_right=None, connect_to=None,
                  downstream=None, increment_inflow=None, get_inflow=None, new_vehicle=None):

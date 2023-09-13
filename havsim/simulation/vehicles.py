@@ -510,10 +510,6 @@ class Vehicle:
 
         else:
             if userelax:
-                ### relaxation formulations
-                # always use vanilla - can potentially lead to collisions
-                # normal_relax=True
-
                 # safeguard for relaxation
                 ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)
                 if ttc < 1.5 and ttc > 0:
@@ -528,19 +524,12 @@ class Vehicle:
                     acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
                     # acc = max(acc, self.minacc)
                 else:
-                    normal_relax = True
-
-                # alternative formulation applies control to ttc (not recommended)
-                # v_sens = .3+(timeind-self.relax_start)*dt/self.relax_parameters
-                # acc, normal_relax = models.relaxation_model_ttc([1.5, 2, v_sens, 1],
-                #                                                 [hd, spd, lead.speed], dt)
-                ###
-                if normal_relax:
-                    currelax, currelax_v = self.relax[timeind-self.relax_start]
+                    currelax, currelax_v = self.relax[timeind - self.relax_start]
                     # currelax = self.relax[timeind - self.relax_start]
 
                     acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
                     # acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed])
+
             else:
                 acc = self.cf_model(self.cf_parameters, [hd, spd, lead.speed])
 

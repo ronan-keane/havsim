@@ -480,11 +480,11 @@ def tactical_model(veh, lcsidefol, lcsidefolsafe, vehsafe, safe, coop_veh_is_lcs
 
 def check_if_veh_cooperates(veh, coop_veh, in_disc):
     """Calculates condition for coop_veh to cooperate with veh. Returns bool (see coop_tact_model)."""
-    temp = coop_veh.coop_parameters  # temp is the baseline probability for cooperation
+    coop = coop_veh.coop_parameters  # temp is the baseline probability for cooperation
     if not in_disc:
-        start, end = veh.lc_urgency[:]
-        temp += (veh.pos - start)/(end - start+1e-6)
-    return (temp >= 1 or np.random.rand() < temp)
+        start, end = veh.lc_urgency
+        coop += (veh.pos - start)/(end - start+1e-6)
+    return np.random.rand() < coop
 
 
 def relaxation_model_ttc(p, state, dt):

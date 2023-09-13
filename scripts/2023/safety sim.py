@@ -10,8 +10,8 @@ import time
 def veh_parameters():
     cf_p = [35, 1.3, 2, 1.1, 1.5]
     lc_p = [-8, -20, .6, .1, 0, .2, .1, 20, 20]
-    kwargs = {'relax_parameters': 8.7, 'shift_parameters': [-2, 2], 'coop_parameters': 0.2,
-              'route_parameters': [200, 200],
+    kwargs = {'relax_parameters': 8.7, 'shift_parameters': [-3, 2], 'coop_parameters': 0.2,
+              'route_parameters': [300, 200],
               'accbounds': [-8, None], 'maxspeed': cf_p[0]-1e-6, 'hdbounds': (cf_p[2]+1e-6, 1e4)}
     return cf_p, lc_p, kwargs
 
@@ -48,12 +48,12 @@ onramp5.set_downstream({'method': 'free merge', 'self_lane': onramp5[0], 'minacc
 
 # upstream boundary conditions
 # inflow amounts and entering speeds
-main_inflow = lambda *args: 1530/3600/2, None
-onramp1_inflow = lambda *args: 529/3600, 13
-onramp2_inflow = lambda *args: 261/3600, 13
-onramp3_inflow = lambda *args: 414/3600, 25
-onramp4_inflow = lambda *args: 1261/3600, 13
-onramp5_inflow = lambda *args: 1146/3600, 25
+main_inflow = lambda *args: (1530/3600/2, None)
+onramp1_inflow = lambda *args: (529/3600, 13)
+onramp2_inflow = lambda *args: (261/3600, 13)
+onramp3_inflow = lambda *args: (414/3600, 25)
+onramp4_inflow = lambda *args: (1261/3600, 13)
+onramp5_inflow = lambda *args: (1146/3600, 25)
 # define the routes of vehicles
 def select_route(routes, probabilities):
     p = np.cumsum(probabilities)
@@ -98,6 +98,11 @@ simulation = hs.Simulation(roads=[main_road, onramp1, onramp2, onramp3, onramp4,
 start = time.time()
 simulation.simulate(4000)
 end = time.time()
+
+all_vehicles = simulation.prev_vehicles
+all_vehicles.extend(simulation.vehicles)
+print('simulation time is '+str(end-start)+' over '+str(sum([4000 - veh.start+1 if veh.end is None else veh.end - veh.start+1
+                                                         for veh in all_vehicles]))+' timesteps')
 
 
 

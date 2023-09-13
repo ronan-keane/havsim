@@ -405,14 +405,11 @@ def make_cur_route(p, curlane, nextroadname):
     # in lane changing model, it would need to check if we are getting too close and act accordingly
     # (e.g. slow down) if needed. in this function, would need to add events if you miss the change,
     # and in that case you would need to be given a new route.
-    # another option other simulators use is they simply remove a vehicle if it fails to follow its route.
 
     curroad = curlane.road
     curlaneind = curlane.laneind
-    # position or tuple of positions, str, tuple of 2 ints or single int, str, dict for the next road
     try:  # band aid for case when vehicles cannot follow their planned route
-        pos, change_type, laneind, side, nextroad = curlane.connections[nextroadname][:]  # nextroad unused?
-        # roads also have name, len, num_lanes, index lanes using their lane index (0 - num_lanes-1)
+        pos, change_type, laneind, side, nextroad = curlane.connections[nextroadname][:]
     except:
         print(' vehicle on '+str(curlane)+' missed route which planned for going to '+nextroadname)
         return {i:[] for i in curroad.lanes}
@@ -466,7 +463,7 @@ def make_cur_route(p, curlane, nextroadname):
                                             'event': 'end discretionary', 'side': 'l_lc'})
 
         cur_route[templane].append({'pos': pos, 'event': 'mandatory', 'side': side,
-                                    'lc_urgency': [pos, endpos - p[0]]})
+                                    'lc_urgency': [pos, max(endpos - p[0], pos)]})
 
         if curlaneind != laneind:
             cur_route = make_route_helper(p, cur_route, curroad, curlaneind, laneind, pos)

@@ -756,7 +756,8 @@ class Lane:
         laneind: index of Lane
         connect_left: defines left connections for Lane
         connect_right: defines right connections for Lane
-        connect_to: what the end of Lane connects to
+        connect_to: what the end of Lane connects to. Can be None (no connection or exit)
+        connections: for making routes - refer to update_lane_routes.make_cur_route
         anchor: AnchorVehicle for lane
         roadlen: defines distance between Lane's road and other roads.
         merge_anchors: any merge anchors for the lane (see update_merge_anchors)

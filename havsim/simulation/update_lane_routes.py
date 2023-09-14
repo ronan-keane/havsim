@@ -353,7 +353,7 @@ def make_cur_route(p, curlane, nextroadname):
     Upon entering a new road, we create a cur_route which stores the list of route events for several lanes,
     specifically the lanes we will ultimately end up on, as well as all lanes which we will need to cross
     to reach those lanes we want to be on. We do not create the routes for every single lane on a road.
-    Roads have a connect_to attribute whose keys are road names and value is a tuple of:
+    Roads have a connections attribute whose keys are road names and value is a tuple of:
         pos: for 'continue' change_type, a float which gives the position that the current road
             changes to the desired road.
             for 'merge' type, a tuple of the first position that changing into the desired road

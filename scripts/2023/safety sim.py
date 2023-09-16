@@ -19,7 +19,7 @@ def veh_parameters():
 main_road = hs.Road(num_lanes=2, length=12000, name='E94')
 main_road.connect('exit', is_exit=True)
 offramp1 = hs.Road(num_lanes=1, length=100, name='jackson off ramp')
-main_road.merge(offramp1, self_index=1, new_lane_index=0, self_pos=(175, 220), new_lane_pos=(0, 45))
+main_road.merge(offramp1, self_index=1, new_lane_index=0, self_pos=(175, 260), new_lane_pos=(0, 85))
 offramp1.connect('offramp 1', is_exit=True)
 onramp1 = hs.Road(num_lanes=1, length=250, name='jackson on ramp')
 onramp1.merge(main_road, self_index=0, new_lane_index=1, self_pos=(100, 250), new_lane_pos=(1200, 1350))

@@ -414,9 +414,17 @@ class Road:
             (see road_networks.increment_inflow_wrapper)
         get_inflow: dictionary of keyword args which defines get_inflow method, or None
             (see road_networks.get_inflow_wrapper)
-        new_vehicle: new_vehicle method, or None
+        new_vehicle: new_vehicle method, or None. The new_vehicle is a function with the following signature -
+            Args:
+                self: (this will be the instance of Lane after new_vehicle is bound to the Lane)
+                vehid: vehicle id
+            Returns:
+                None
+            It should instantiate a new Vehicle with id vehid and set it to the newveh attribute of self.
+            I.e. self.newveh = Vehicle(vehid, self, ...)
         self_indices: a list of lane indices to set upstream condition to
         """
+        # TODO should have a better way to define and set these, especially the new_vehicle method
         if self_indices is None:
             self_indices = list(range(self.num_lanes))
         else:
@@ -432,12 +440,6 @@ class Road:
                 lane.newveh = None
 
                 lane.increment_inflow = increment_inflow_wrapper(**increment_inflow).__get__(lane, Lane)
-
-    def diverge(self):
-        """
-        TODO: implement it
-        """
-        pass
 
     def __getitem__(self, index):
         assert isinstance(index, int) and 0 <= index < self.num_lanes

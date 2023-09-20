@@ -512,22 +512,16 @@ class Vehicle:
             if userelax:
                 # safeguard for relaxation
                 ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)
-                if ttc < 1.5 and ttc > 0:
-                    normal_relax = False
+                if 1.5 > ttc > 0:
                     currelax, currelax_v = self.relax[timeind-self.relax_start]
-                    # safeguard based on equilibrium
-                    # if currelax > 0:
-                    #     eql_hd = self.get_eql(lead.speed, input_type='v')
-                    #     currelax = min(currelax, eql_hd - hd)
                     currelax = currelax*(ttc/1.5) if currelax > 0 else currelax
                     currelax_v = currelax_v*(ttc/1.5) if currelax_v > 0 else currelax_v
                     acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
-                    # acc = max(acc, self.minacc)
                 else:
                     currelax, currelax_v = self.relax[timeind - self.relax_start]
-                    # currelax = self.relax[timeind - self.relax_start]
-
                     acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
+                    # headway only version -
+                    # currelax = self.relax[timeind - self.relax_start]
                     # acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed])
 
             else:
@@ -722,16 +716,13 @@ class Vehicle:
         acc = max(self.minacc, self.acc)
         # acc = self.acc  # no bounds
 
-
         # bounds on speed
         temp = acc*dt
         nextspeed = self.speed + temp
         if nextspeed < 0:
             nextspeed = 0
-            temp = -self.speed
         # elif nextspeed > self.maxspeed:
         #     nextspeed = self.maxspeed
-        #     temp = self.maxspeed - self.speed
 
         # update state
         # self.pos += self.speed*dt + .5*temp*dt  # ballistic update
@@ -927,3 +918,44 @@ class Vehicle:
                     print(i)
 
         return res
+
+
+def add_crash_behavior(vehicle, decel=-4., hold_timesteps=20):
+    """Defines what a vehicle should do after crashing."""
+    # decel: after crash, decelerate at this rate
+    # hold_timesteps: remove the vehicle after hold_timesteps at 0 speed
+    assert issubclass(vehicle, Vehicle)
+
+    class VehicleCanCrash(vehicle):
+        def __init__(self, *args, **kwargs):
+            self.crashed = False
+            self.crash_time = None
+            self.crash_decel = decel
+            self.hold_timesteps = hold_timesteps
+            super().__init__(*args, **kwargs)
+
+        def update_after_crash(self, timeind):
+            """Called after a crash to enforce the crash behavior."""
+            self.crashed = True
+            self.crash_time = timeind
+
+            # turn off lane changing
+            self.l_lc = None
+            self.r_lc = None
+            self.update_lc_state(timeind)
+            # remove all lane and route events to ensure state will not change
+            self.lane_events = []
+            self.route_events = []
+
+        def set_cf(self, timeind, dt):
+            if self.crashed:
+                self.acc = self.crash_decel
+                if self.speed == 0.:
+                    if len(self.speedmem) >= hold_timesteps:
+                        if self.speedmem[-hold_timesteps] == 0.:
+                            # remove vehicle by creating lane event
+                            self.lane_events = [{'pos': -1e6, 'event': 'exit'}]
+            else:
+                super().set_cf(timeind, dt)
+
+    return VehicleCanCrash

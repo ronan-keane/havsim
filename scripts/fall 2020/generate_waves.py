@@ -4,11 +4,12 @@ import havsim.simulation as hs
 import havsim.plotting as hp
 import time
 import numpy as np
+import matplotlib.pyplot as plt
 
 #%%  set up parameters
 IDM_parameters = [30, 1.5, 4, 1.3, 2]  # in order: max speed, time headway, jam spacing, comfortable acceleration,
 # comfortable deceleration. Units are in meters.
-eql_speed = 5  # define the equilibrium speed you want to perturb around
+eql_speed = 10  # define the equilibrium speed you want to perturb around
 nveh = 1000  # number of vehicles
 dt = .25  # timestep in seconds
 acc_tolerance = 1e-3  # acc tolerance for adding new vehicles
@@ -130,5 +131,6 @@ laneinds = {mainroad[0]:0}
 sim, siminfo = hp.plot_format(all_vehicles, laneinds)
 
 hp.platoonplot(sim,None, siminfo, lane=0, opacity=0)
+plt.show()
 
 

@@ -549,7 +549,7 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
             timeind: time index
             dt: timestep
         Returns:
-            None. Modifies vehicles, Lanes in place.
+            vehid: id of the next vehicle to instantiate
     """
     if method == 'ceql':
         method_fun = eql_inflow_congested
@@ -825,11 +825,17 @@ class Lane:
         if increment_inflow is not None:
             self.inflow_buffer = 0
             self.newveh = None
-            # cf_parameters, lc_parameters, kwargs = self.new_vehicle()  # done in Simulation.__init__
-            # self.newveh = vehicle(vehid, self, cf_parameters, lc_parameters, **kwargs)
             self.increment_inflow = increment_inflow_wrapper(**increment_inflow).__get__(self, Lane)
         """refer to increment_inflow_wrapper for documentation"""
 
+    def initialize_inflow(self, vehid):
+        """Set inflow to initial state."""
+        assert hasattr(self, 'increment_inflow')
+        assert hasattr(self, 'get_inflow')
+        assert hasattr(self, 'new_vehicle')
+        self.inflow_buffer = 0
+        self.new_vehicle(vehid)
+        return vehid+1
 
     def leadfol_find(self, veh, guess, side=None):
         """Find the leader/follower for veh, in the same track as guess (can be a different track than veh's).

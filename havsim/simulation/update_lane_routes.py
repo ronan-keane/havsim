@@ -157,7 +157,6 @@ def update_lane_events(veh, timeind, remove_vehicles):
 
         elif curevent['event'] == 'exit':
             fol = veh.fol
-            # need to check l/rlead for edge case when you overtake and exit in same timestep?
             for i in veh.llead:
                 i.rfol = fol
                 fol.llead.append(i)
@@ -166,8 +165,11 @@ def update_lane_events(veh, timeind, remove_vehicles):
                 fol.rlead.append(i)
 
             # update vehicle orders
-            fol.lead = None
-            fol.leadmem.append((None, timeind+1))
+            lead = veh.lead
+            fol.lead = lead
+            fol.leadmem.append((lead, timeind+1))
+            if lead is not None:
+                lead.fol = fol
             if veh.lfol is not None:
                 veh.lfol.rlead.remove(veh)
             if veh.rfol is not None:
@@ -517,7 +519,7 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
             if curind > 0:
                 nexttemplane = curroad[curind-1]
                 enddiscpos = min(curpos, nexttemplane.end)
-                enddiscpos = enddiscpos -2*(p[0] + p[1])
+                enddiscpos = enddiscpos - 2*(p[0] + p[1])
                 cur_route[templane].append({'pos': enddiscpos, 'event': 'end discretionary', 'side': 'l_lc'})
 
             # there is always a mandatory event
@@ -544,7 +546,7 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
             if curind < curroad.num_lanes - 1:
                 nexttemplane = curroad[curind + 1]
                 enddiscpos = min(curpos, nexttemplane.end)
-                enddiscpos = enddiscpos - 2(p[0] + p[1])
+                enddiscpos = enddiscpos - 2*(p[0] + p[1])
                 cur_route[templane].append({'pos': enddiscpos, 'event': 'end discretionary', 'side': 'r_lc'})
 
             cur_route[templane].append({'pos': curpos, 'event': 'mandatory', 'side': 'l_lc',

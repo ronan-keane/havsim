@@ -56,9 +56,9 @@ inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]
 main_inflow = lambda *args: (inflow[0], None)
 onramp1_inflow = lambda *args: (inflow[1], 10)
 onramp2_inflow = lambda *args: (inflow[2], 10)
-onramp3_inflow = lambda *args: (inflow[3], 20)
+onramp3_inflow = lambda *args: (inflow[3], 10)
 onramp4_inflow = lambda *args: (inflow[4], 10)
-onramp5_inflow = lambda *args: (inflow[5], 20)
+onramp5_inflow = lambda *args: (inflow[5], 10)
 # define the routes of vehicles
 def select_route(routes, probabilities):
     p = np.cumsum(probabilities)

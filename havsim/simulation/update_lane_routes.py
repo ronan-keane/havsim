@@ -3,6 +3,7 @@
 Functions for setting/updating lane events, route events, and code for changing lanes.
 """
 from havsim.simulation import vehicle_orders
+from havsim.simulation.road_networks import get_headway
 
 
 def update_veh_after_lc(lc_actions, veh, timeind):
@@ -170,6 +171,7 @@ def update_lane_events(veh, timeind, remove_vehicles):
             fol.leadmem.append((lead, timeind+1))
             if lead is not None:
                 lead.fol = fol
+                fol.hd = get_headway(fol, lead)
             if veh.lfol is not None:
                 veh.lfol.rlead.remove(veh)
             if veh.rfol is not None:

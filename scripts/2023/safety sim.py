@@ -9,7 +9,7 @@ import time
 # specify vehicle parameters
 def veh_parameters():
     cf_p = [35, 1.3, 2, 1.1, 1.5]
-    lc_p = [-5, -12, .6, .1, 0, .2, .1, 20, 20]
+    lc_p = [-5, -10, .6, .1, 0, .2, .1, 20, 20]
     kwargs = {'relax_parameters': 8.7, 'shift_parameters': [-4, 2], 'coop_parameters': 0.2,
               'route_parameters': [300, 200],
               'accbounds': [-8, None], 'maxspeed': cf_p[0]-1e-6, 'hdbounds': (cf_p[2]+1e-6, 1e4)}
@@ -18,25 +18,25 @@ def veh_parameters():
 # road network
 main_road = hs.Road(num_lanes=2, length=12000, name='E94')
 main_road.connect('exit', is_exit=True)
-offramp1 = hs.Road(num_lanes=1, length=100, name='jackson off ramp')
-main_road.merge(offramp1, self_index=1, new_lane_index=0, self_pos=(175, 260), new_lane_pos=(0, 85))
+offramp1 = hs.Road(num_lanes=1, length=[(175, 275)], name='jackson off ramp')
+main_road.merge(offramp1, self_index=1, new_lane_index=0, self_pos=(175, 260), new_lane_pos=(175, 260))
 offramp1.connect('offramp 1', is_exit=True)
-onramp1 = hs.Road(num_lanes=1, length=250, name='jackson on ramp')
-onramp1.merge(main_road, self_index=0, new_lane_index=1, self_pos=(100, 250), new_lane_pos=(1200, 1350))
-offramp2 = hs.Road(num_lanes=1, length=200, name='ann arbor saline off ramp')
-main_road.merge(offramp2, self_index=1, new_lane_index=0, self_pos=(5330, 5480), new_lane_pos=(0, 150))
+onramp1 = hs.Road(num_lanes=1, length=[(1100, 1350)], name='jackson on ramp')
+onramp1.merge(main_road, self_index=0, new_lane_index=1, self_pos=(1200, 1350), new_lane_pos=(1200, 1350))
+offramp2 = hs.Road(num_lanes=1, length=[(5330, 5530)], name='ann arbor saline off ramp')
+main_road.merge(offramp2, self_index=1, new_lane_index=0, self_pos=(5330, 5480), new_lane_pos=(5330, 5480))
 offramp2.connect('offramp 2', is_exit=True)
-onramp2 = hs.Road(num_lanes=1, length=280, name='ann arbor saline on ramp SW')
-onramp2.merge(main_road, self_index=0, new_lane_index=1, self_pos=(100, 280), new_lane_pos=(6150, 6330))
-onramp3 = hs.Road(num_lanes=1, length=300, name='ann arbor saline on ramp NE')
-onramp3.merge(main_road, self_index=0, new_lane_index=1, self_pos=(200, 300), new_lane_pos=(6710, 6810))
-offramp3 = hs.Road(num_lanes=1, length=180, name='state off ramp')
-main_road.merge(offramp3, self_index=1, new_lane_index=0, self_pos=(7810, 7940), new_lane_pos=(0, 130))
+onramp2 = hs.Road(num_lanes=1, length=[(6050, 6330)], name='ann arbor saline on ramp SW')
+onramp2.merge(main_road, self_index=0, new_lane_index=1, self_pos=(6150, 6330), new_lane_pos=(6150, 6330))
+onramp3 = hs.Road(num_lanes=1, length=[(6510, 6810)], name='ann arbor saline on ramp NE')
+onramp3.merge(main_road, self_index=0, new_lane_index=1, self_pos=(6710, 6810), new_lane_pos=(6710, 6810))
+offramp3 = hs.Road(num_lanes=1, length=[(7810, 7990)], name='state off ramp')
+main_road.merge(offramp3, self_index=1, new_lane_index=0, self_pos=(7810, 7940), new_lane_pos=(7810, 7940))
 offramp3.connect('offramp 3', is_exit=True)
-onramp4 = hs.Road(num_lanes=1, length=300, name='state on ramp S')
-onramp4.merge(main_road, self_index=0, new_lane_index=1, self_pos=(100, 300), new_lane_pos=(8510, 8710))
-onramp5 = hs.Road(num_lanes=1, length=300, name='state on ramp N')
-onramp5.merge(main_road, self_index=0, new_lane_index=1, self_pos=(200, 300), new_lane_pos=(9130, 9230))
+onramp4 = hs.Road(num_lanes=1, length=[(8410, 8710)], name='state on ramp S')
+onramp4.merge(main_road, self_index=0, new_lane_index=1, self_pos=(8510, 8710), new_lane_pos=(8510, 8710))
+onramp5 = hs.Road(num_lanes=1, length=[(8930, 9230)], name='state on ramp N')
+onramp5.merge(main_road, self_index=0, new_lane_index=1, self_pos=(9130, 9230), new_lane_pos=(9130, 9230))
 
 # downstream boundary conditions
 main_road.set_downstream({'method': 'free'})
@@ -51,12 +51,14 @@ onramp5.set_downstream({'method': 'free merge', 'self_lane': onramp5[0], 'minacc
 
 # upstream boundary conditions
 # inflow amounts and entering speeds
-main_inflow = lambda *args: (1530/3600/2, None)
-onramp1_inflow = lambda *args: (529/3600, 10)
-onramp2_inflow = lambda *args: (261/3600, 10)
-onramp3_inflow = lambda *args: (414/3600, 20)
-onramp4_inflow = lambda *args: (1261/3600, 10)
-onramp5_inflow = lambda *args: (1146/3600, 20)
+inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]
+# inflow = [1100/3600/2, 529/3600, 261/3600, 414/3600, 750/3600, 500/3600]
+main_inflow = lambda *args: (inflow[0], None)
+onramp1_inflow = lambda *args: (inflow[1], 10)
+onramp2_inflow = lambda *args: (inflow[2], 10)
+onramp3_inflow = lambda *args: (inflow[3], 20)
+onramp4_inflow = lambda *args: (inflow[4], 10)
+onramp5_inflow = lambda *args: (inflow[5], 20)
 # define the routes of vehicles
 def select_route(routes, probabilities):
     p = np.cumsum(probabilities)

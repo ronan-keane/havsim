@@ -412,8 +412,8 @@ def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol
             if coop_veh is lcsidefol and newlcsidefolhd > jam_spacing:  # coop_veh = lcsidefol
                 coop_veh.acc += coop_veh.shift_eql('decel')
 
-            elif coop_veh is lcsidefol.fol and newlcsidefolhd < jam_spacing and \
-            coop_veh.hd + newlcsidefolhd + lcsidefol.len > jam_spacing:  # coop_veh = lcsidefol.fol
+            elif coop_veh is lcsidefol.fol and newlcsidefolhd < jam_spacing < coop_veh.hd + \
+                    newlcsidefolhd + lcsidefol.len:  # coop_veh = lcsidefol.fol
                 coop_veh.acc += coop_veh.shift_eql('decel')
                 coop_veh_is_lcsidefolfol = True
 

@@ -53,7 +53,10 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
             oldv = prevlead.speed
         newv = veh.lead.speed
 
-        relaxamount_s = olds-news
+        try:
+            relaxamount_s = olds-news
+        except:
+            print('hi')
         relaxamount_v = oldv-newv
         relax_helper_vhd(rp, relaxamount_s, relaxamount_v, veh, timeind, dt)
 

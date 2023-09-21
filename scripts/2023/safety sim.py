@@ -9,10 +9,10 @@ import time
 # specify vehicle parameters
 def veh_parameters():
     cf_p = [35, 1.3, 2, 1.1, 1.5]
-    lc_p = [-5, -10, .6, .1, 0, .2, .1, 20, 20]
+    lc_p = [-6, -10, .6, .1, .4, 0., .5, 20, 20]
     kwargs = {'relax_parameters': 8.7, 'shift_parameters': [-4, 2], 'coop_parameters': 0.2,
               'route_parameters': [300, 200],
-              'accbounds': [-8, None], 'maxspeed': cf_p[0]-1e-6, 'hdbounds': (cf_p[2]+1e-6, 1e4)}
+              'accbounds': [-12, None], 'maxspeed': cf_p[0]-1e-6, 'hdbounds': (cf_p[2]+1e-6, 1e4)}
     return cf_p, lc_p, kwargs
 
 # road network
@@ -51,8 +51,8 @@ onramp5.set_downstream({'method': 'free merge', 'self_lane': onramp5[0], 'minacc
 
 # upstream boundary conditions
 # inflow amounts and entering speeds
-inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]
-# inflow = [1100/3600/2, 529/3600, 261/3600, 414/3600, 750/3600, 500/3600]
+# inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]
+inflow = [1960/3600/2, 529/3600, 261/3600, 414/3600, 1260/3600, 1146/3600]
 main_inflow = lambda *args: (inflow[0], None)
 onramp1_inflow = lambda *args: (inflow[1], 10)
 onramp2_inflow = lambda *args: (inflow[2], 10)
@@ -93,16 +93,18 @@ onramp4_newveh = make_newveh(lambda: ['E94', 'exit'])
 onramp5_newveh = make_newveh(lambda: ['E94', 'exit'])
 # define set_upstream method
 main_road.set_upstream(increment_inflow={'method': 'seql', 'kwargs': {'c': .8}}, get_inflow={'time_series': main_inflow, 'inflow_type': 'flow speed'}, new_vehicle=main_newveh)
-onramp1.set_upstream(increment_inflow={'method': 'seql', 'kwargs': {'c': .95}}, get_inflow={'time_series': onramp1_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp1_newveh)
-onramp2.set_upstream(increment_inflow={'method': 'seql', 'kwargs': {'c': .95}}, get_inflow={'time_series': onramp2_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp2_newveh)
-onramp3.set_upstream(increment_inflow={'method': 'seql', 'kwargs': {'c': .95}}, get_inflow={'time_series': onramp3_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp3_newveh)
-onramp4.set_upstream(increment_inflow={'method': 'seql', 'kwargs': {'c': .95}}, get_inflow={'time_series': onramp4_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp4_newveh)
-onramp5.set_upstream(increment_inflow={'method': 'seql', 'kwargs': {'c': .95}}, get_inflow={'time_series': onramp5_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp5_newveh)
+increment_inflow = {'method': 'speed', 'kwargs': {'speed_series': lambda *args: 5., 'accel_bound': -2}}
+# increment_inflow = {'method': 'seql', 'kwargs': {'c': .8, 'eql_speed': True}}
+onramp1.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp1_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp1_newveh)
+onramp2.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp2_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp2_newveh)
+onramp3.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp3_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp3_newveh)
+onramp4.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp4_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp4_newveh)
+onramp5.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp5_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp5_newveh)
 
 simulation = hs.simulation.CrashesSimulation(roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=.25)
 
 start = time.time()
-simulation.simulate(3600*2)
+simulation.simulate(3600*4)
 end = time.time()
 
 all_vehicles = simulation.prev_vehicles
@@ -111,9 +113,5 @@ print('simulation time is '+str(end-start)+' over '+str(sum([3600*4+1000 - veh.s
                                                              for veh in all_vehicles]))+' timesteps')
 print('there were {:n} crashes involving {:n} vehicles'.format(len(simulation.crashes), len(simulation.crashed_veh)))
 print('there were roughly {:n} near misses'.format(len(simulation.near_miss_veh)))
-
-def calculate_near_misses():
-    pass
-
 
 

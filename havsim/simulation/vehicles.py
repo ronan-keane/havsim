@@ -511,15 +511,15 @@ class Vehicle:
         else:
             if userelax:
                 # safeguard for relaxation
-                ttc = max(hd - 2 - .5*spd, 1e-6)/(spd-lead.speed+1e-6)
+                ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)  # todo add safeguard parameters to vehicle
                 if 2. > ttc > 0:
                     currelax, currelax_v = self.relax[timeind-self.relax_start]
-                    currelax = currelax*(ttc/2.) if currelax > 0 else currelax
-                    currelax_v = currelax_v*(ttc/2.) if currelax_v > 0 else currelax_v
-                    acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
+                    currelax = currelax*(ttc/2)**2 if currelax > 0 else currelax
+                    currelax_v = currelax_v*(ttc/2)**2 if currelax_v > 0 else currelax_v
+                    acc = self.cf_model(self.cf_parameters, [max(hd + currelax, .1), spd, lead.speed + currelax_v])
                 else:
                     currelax, currelax_v = self.relax[timeind - self.relax_start]
-                    acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
+                    acc = self.cf_model(self.cf_parameters, [max(hd + currelax, .1), spd, lead.speed + currelax_v])
                     # headway only version -
                     # currelax = self.relax[timeind - self.relax_start]
                     # acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed])

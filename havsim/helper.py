@@ -1108,7 +1108,7 @@ def makefolinfo(platoon, platooninfo, sim, *args, allfollowers=True, endtime='Tn
 
 
 def makeleadfolinfo(platoons, platooninfo, sim, *args, relaxtype='both', mergertype='avg', merge_from_lane=7,
-                    merge_lane=6):
+                    merge_lane=6, make_folinfo=False):
     # new makeleadfolinfo function which integrates the previous versions
     # inputs -
     # platoons : platoon you want to calibrate
@@ -1149,11 +1149,14 @@ def makeleadfolinfo(platoons, platooninfo, sim, *args, relaxtype='both', mergert
     # all the time (>99.99%) is spent simulating, the time you spend doing makeleadfolinfo is neglible. Hence this design makes sense.
 
     leadinfo = makeleadinfo(platoons, platooninfo, sim)
-    folinfo = makefolinfo(platoons, platooninfo, sim, allfollowers=False)
     rinfo = makerinfo(platoons, platooninfo, sim, leadinfo, relaxtype=relaxtype, mergertype=mergertype,
                       merge_from_lane=merge_from_lane, merge_lane=merge_lane)
 
-    return leadinfo, folinfo, rinfo
+    if make_folinfo:
+        folinfo = makefolinfo(platoons, platooninfo, sim, allfollowers=False)
+        return leadinfo, folinfo, rinfo
+    else:
+        return leadinfo, rinfo
 
 
 def makerinfo(platoons, platooninfo, sim, leadinfo, relaxtype='both', mergertype='avg', merge_from_lane=7,

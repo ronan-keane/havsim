@@ -105,7 +105,7 @@ def plot_format(all_vehicles, laneinds):
         # times for platooninfo
         lanedata = curmeas[:, [1, 4]]
         lanedata = lanedata[lanedata[:, 1] != 0]
-        unused, indjumps = helper.checksequential(lanedata)
+        unused, indjumps = helper.checksequential(lanedata, dataind=0)
         if np.all(indjumps == [0, 0]):
             time1 = starttime
             time2 = starttime
@@ -169,7 +169,7 @@ def clip_distance(all_vehicles, sim, clip):
         # from new leaders information, make the platooninfo
         lanedata = sim2[vehid][:, [1, 4]]
         lanedata = lanedata[lanedata[:, 1] != 0]
-        unused, indjumps = helper.checksequential(lanedata)
+        unused, indjumps = helper.checksequential(lanedata, dataind=0)
         if np.all(indjumps == [0, 0]):
             time1 = start_time
             time2 = start_time
@@ -575,9 +575,9 @@ def process_one_vehicle(ax, meas, sim, platooninfo, my_id, timerange, lane, plot
                         rp=None, h=.1, datalen=9, delay=0, count=0):
     artist_list = []
     if effective_headway:
-        leadinfo, folinfo, rinfo = helper.makeleadfolinfo([my_id], platooninfo, meas)
+        leadinfo, rinfo = helper.makeleadfolinfo([my_id], platooninfo, meas)
     else:
-        leadinfo, folinfo, rinfo = helper.makeleadfolinfo([my_id], platooninfo, meas, relaxtype='none')
+        leadinfo, rinfo = helper.makeleadfolinfo([my_id], platooninfo, meas, relaxtype='none')
 
     t_nstar, t_n, T_nm1, T_n = platooninfo[my_id][0:4]
 
@@ -966,7 +966,7 @@ def compute_headway2(veh, data, platooninfo, rp=None, h=.1):
     # different format than compute_headway
 
     relaxtype = 'both' if rp is not None else 'none'
-    leadinfo, unused, rinfo = helper.makeleadfolinfo([veh], platooninfo, data, relaxtype=relaxtype)
+    leadinfo, rinfo = helper.makeleadfolinfo([veh], platooninfo, data, relaxtype=relaxtype)
     t_nstar, t_n, T_nm1, T_n = platooninfo[veh][:4]
     relax, unused = helper.r_constant(rinfo[0], [t_n, T_nm1], T_n, rp, False, h)
 
@@ -1113,7 +1113,7 @@ def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsi
 #     return energy
 
 
-def plotspacetime(meas, platooninfo, timeint=50, xint=70, lane=1, use_avg='mean'):
+def plotspacetime(meas, platooninfo, timeint=50, xint=70, lane=1, use_avg='mean', speed_bounds=(0, 80)):
     # meas - keys are vehicles, values are numpy arrays where rows are observations
     # platooninfo - created with meas
     # timeint - length of time in each aggregated speed (in terms of data units);
@@ -1124,7 +1124,7 @@ def plotspacetime(meas, platooninfo, timeint=50, xint=70, lane=1, use_avg='mean'
     # aggregates data in meas and plots it in spacetime plot
 
     # get data with helper function
-    X, Y, meanspeeds, vehbins = plotspacetime_helper(meas, timeint, xint, lane, use_avg)
+    X, Y, meanspeeds, vehbins = plotspacetime_helper(meas, timeint, xint, lane, use_avg, speed_bounds=speed_bounds)
 
     # plotting
     cmap = cm.RdYlBu  # RdYlBu is probably the best colormap overall for this
@@ -1138,7 +1138,8 @@ def plotspacetime(meas, platooninfo, timeint=50, xint=70, lane=1, use_avg='mean'
     cbar.set_label('Speed')
 
 
-def plotspacetime_helper(myinput, timeint, xint, lane, avg_type, return_discretization=False, return_vehlist=False):
+def plotspacetime_helper(myinput, timeint, xint, lane, avg_type, return_discretization=False, return_vehlist=False,
+                         speed_bounds=None):
     # myinput - data, in either raw form (numpy array) or dictionary
     # timeint - length of time in each aggregated speed (in terms of data units);
     # xint - length of space in each aggregated speed (in terms of data units)
@@ -1194,15 +1195,15 @@ def plotspacetime_helper(myinput, timeint, xint, lane, avg_type, return_discreti
         speeds[curtimebin][curxbin].append(curv)
         vehbins[curtimebin][curxbin].add(curveh)
 
-    meanspeeds = X.copy()  # initialize output
-    for i in range(len(times) - 1):  # populate output
-        for j in range(len(x) - 1):
+    meanspeeds = np.full(X.shape, np.nan)  # initialize output
+    for i in range(len(times)-1):  # populate output
+        for j in range(len(x)-1):
             cur = speeds[i][j]
             if len(cur) == 0:
                 cur = np.nan
             else:
                 cur = meanfunc(cur)
-            meanspeeds[i, j] = cur
+            meanspeeds[i, j] = min(speed_bounds[1], max(cur, speed_bounds[0])) if speed_bounds else cur
 
     out = (X, Y, meanspeeds, vehbins)
     if return_discretization:

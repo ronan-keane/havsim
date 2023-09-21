@@ -227,7 +227,7 @@ class CrashesSimulation(Simulation):
         for veh in self.vehicles:
             lead, hd = veh.lead, veh.hd
             if lead is not None:
-                if 0 < hd/(veh.speed + 1e-6) < 0.5:  # check for near misses
+                if 0 < hd/(veh.speed - lead.speed + 1e-6) < 0.4:  # check for near misses
                     self.near_miss_veh.add(veh)
                 if hd < 0:  # check for crashes
                     if veh.crashed and lead.crashed:

@@ -9,7 +9,7 @@ import time
 # specify vehicle parameters
 def veh_parameters():
     cf_p = [35, 1.3, 2, 1.1, 1.5]
-    lc_p = [-6, -10, .6, .1, .4, 0., .5, 20, 20]
+    lc_p = [-6, -10, .6, .1, .4, 0., .3, 20, 20]
     kwargs = {'relax_parameters': 8.7, 'shift_parameters': [-4, 2], 'coop_parameters': 0.2,
               'route_parameters': [300, 200],
               'accbounds': [-12, None], 'maxspeed': cf_p[0]-1e-6, 'hdbounds': (cf_p[2]+1e-6, 1e4)}
@@ -52,7 +52,7 @@ onramp5.set_downstream({'method': 'free merge', 'self_lane': onramp5[0], 'minacc
 # upstream boundary conditions
 # inflow amounts and entering speeds
 # inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]
-inflow = [1960/3600/2, 529/3600, 261/3600, 414/3600, 1260/3600, 1146/3600]
+inflow = [2060/3600/2, 529/3600, 261/3600, 414/3600, 1260/3600, 1146/3600]
 main_inflow = lambda *args: (inflow[0], None)
 onramp1_inflow = lambda *args: (inflow[1], 10)
 onramp2_inflow = lambda *args: (inflow[2], 10)
@@ -103,15 +103,54 @@ onramp5.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series
 
 simulation = hs.simulation.CrashesSimulation(roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=.25)
 
-start = time.time()
-simulation.simulate(3600*4)
-end = time.time()
+timesteps = 3600
+replications = 3
+near_miss = 0
+rear_end = 0
+sideswipe = 0
+vmt = 0
+for i in range(replications):
+    start = time.time()
+    simulation.simulate(timesteps)
+    end = time.time()
 
-all_vehicles = simulation.prev_vehicles
-all_vehicles.extend(simulation.vehicles)
-print('simulation time is '+str(end-start)+' over '+str(sum([3600*4+1000 - veh.start+1 if veh.end is None else veh.end - veh.start+1
-                                                             for veh in all_vehicles]))+' timesteps')
-print('there were {:n} crashes involving {:n} vehicles'.format(len(simulation.crashes), len(simulation.crashed_veh)))
-print('there were roughly {:n} near misses'.format(len(simulation.near_miss_veh)))
+    all_vehicles = simulation.prev_vehicles
+    all_vehicles.extend(simulation.vehicles)
+    print('simulation time is '+str(end-start)+' over '+str(sum([timesteps - veh.start+1 if veh.end is None else veh.end - veh.start+1
+                                                                 for veh in all_vehicles]))+' timesteps')
+    print('there were {:n} crashes involving {:n} vehicles'.format(len(simulation.crashes), len(simulation.crashed_veh)))
+    print('there were roughly {:n} near misses'.format(len(simulation.near_miss_veh)-len(simulation.crashes)))
+    for crash in simulation.crashes:  # determine whether it's due to sideswipe or rear end
+        # check the first two vehicles only
+        crash_time = crash[0].crash_time
+        if len(crash[0].lanemem) > 1:
+            lc_times = [lc[1] for lc in crash[0].lanemem[1:]]
+        else:
+            lc_times = []
+        if len(crash[1].lanemem) > 1:
+            lc_times.extend([lc[1] for lc in crash[1].lanemem[1:]])
+        if crash_time - 6 in lc_times:
+            sideswipe += 1
+        else:
+            rear_end += 1
+    for veh in simulation.crashed_veh:  # count near misses
+        if veh in simulation.near_miss_veh:
+            simulation.near_miss_veh.remove(veh)
+    near_miss += len(simulation.near_miss_veh)
+    for veh in all_vehicles:  # vmt
+        vmt += veh.posmem[-1] - veh.posmem[0]
+
+    if i < replications - 1:
+        simulation.reset()
+print('\n-----------SUMMARY-----------')
+print('average near misses: {:n}'.format(near_miss/replications))
+print('average rear end crashes: {:n}'.format(rear_end/replications))
+print('average sideswipe crashes: {:n}'.format(sideswipe/replications))
+print('average vmt (miles): {:.0f}'.format(vmt/replications/1609.34))
+
+
+
+
+
 
 

@@ -130,8 +130,7 @@ class Simulation:
         dt: constant float. timestep for the simulation.
     """
 
-    def __init__(self, inflow_lanes=[], merge_lanes=[], vehicles=None, prev_vehicles=None, vehid=1,
-                 timeind=0, dt=.25, roads=None):
+    def __init__(self, vehicles=None, prev_vehicles=None, vehid=1, timeind=0, dt=.25, roads=None):
         """Inits simulation.
 
         Args:
@@ -150,19 +149,19 @@ class Simulation:
             a Vehicle stores its own memory.
         """
         # automatically get inflow/merge lanes
-        if roads is None:
-            self.inflow_lanes = inflow_lanes
-            self.merge_lanes = merge_lanes
-        else:
-            assert isinstance(roads, list)
-            self.inflow_lanes = []
-            self.merge_lanes = []
-            for road in roads:
-                for lane in road.lanes:
-                    if hasattr(lane, "get_inflow"):
-                        self.inflow_lanes.append(lane)
-                    if hasattr(lane, "merge_anchors") and lane.merge_anchors:
-                        self.merge_lanes.append(lane)
+        assert isinstance(roads, list)
+        self.roads = roads
+        self.inflow_lanes = []
+        self.merge_lanes = []
+        for road in roads:
+            for lane in road.lanes:
+                if hasattr(lane, "get_inflow"):
+                    self.inflow_lanes.append(lane)
+                if hasattr(lane, "merge_anchors") and lane.merge_anchors:
+                    self.merge_lanes.append(lane)
+        self.init_merge_anchors = {}
+        for lane in self.merge_lanes:
+            self.init_merge_anchors[lane] = [anchor.copy() for anchor in lane.merge_anchors]
 
         self.init_vehicles = vehicles
         self.init_prev_vehicles = prev_vehicles
@@ -203,9 +202,16 @@ class Simulation:
         self.prev_vehicles = [] if self.init_prev_vehicles is None else copy.deepcopy(self.init_prev_vehicles)
         self.vehid = self.init_vehid
         self.timeind = self.init_timeind
+        # reset state of boundary conditions
         for curlane in self.inflow_lanes:
             self.vehid = curlane.initialize_inflow(self.vehid)
-
+        # reset state of all AnchorVehicles
+        for road in self.roads:
+            for lane in road.lanes:
+                lane.anchor.reset()
+        # reset merge anchors
+        for lane in self.merge_lanes:
+            lane.merge_anchors = [anchor.copy() for anchor in self.init_merge_anchors[lane]]
 
 class CrashesSimulation(Simulation):
     """Keeps track of crashes in a simulation. Vehicles must have update_after_crash method."""
@@ -227,7 +233,7 @@ class CrashesSimulation(Simulation):
         for veh in self.vehicles:
             lead, hd = veh.lead, veh.hd
             if lead is not None:
-                if 0 < hd/(veh.speed - lead.speed + 1e-6) < 0.4:  # check for near misses
+                if 0 < hd/(veh.speed - lead.speed + 1e-6) < 0.4 or hd < 0:  # check for possible near misses
                     self.near_miss_veh.add(veh)
                 if hd < 0:  # check for crashes
                     if veh.crashed and lead.crashed:

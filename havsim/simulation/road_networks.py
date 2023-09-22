@@ -4,6 +4,7 @@ The Lane class and boundary conditions.
 """
 import numpy as np
 import math
+import copy
 
 
 def downstream_wrapper(method='speed', time_series=None, congested=True, merge_side='l',
@@ -683,11 +684,17 @@ class AnchorVehicle:
         self.lane = curlane
         self.road = curlane.road.name
 
+        self.init_lead = lead
+        self.init_rlead = rlead
+        self.init_llead = llead
+        self.start = start
+
         self.lfol = None  # anchor vehicles just need the lead/llead/rlead attributes. no need for (l/r)fol
         self.rfol = None
-        self.lead = lead
-        self.rlead = [] if rlead is None else rlead
-        self.llead = [] if llead is None else llead
+        self.lead = None if self.init_lead is None else copy.deepcopy(self.init_lead)
+        self.rlead = [] if self.init_rlead is None else copy.deepcopy(self.init_rlead)
+        self.llead = [] if self.init_llead is None else copy.deepcopy(self.init_llead)
+        self.leadmem = [[self.lead, self.start]]
 
         self.pos = curlane.start
         self.speed = 0
@@ -696,8 +703,6 @@ class AnchorVehicle:
         self.hd = None
         self.len = 0
 
-        self.leadmem = [[lead, start]]
-
     def get_cf(self, *args):
         """Dummy method returns 0 for cf model - so we don't have to check for anchors when calling set_lc."""
         return 0
@@ -705,6 +710,14 @@ class AnchorVehicle:
     def set_relax(self, *args):
         """Dummy method does nothing - it's so we don't have to check for anchors when applying relax."""
         pass
+
+    def reset(self):
+        self.lfol = None  # anchor vehicles just need the lead/llead/rlead attributes. no need for (l/r)fol
+        self.rfol = None
+        self.lead = None if self.init_lead is None else copy.deepcopy(self.init_lead)
+        self.rlead = [] if self.init_rlead is None else copy.deepcopy(self.init_rlead)
+        self.llead = [] if self.init_llead is None else copy.deepcopy(self.init_llead)
+        self.leadmem = [[self.lead, self.start]]
 
     def __repr__(self):
         """Representation in ipython console."""
@@ -760,7 +773,8 @@ class Lane:
         connections: for making routes - refer to update_lane_routes.make_cur_route
         anchor: AnchorVehicle for lane
         roadlen: defines distance between Lane's road and other roads.
-        merge_anchors: any merge anchors for the lane (see update_merge_anchors)
+        merge_anchors: any merge anchors for the lane (see update_merge_anchors). List of list, where each list
+            is a pair of [merge_anchor, position].
         events: lane events (see update_lane_events)
     """
 

@@ -510,9 +510,10 @@ class Vehicle:
 
         else:
             if userelax:
-                # safeguard for relaxation
-                ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)  # todo add safeguard parameters to vehicle
-                if 2. > ttc > 0:
+                # safeguard for relaxation  # todo add safeguard parameters to vehicle
+                ttc = hd - 2 - .6*spd
+                ttc = 0 if ttc < 0 else ttc / (spd - lead.speed + 1e-6)
+                if 2. > ttc >= 0:
                     currelax, currelax_v = self.relax[timeind-self.relax_start]
                     currelax = currelax*(ttc/2)**2 if currelax > 0 else currelax
                     currelax_v = currelax_v*(ttc/2)**2 if currelax_v > 0 else currelax_v

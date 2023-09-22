@@ -51,8 +51,11 @@ onramp5.set_downstream({'method': 'free merge', 'self_lane': onramp5[0], 'minacc
 
 # upstream boundary conditions
 # inflow amounts and entering speeds
-# inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]
-inflow = [2060/3600/2, 529/3600, 261/3600, 414/3600, 1260/3600, 1146/3600]
+# inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4pm-6pm)
+inflow = [2060/3600/2, 529/3600, 261/3600, 414/3600, 1260/3600, 1146/3600]  # (4pm-6pm)
+inflow = np.array(inflow)
+inflow[0] = inflow[0] * .863
+inflow[1:] = inflow[1:] * .382
 main_inflow = lambda *args: (inflow[0], None)
 onramp1_inflow = lambda *args: (inflow[1], 10)
 onramp2_inflow = lambda *args: (inflow[2], 10)
@@ -103,8 +106,8 @@ onramp5.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series
 
 simulation = hs.simulation.CrashesSimulation(roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=.25)
 
-timesteps = 3600
-replications = 3
+timesteps = 3600*4
+replications = 1
 near_miss = 0
 rear_end = 0
 sideswipe = 0
@@ -147,10 +150,3 @@ print('average near misses: {:n}'.format(near_miss/replications))
 print('average rear end crashes: {:n}'.format(rear_end/replications))
 print('average sideswipe crashes: {:n}'.format(sideswipe/replications))
 print('average vmt (miles): {:.0f}'.format(vmt/replications/1609.34))
-
-
-
-
-
-
-

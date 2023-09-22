@@ -109,11 +109,13 @@ def plot_pdf(pdf_param, pdf_fn=None, end_value=10):
 
 p = [35, 1.3, 2, 1.1, 1.5]
 lognormal_p = [np.log(1.), .75]
+pareto_p = [1., 2.]
 
 zs = np.array([-1.28, -.52, .52, 1.28])  # .1, .3, .7, .9 percentiles
 print('percentiles are '+str(np.exp(zs*lognormal_p[1] + lognormal_p[0])))
 print('mean is '+str(np.exp(lognormal_p[0]+lognormal_p[1]**2/2)))
 plot_pdf(lognormal_p, lognormal_pdf, 20)
+plot_pdf(pareto_p, pareto_pdf, 10)
 
 lead_speed = [20 - i*.5 for i in range(11)]
 lead_speed.extend([15]*55)

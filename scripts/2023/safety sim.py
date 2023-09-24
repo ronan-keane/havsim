@@ -53,9 +53,9 @@ onramp5.set_downstream({'method': 'free merge', 'self_lane': onramp5[0], 'minacc
 # inflow amounts and entering speeds
 # inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4pm-6pm)
 inflow = [2060/3600/2, 529/3600, 261/3600, 414/3600, 1260/3600, 1146/3600]  # (4pm-6pm)
-inflow = np.array(inflow)
-inflow[0] = inflow[0] * .863
-inflow[1:] = inflow[1:] * .382
+# inflow = np.array(inflow)
+# inflow[0] = inflow[0] * .863
+# inflow[1:] = inflow[1:] * .382
 main_inflow = lambda *args: (inflow[0], None)
 onramp1_inflow = lambda *args: (inflow[1], 10)
 onramp2_inflow = lambda *args: (inflow[2], 10)

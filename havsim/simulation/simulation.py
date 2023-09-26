@@ -12,6 +12,7 @@ from havsim.simulation import update_lane_routes
 from havsim.simulation import vehicle_orders
 import copy
 
+
 def update_net(vehicles, lc_actions, inflow_lanes, merge_lanes, vehid, timeind, dt):
     """Updates all quantities for a road network.
 
@@ -118,9 +119,10 @@ class Simulation:
     microsimulation refer to the full documentation which has extra details and explanation.
 
     Attributes:
-        inflow lanes: list of all lanes which have inflow to them (i.e. all lanes which have upstream
+        roads: list of all Roads
+        inflow lanes: list of all Lanes which have inflow to them (i.e. all lanes which have upstream
             boundary conditions, meaning they can add vehicles to the simulation)
-        merge_lanes: list of all lanes which have merge anchors
+        merge_lanes: list of all Lanes which have merge anchors
         vehicles: set of all vehicles which are in the simulation at the first time index. This is kept
             updated so that vehicles is always the set of all vehicles currently being simulated.
         prev_vehicles: set of all vehicles which have been removed from simulation. So prev_vehicles and
@@ -134,8 +136,6 @@ class Simulation:
         """Inits simulation.
 
         Args:
-            inflow_lanes: list of all Lanes which have inflow to them
-            merge_lanes: list of all Lanes which have merge anchors
             vehicles: set of all Vehicles in simulation in first timestep
             prev_vehicles: list of all Vehicles which were previously removed from simulation.
             vehid: vehicle ID used for the next vehicle to be created.
@@ -212,6 +212,7 @@ class Simulation:
         # reset merge anchors
         for lane in self.merge_lanes:
             lane.merge_anchors = [anchor.copy() for anchor in self.init_merge_anchors[lane]]
+
 
 class CrashesSimulation(Simulation):
     """Keeps track of crashes in a simulation. Vehicles must have update_after_crash method."""

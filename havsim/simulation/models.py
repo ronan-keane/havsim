@@ -109,8 +109,7 @@ def generic_shift(unused, unused2, shift_parameters, state):
         return shift_parameters[1]
 
 
-def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timeind, dt,
-          userelax_cur=True, userelax_new=False, use_coop=True, use_tact=True):
+def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timeind, dt, use_coop=True, use_tact=True):
     """Minimizing total braking during lane change (MOBIL) lane changing decision model.
 
    The mobil is a dicretionary/incentive lane changing model, and we use the safety conditions
@@ -170,10 +169,6 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
         newfolhd: new follower headway
         timeind: time index
         dt: time step
-        userelax_cur: If True, we include relaxation in the evaluation of current acceleration, so that the
-            cf model is not reevaluated if vehicle is in relaxation. True is recommended
-        userelax_new: If True, we include relaxation in the evaluation of the new acceleration. False is
-            recommended.
         use_coop: If True, cooperative model is applied (see coop_tact_model)
         use_tact: If True, tactical model is applied (see coop_tact_model)
 
@@ -187,19 +182,9 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
     # if calculating incentives, need to calculate veha, fola, newfola
     if in_disc:
         fol = veh.fol
-        if not userelax_cur and veh.in_relax:
-            veha = veh.get_cf(veh.hd, veh.speed, veh.lead, veh.lane, timeind, dt, False)
-        else:
-            veha = veh.acc
-
-        if not userelax_cur and fol.in_relax:
-            fola = fol.get_cf(fol.hd, fol.speed, veh, fol.lane, timeind, dt, False)
-        else:
-            fola = fol.acc
-
-        userelax = userelax_new and fol.in_relax
-        newfola = fol.get_cf(newfolhd, fol.speed, veh.lead, fol.lane, timeind, dt, userelax)
-
+        veha = veh.acc
+        fola = fol.acc
+        newfola = fol.get_cf(newfolhd, fol.speed, veh.lead, fol.lane, timeind, dt, False)
     else:
         veha = fola = newfola = 0
 
@@ -238,19 +223,8 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
         lcsidefolsafe = newlfola
         lcsidefol = veh.lfol
 
-    ### different possible safety criteria formulations ###
-    # default value of safety -
-    # safe = p[0] (or use the maximum safety, p[1])
-
-    # safety changes with relative velocity (implemented in treiber, kesting' traffic-simulation.de) -
-    safe = veh.speed/veh.maxspeed
-    safe = safe*p[0] + (1-safe)*p[1]
-
-    # if in_disc:  # different safeties for discretionary/mandatory
-    #     safe = p[0]
-    # else:
-    #     safe = p[1]  # or use the relative velocity safety
-    # ####################################################
+    # safe = veh.speed/veh.maxspeed
+    # safe = safe*p[0] + (1-safe)*p[1]  # safety based off relative velocity
 
     # determine if LC can be completed, and if not, determine if we want to enter cooperative or
     # tactical states. update the internal lc state accordingly
@@ -264,7 +238,7 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
             else:
                 if veh.chk_lc == False:  # always check discretionary on same side for next p[6] timesteps
                     veh.chk_lc = True
-                    veh.disc_endtime = timeind + p[6]
+                    veh.disc_endtime = timeind + p[7]
                     if side == 'r':
                         veh.lside = False
                     else:

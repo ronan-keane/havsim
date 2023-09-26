@@ -160,7 +160,7 @@ def inv_flow_helper(veh, x, leadlen=None, output_type='v', congested=True, eql_t
         raise RuntimeError('could not invert provided equilibrium function')
 
 
-def set_lc_helper(veh, lside, rside, timeind, chk_lc=True, chk_lc_prob=1, get_fol=True):
+def set_lc_helper(veh, l_lc, r_lc, timeind, chk_lc=True, chk_lc_prob=1):
     """Calculates the new headways to be passed to the lane changing (LC) model.
 
     Evaluates the lane changing situation to decide if we need to evaluate lane changing model on the
@@ -170,12 +170,13 @@ def set_lc_helper(veh, lside, rside, timeind, chk_lc=True, chk_lc_prob=1, get_fo
 
     Args:
         veh: Vehicle to have their lane changing model called.
+        l_lc: state of left lane change (None, 'discretionary' or 'mandatory')
+        r_lc: state of right lane change (None, 'discretionary' or 'mandatory')
         timeind: time index
         chk_lc: bool, if True we are in mandatory or active discretionary state. If False we are in normal
             discretionary state and don't necessarily evaluate the LC model every timestep.
         chk_lc_prob: float between 0 and 1 which gives the probability of checking the lane changing model
             when the vehicle is in the normal discretionary state.
-        get_fol: if True, we also find the new follower headway.
 
     Returns:
         bool: True if we want to call the lane changing model.
@@ -184,35 +185,28 @@ def set_lc_helper(veh, lside, rside, timeind, chk_lc=True, chk_lc_prob=1, get_fo
             If a vehicle would have no leader in the new configuration, None is returned as the headway. If
             a AnchorVehicle acts as a (l/r)fol, the headway is computed as normal.
     """
-    if not lside and not rside:
-        return False, None
     if not chk_lc:  # decide if we want to evaluate lc model or not - this only applies to discretionary state
         # when vehicle is not actively trying to change
         if timeind < veh.disc_cooldown:
             return False, None
-        if chk_lc_prob >= 1:
-            pass
         elif np.random.rand() > chk_lc_prob:
             return False, None
 
     # next we compute quantities to send to LC model for the required sides
-    if lside:
+    if l_lc is not None:
         newlfolhd, newlhd = get_new_hd(veh.lfol, veh, veh.llane)
     else:
         newlfolhd = newlhd = None
 
-    if rside:
+    if r_lc is not None:
         newrfolhd, newrhd = get_new_hd(veh.rfol, veh, veh.rlane)
     else:
         newrfolhd = newrhd = None
 
-    if get_fol:
-        if veh.lead is None:
-            newfolhd = None
-        else:
-            newfolhd = get_headway(veh.fol, veh.lead)
+    if veh.lead is None:
+        newfolhd = None
     else:
-        return True, (newlfolhd, newlhd, newrfolhd, newrhd)
+        newfolhd = get_headway(veh.fol, veh.lead)
 
     return True, (newlfolhd, newlhd, newrfolhd, newrhd, newfolhd)
 
@@ -307,8 +301,8 @@ class Vehicle:
             first enters the Lane.
         posmem: list of floats giving the position, where the 0 index corresponds to the position at start
         speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at start
-        relaxmem: list of tuples where each tuple is (first time, last time, relaxation) where relaxation
-            gives the relaxation values for between first time and last time
+        relaxmem: list of tuples where each tuple is (relaxation, first_time) where relaxation
+            gives the relaxation values and first_time is the starting time index
         pos: position (float)
         speed: speed (float)
         hd: headway (float)
@@ -507,26 +501,20 @@ class Vehicle:
         """
         if lead is None:
             acc = curlane.call_downstream(self, timeind, dt)
-
-        else:
-            if userelax:
-                # safeguard for relaxation  # todo add safeguard parameters to vehicle
-                ttc = hd - 2 - .6*spd
-                ttc = 0 if ttc < 0 else ttc / (spd - lead.speed + 1e-6)
-                if 2. > ttc >= 0:
-                    currelax, currelax_v = self.relax[timeind-self.relax_start]
-                    currelax = currelax*(ttc/2)**2 if currelax > 0 else currelax
-                    currelax_v = currelax_v*(ttc/2)**2 if currelax_v > 0 else currelax_v
-                    acc = self.cf_model(self.cf_parameters, [max(hd + currelax, .1), spd, lead.speed + currelax_v])
-                else:
-                    currelax, currelax_v = self.relax[timeind - self.relax_start]
-                    acc = self.cf_model(self.cf_parameters, [max(hd + currelax, .1), spd, lead.speed + currelax_v])
-                    # headway only version -
-                    # currelax = self.relax[timeind - self.relax_start]
-                    # acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed])
-
+        elif userelax:
+            # safeguard for relaxation  # todo add safeguard parameters to vehicle
+            ttc = hd - 2 - .6*spd
+            ttc = 0 if ttc < 0 else ttc / (spd - lead.speed + 1e-6)
+            if 1.5 > ttc >= 0:
+                currelax, currelax_v = self.relax[timeind-self.relax_start]
+                currelax = currelax*(ttc/1.5)**2 if currelax > 0 else currelax
+                currelax_v = currelax_v*(ttc/1.5)**2 if currelax_v > 0 else currelax_v
+                acc = self.cf_model(self.cf_parameters, [max(hd + currelax, .1), spd, lead.speed + currelax_v])
             else:
-                acc = self.cf_model(self.cf_parameters, [hd, spd, lead.speed])
+                currelax, currelax_v = self.relax[timeind - self.relax_start]
+                acc = self.cf_model(self.cf_parameters, [max(hd + currelax, .1), spd, lead.speed + currelax_v])
+        else:
+            acc = self.cf_model(self.cf_parameters, [hd, spd, lead.speed])
 
         return acc
 
@@ -636,11 +624,9 @@ class Vehicle:
         Returns:
             None. (Modifies lc_actions, some vehicle attributes, in place)
         """
-        call_model, args = set_lc_helper(self, self.lside, self.rside, timeind, self.chk_lc,
-                                         self.lc_parameters[6])
+        call_model, args = set_lc_helper(self, self.l_lc, self.r_lc, timeind, self.chk_lc, self.lc_parameters[6])
         if call_model:
             models.mobil(self, lc_actions, *args, timeind, dt)
-        return
 
     def update_lc_state(self, timeind, lc=None):
         """Updates the lane changing internal state when completing, aborting, or beginning lane changing.
@@ -715,7 +701,6 @@ class Vehicle:
         # bounds on acceleration
         # acc = self.acc_bounds(self.acc)
         acc = max(self.minacc, self.acc)
-        # acc = self.acc  # no bounds
 
         # bounds on speed
         temp = acc*dt

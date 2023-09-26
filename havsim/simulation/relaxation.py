@@ -41,7 +41,6 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
     prevlead = veh.leadmem[-2][0]
     if prevlead is None:
         olds = veh.get_eql(veh.speed)
-        # olds = veh.get_eql(veh.lead.speed)
     else:
         olds = veh.hd
     news = get_headway(veh, veh.lead)
@@ -53,14 +52,9 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
             oldv = prevlead.speed
         newv = veh.lead.speed
 
-        try:
-            relaxamount_s = olds-news
-        except:
-            print('hi')
+        relaxamount_s = olds-news
         relaxamount_v = oldv-newv
         relax_helper_vhd(rp, relaxamount_s, relaxamount_v, veh, timeind, dt)
-
-
     else:  # relax headway only = list of float of relax values
         relaxamount = olds-news  # edge case error here, see update_lane_routes.update_veh_after_lc
         relax_helper(rp, relaxamount, veh, timeind, dt)
@@ -68,43 +62,20 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
 
 def relax_helper_vhd(rp, relaxamount_s, relaxamount_v, veh, timeind, dt):
     """Helper function for headway + speed relaxation."""
-    #rp = parameter(s), relaxamount_s = headway relaxation, _v = velocity relaxation
-    
-    ### 1 parameter - positive/negative or positive only 
+    # rp = parameter, relaxamount_s = headway relaxation, _v = velocity relaxation
+
     relaxlen = math.ceil(rp/dt) - 1
     if relaxlen == 0:
         return
     tempdt = -dt/rp*relaxamount_s
     tempdt2 = -dt/rp*relaxamount_v
-    ### positive/negative 1 parameter
-    temp = [relaxamount_s + tempdt*i for i in range(1,relaxlen+1)]
+    # positive/negative 1 parameter
+    temp = [relaxamount_s + tempdt*i for i in range(1, relaxlen+1)]
     temp2 = [relaxamount_v + tempdt2*i for i in range(1, relaxlen+1)]
-    ### positive relax only
+    # positive relax only
     # temp = [relaxamount_s + tempdt*i for i in range(1,relaxlen+1)] if relaxamount_s > 0 else [0]*relaxlen
     # temp2 = [relaxamount_v + tempdt2*i for i in range(1, relaxlen+1)] if relaxamount_v > 0 else [0]*relaxlen
-    
     curr = list(zip(temp,temp2))
-    
-    ### 2 parameter - seperate for negative
-    # posr, negr = rp
-    # rp = posr if relaxamount_s > 0 else negr
-    # relaxlen = math.ceil(rp/dt) - 1
-    # tempdt = -dt/rp*relaxamount_s
-    # temp = [relaxamount_s + tempdt*i for i in range(1,relaxlen+1)]
-    # # make velocity relax
-    # rp2 = posr if relaxamount_v > 0 else negr
-    # relaxlen2 = math.ceil(rp2/dt) - 1
-    # tempdt = -dt/rp2*relaxamount_v
-    # temp2 = [relaxamount_v + tempdt*i for i in range(1,relaxlen2+1)]
-    # if max(relaxlen, relaxlen2) == 0:
-    #     return
-    # # pad relax if necessary
-    # if relaxlen < relaxlen2:
-    #     temp.extend([0]*(relaxlen2-relaxlen))
-    #     relaxlen = relaxlen2
-    # elif relaxlen2 < relaxlen:
-    #     temp2.extend([0]*(relaxlen-relaxlen2))
-    # curr = list(zip(temp, temp2))
 
     if veh.in_relax:  # add to existing relax
         # find indexes with overlap - need to combine relax values for those
@@ -132,7 +103,7 @@ def relax_helper(rp, relaxamount, veh, timeind, dt):
     if relaxlen == 0:
         return
     tempdt = -dt/rp*relaxamount
-    curr = [relaxamount + tempdt*i for i in range(1,relaxlen+1)]
+    curr = [relaxamount + tempdt*i for i in range(1, relaxlen+1)]
 
     if veh.in_relax:  # add to existing relax
         overlap_end = min(veh.relax_end, timeind+relaxlen)
@@ -148,32 +119,3 @@ def relax_helper(rp, relaxamount, veh, timeind, dt):
         veh.relax_start = timeind + 1  # add relax
         veh.relax = curr
         veh.relax_end = timeind + relaxlen
-
-##### previous numpy based code for relax - using python lists/list comprehension now
-# relaxlen = math.ceil(rp/dt) - 1
-# curr = np.zeros((relaxlen,2))
-# curr[:,0] = np.linspace((1 - dt/rp)*relaxamount_s, (1 - dt/rp*relaxlen)*relaxamount_s, relaxlen)
-# curr[:,1] = np.linspace((1 - dt/rp)*relaxamount_v, (1 - dt/rp*relaxlen)*relaxamount_v, relaxlen)
-# if veh.in_relax:
-#     curlen = len(veh.relax)
-#     newend = timeind + relaxlen  # time index when relax ends
-#     newrelax = np.zeros((newend - veh.relax_start+1, 2))
-#     newrelax[0:curlen,:] = veh.relax
-#     newrelax[timeind-veh.relax_start+1:,:] += curr
-#     veh.relax = newrelax
-# else:
-#     veh.in_relax = True
-#     veh.relax_start = timeind + 1
-#     veh.relax = curr
-
-#### def new_relaxation_acc(veh, timeind, dt):
-#     """Relaxation for acceleration. Recommended to use new_relaxation instead."""
-#     # This formulation is not as robust as relaxing speed/headway instead.
-#     rp = veh.relax_parameters
-#     lead = veh.lead
-#     if lead is None or rp is None:
-#         return
-#     oldacc = veh.acc
-#     newhd = get_headway(veh, lead)
-#     newacc = veh.get_cf(newhd, veh.speed, lead, veh.lane, timeind, dt, veh.in_relax)
-#     relax_helper(rp, oldacc-newacc, veh, timeind, dt)

@@ -106,7 +106,7 @@ onramp5.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series
 
 simulation = hs.simulation.CrashesSimulation(roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=.25)
 
-timesteps = 3600*4
+timesteps = 3600*8
 replications = 1
 near_miss = 0
 rear_end = 0

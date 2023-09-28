@@ -74,13 +74,13 @@ def update_lane_after_lc(veh, lc, timeind):
             veh.road = newroadname
             veh.r_lc = None
         else:
-            veh.r_lc = 'discretionary'
+            veh.r_lc = 'd'
         veh.lane = lcsidelane
         veh.lanemem.append((lcsidelane, timeind))
         newlcsidelane = lcsidelane.get_connect_left(veh.pos)
         veh.llane = newlcsidelane
         if newlcsidelane is not None and newlcsidelane.roadname == veh.road:
-            veh.l_lc = 'discretionary'
+            veh.l_lc = 'd'
         else:
             veh.l_lc = None
     else:
@@ -92,13 +92,13 @@ def update_lane_after_lc(veh, lc, timeind):
             veh.road = newroadname
             veh.l_lc = None
         else:
-            veh.l_lc = 'discretionary'
+            veh.l_lc = 'd'
         veh.lane = lcsidelane
         veh.lanemem.append((lcsidelane, timeind))
         newlcsidelane = lcsidelane.get_connect_right(veh.pos)
         veh.rlane = newlcsidelane
         if newlcsidelane is not None and newlcsidelane.roadname == veh.road:
-            veh.r_lc = 'discretionary'
+            veh.r_lc = 'd'
         else:
             veh.r_lc = None
 
@@ -220,7 +220,7 @@ def update_lane_lr(veh, curlane, curevent):
         newfol.rlead.append(veh)
 
         if newllane.roadname == curlane.roadname:
-            veh.l_lc = 'discretionary'
+            veh.l_lc = 'd'
         else:
             veh.l_lc = None
         veh.llane = newllane
@@ -229,7 +229,7 @@ def update_lane_lr(veh, curlane, curevent):
         newllane = curlane.get_connect_left(curevent['pos'])
 
         if newllane.roadname == curlane.roadname:
-            veh.l_lc = 'discretionary'
+            veh.l_lc = 'd'
         else:
             veh.l_lc = None
         veh.llane = newllane
@@ -253,7 +253,7 @@ def update_lane_lr(veh, curlane, curevent):
         newfol.llead.append(veh)
 
         if newrlane.roadname == curlane.roadname:
-            veh.r_lc = 'discretionary'
+            veh.r_lc = 'd'
         else:
             veh.r_lc = None
         veh.rlane = newrlane
@@ -262,7 +262,7 @@ def update_lane_lr(veh, curlane, curevent):
         newrlane = curlane.get_connect_right(curevent['pos'])
 
         if newrlane.roadname == curlane.roadname:
-            veh.r_lc = 'discretionary'
+            veh.r_lc = 'd'
         else:
             veh.r_lc = None
         veh.rlane = newrlane
@@ -339,11 +339,11 @@ def update_route_events(veh, timeind):
             if getattr(veh, side[0]+'lane') is None:  # handle edge cases due to missing planned route
                 setattr(veh, curevent['side'], None)
                 if side[0] == 'r':
-                    veh.l_lc = 'discretionary' if veh.llane is not None else None
+                    veh.l_lc = 'd' if veh.llane is not None else None
                 else:
-                    veh.r_lc = 'discretionary' if veh.rlane is not None else None
+                    veh.r_lc = 'd' if veh.rlane is not None else None
             else:  # normal update
-                setattr(veh, side, 'mandatory')
+                setattr(veh, side, 'm')
                 veh.lc_urgency = curevent['lc_urgency']  # must always set urgency for mandatory changes
             veh.update_lc_state(timeind)
 

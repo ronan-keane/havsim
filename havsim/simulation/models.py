@@ -64,52 +64,7 @@ def OVM_eql(p, s):
     return p[0]*(math.tanh(p[1]*s-p[2]-p[4])-math.tanh(-p[2]))
 
 
-def IDM_shift_eql(p, v, shift_parameters, state):
-    """Calculates an acceleration which shifts the equilibrium solution for IDM.
-
-    The model works by solving for an acceleration which modifies the equilibrium solution by some
-    fixed amount. Any model which has an equilibrium solution which can be solved analytically,
-    it should be possible to define a model in this way. For IDM, the result that comes out lets
-    you modify the equilibrium by a multiple.
-    E.g. if the shift parameter = .5, and the equilibrium headway is usually 20 at the provided speed,
-    we return an acceleration which makes the equilibrium headway 10. If we request 'decel', the parameter
-    must be > 1 so that the acceleration is negative. Otherwise the parameter must be < 1.
-
-    Args:
-        p: parameters for IDM
-        v: velocity of vehicle to be shifted
-        shift_parameters: list of two parameters, 0 index is 'decel' which is > 1, 1 index is 'accel' which
-            is < 1. Equilibrium goes to n*s, where s is the old equilibrium, and n is the parameter.
-            E.g. shift_parameters = [2, .4], if state = 'decel' we return an acceleration which makes
-            the equilibrium goes to 2 times its normal distance.
-        state: one of 'decel' if we want equilibrium headway to increase, 'accel' if we want it to decrease.
-
-    Returns:
-        acceleration which shifts the equilibrium
-    """
-    # TODO constant acceleration formulation based on shifting eql is not good because it takes
-    # too long to reach new equilibrium. See shifteql.nb/notes on this for a new formulation
-    # or just continue using generic_shift which seems to work fine
-
-    # In Treiber/Kesting JS code they have another way of doing cooperation where vehicles will use their
-    # new deceleration if its greater than -2b
-    if state == 'decel':
-        temp = shift_parameters[0]**2
-    else:
-        temp = shift_parameters[1]**2
-
-    return (1 - temp)/temp*p[3]*(1 - (v/p[0])**4)
-
-
-def generic_shift(unused, unused2, shift_parameters, state):
-    """Acceleration shift for any model, shift_parameters give constant deceleration/acceleration."""
-    if state == 'decel':
-        return shift_parameters[0]
-    else:
-        return shift_parameters[1]
-
-
-def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timeind, dt, use_coop=True, use_tact=True):
+def havsim_mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timeind, dt):
     """Minimizing total braking during lane change (MOBIL) lane changing decision model.
 
    The mobil is a dicretionary/incentive lane changing model, and we use the safety conditions
@@ -124,8 +79,7 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
 
     parameters of IDM-
         0 - safety criteria (maximum deceleration allowed after LC, more negative = less strict),
-        1 - See the comment block on different possible safety criteria formulations. This is the
-            safety criteria for maximum deceleration allowed, when velocity is 0.
+        1 - safety criteria during mandatory lane changing
         2 - incentive criteria (>0, larger = more strict. smaller = discretionary changes more likely),
         3 - politeness (taking other vehicles into account, 0 = ignore other vehicles, ~.1-.2 = realistic),
         4 - bias on left side (can add a bias to make vehicles default to a certain side of the road),
@@ -169,12 +123,21 @@ def mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd, timei
         newfolhd: new follower headway
         timeind: time index
         dt: time step
-        use_coop: If True, cooperative model is applied (see coop_tact_model)
-        use_tact: If True, tactical model is applied (see coop_tact_model)
 
     Returns:
         None. (modifies lc_actions in place)
     """
+    p = veh.lc_parameters
+    if veh.in_disc:
+        if timeind < veh.disc_cooldown:
+            return lc_actions, lc_fol
+        elif np.random.rand() > p[6]:
+            return lc_actions, lc_fol
+
+    llc, rlc = veh.l_lc, veh.r_lc
+    if llc == 'd':
+        if rlc is None:
+            pass
     p = veh.lc_parameters
     lincentive = rincentive = -math.inf
     in_disc = veh.in_disc
@@ -460,47 +423,6 @@ def check_if_veh_cooperates(veh, coop_veh, in_disc):
         coop += (veh.pos - start)/(end - start+1e-6)
     return np.random.rand() < coop
 
-
-def relaxation_model_ttc(p, state, dt):
-    """Alternative relaxation model for short/dangeorus spacings - applies control to ttc (not recommended).
-
-    Args:
-        p (list of floats): list of target ttc (time to collision), jam spacing, velocity sensitivity, gain
-            target ttc: If higher, we require larger spacings. If our current ttc is below the target,
-                we enter the special regime, which is seperate from the normal car following, and apply
-                a seperate control law to increase the ttc.
-            jam spacing: higher jam spacing = lower ttc
-            velocity sensitivity: more sensitive = lower ttc
-            gain: higher gain = stronger decelerations
-        state (list of floats): list of headway, self speed, lead speed
-    Returns:
-        acceleration (float): if normal_relax is false, gives the acceleration of the vehicle
-        normal_relax (bool): if true, we are in the normal relaxation regime
-    """
-    T, sj, a, delta = p
-    s, v, vl = state
-    
-    # calculate proxy for time to collision = ttc
-    sstar_branch = False
-    sstar = s - sj - a*v
-    if sstar < 1e-6:
-        sstar = 1e-6
-        # sstar = 1e-6*(v - vl + 1e-6)
-        sstar_branch = True
-    ttc = sstar/(v - vl + 1e-6)
-
-    if ttc < T and ttc >= 0:  # apply control if ttc is below target
-        if sstar_branch:
-            acc = sstar+T*(-v+vl-1e-6)
-            acc = (v-vl)*acc*delta/(sstar-dt*delta*acc)
-            # acc = (v-vl)*(sstar+T*(-v+vl))*delta
-            # acc = acc/(sstar-dt*delta*sstar+(v-vl)*(-1+dt*T*delta))
-        else:
-            acc = -(v-vl)*(v+(-s+sj)*delta+(a+T)*v*delta-vl*(1+T*delta))
-            acc = acc/(s-sj-a*vl+dt*delta*(-s+sj+(a+T)*v-T*vl))
-        return acc, False
-    else:
-        return None, True
 
 def IDM_parameters(*args):
     """Suggested parameters for the IDM/MOBIL."""

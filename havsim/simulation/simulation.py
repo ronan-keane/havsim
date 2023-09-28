@@ -209,6 +209,7 @@ class Simulation:
         for road in self.roads:
             for lane in road.lanes:
                 lane.anchor.reset()
+                lane.dt = self.dt  # also make sure all lanes have access to dt
         # reset merge anchors
         for lane in self.merge_lanes:
             lane.merge_anchors = [anchor.copy() for anchor in self.init_merge_anchors[lane]]

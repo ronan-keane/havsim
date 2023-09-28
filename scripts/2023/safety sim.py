@@ -8,11 +8,13 @@ import time
 
 # specify vehicle parameters
 def veh_parameters():
-    cf_p = [35, 1.3, 2, 1.1, 1.5]
-    lc_p = [-6, -10, .6, .1, .4, 0., .3, 20, 20]
-    kwargs = {'relax_parameters': 8.7, 'shift_parameters': [-4, 2], 'coop_parameters': 0.2,
-              'route_parameters': [300, 200],
-              'accbounds': [-12, None], 'maxspeed': cf_p[0]-1e-6, 'hdbounds': (cf_p[2]+1e-6, 1e4)}
+    s1 = np.random.rand()*6-4
+    s2 = np.random.rand()*.3-.2
+    cf_p = [35+s1, 1.3+s2, 2, 1.1, 1.5]
+    lc_p = [-4, -8, .6, .1, 0., 0., .15, 25, 42]
+    kwargs = {'relax_parameters': 8.7, 'relaxs_parameters': [0.05, 1.5],
+              'shift_parameters': [-4, 2], 'coop_parameters': 0.2, 'route_parameters': [300, 200],
+              'accbounds': [-10, None], 'maxspeed': cf_p[0]-1e-6, 'hdbounds': (cf_p[2]+1e-6, 1e4)}
     return cf_p, lc_p, kwargs
 
 # road network
@@ -21,22 +23,22 @@ main_road.connect('exit', is_exit=True)
 offramp1 = hs.Road(num_lanes=1, length=[(175, 275)], name='jackson off ramp')
 main_road.merge(offramp1, self_index=1, new_lane_index=0, self_pos=(175, 260), new_lane_pos=(175, 260))
 offramp1.connect('offramp 1', is_exit=True)
-onramp1 = hs.Road(num_lanes=1, length=[(1100, 1350)], name='jackson on ramp')
-onramp1.merge(main_road, self_index=0, new_lane_index=1, self_pos=(1200, 1350), new_lane_pos=(1200, 1350))
+onramp1 = hs.Road(num_lanes=1, length=[(1000, 1350)], name='jackson on ramp')
+onramp1.merge(main_road, self_index=0, new_lane_index=1, self_pos=(1100, 1350), new_lane_pos=(1100, 1350))
 offramp2 = hs.Road(num_lanes=1, length=[(5330, 5530)], name='ann arbor saline off ramp')
 main_road.merge(offramp2, self_index=1, new_lane_index=0, self_pos=(5330, 5480), new_lane_pos=(5330, 5480))
 offramp2.connect('offramp 2', is_exit=True)
-onramp2 = hs.Road(num_lanes=1, length=[(6050, 6330)], name='ann arbor saline on ramp SW')
-onramp2.merge(main_road, self_index=0, new_lane_index=1, self_pos=(6150, 6330), new_lane_pos=(6150, 6330))
-onramp3 = hs.Road(num_lanes=1, length=[(6510, 6810)], name='ann arbor saline on ramp NE')
-onramp3.merge(main_road, self_index=0, new_lane_index=1, self_pos=(6710, 6810), new_lane_pos=(6710, 6810))
+onramp2 = hs.Road(num_lanes=1, length=[(5950, 6330)], name='ann arbor saline on ramp SW')
+onramp2.merge(main_road, self_index=0, new_lane_index=1, self_pos=(6050, 6330), new_lane_pos=(6050, 6330))
+onramp3 = hs.Road(num_lanes=1, length=[(6410, 6810)], name='ann arbor saline on ramp NE')
+onramp3.merge(main_road, self_index=0, new_lane_index=1, self_pos=(6610, 6810), new_lane_pos=(6610, 6810))
 offramp3 = hs.Road(num_lanes=1, length=[(7810, 7990)], name='state off ramp')
 main_road.merge(offramp3, self_index=1, new_lane_index=0, self_pos=(7810, 7940), new_lane_pos=(7810, 7940))
 offramp3.connect('offramp 3', is_exit=True)
-onramp4 = hs.Road(num_lanes=1, length=[(8410, 8710)], name='state on ramp S')
-onramp4.merge(main_road, self_index=0, new_lane_index=1, self_pos=(8510, 8710), new_lane_pos=(8510, 8710))
-onramp5 = hs.Road(num_lanes=1, length=[(8930, 9230)], name='state on ramp N')
-onramp5.merge(main_road, self_index=0, new_lane_index=1, self_pos=(9130, 9230), new_lane_pos=(9130, 9230))
+onramp4 = hs.Road(num_lanes=1, length=[(8310, 8710)], name='state on ramp S')
+onramp4.merge(main_road, self_index=0, new_lane_index=1, self_pos=(8410, 8710), new_lane_pos=(8510, 8710))
+onramp5 = hs.Road(num_lanes=1, length=[(8830, 9230)], name='state on ramp N')
+onramp5.merge(main_road, self_index=0, new_lane_index=1, self_pos=(9030, 9230), new_lane_pos=(9030, 9230))
 
 # downstream boundary conditions
 main_road.set_downstream({'method': 'free'})
@@ -104,9 +106,10 @@ onramp3.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series
 onramp4.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp4_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp4_newveh)
 onramp5.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp5_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp5_newveh)
 
-simulation = hs.simulation.CrashesSimulation(roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=.25)
 
-timesteps = 3600*8
+simulation = hs.simulation.CrashesSimulation(roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=.2)
+
+timesteps = 3600*10
 replications = 1
 near_miss = 0
 rear_end = 0

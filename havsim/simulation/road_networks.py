@@ -100,15 +100,14 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
         endanchor.pos = self_lane.end
 
         def free_downstream(self, veh, timeind):
-            hd = get_headway(veh, endanchor)
-
             # more aggressive breaking strategy is based on car following model
             if stopping[0] == 'c':
-                acc = veh.get_cf(hd, veh.speed, endanchor, timeind)
+                hd, acc = veh.get_cf(endanchor, timeind)
                 if acc < minacc:
                     return acc
             # another strategy is to only decelerate when absolutely necessary
             else:
+                hd = get_headway(veh, endanchor)
                 if hd < veh.speed**2*.5/-veh.minacc+self.dt*veh.speed:
                     return veh.minacc
             if time_series is not None:
@@ -134,14 +133,14 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
         def call_downstream(self, veh, timeind):
             # stop if we are nearing end of self_lane
             if endanchor is not None:
-                hd = get_headway(veh, endanchor)
                 # more aggressive breaking strategy is based on car following model
                 if stopping[0] == 'c':
-                    acc = veh.get_cf(hd, veh.speed, endanchor, timeind)
+                    hd, acc = veh.get_cf(endanchor, timeind)
                     if acc < minacc:
                         return acc
                 # another strategy is to only decelerate when absolutely necessary
                 else:
+                    hd = get_headway(veh, endanchor)
                     if hd < veh.speed**2*.5/-veh.minacc+self.dt*veh.speed:
                         return veh.minacc
             # try to find a vehicle to use for shifted speed
@@ -447,9 +446,8 @@ def shifted_speed_inflow(curlane, inflow, timeind, shift=1, accel_bound=-.5, **k
 
     if accel_bound is not None:
         newveh = curlane.newveh
-        newveh.lane = curlane
-        acc = newveh.get_cf(hd, spd, lead, timeind)
-        if acc > accel_bound and hd > 0:  # headway required to be positive for IDM
+        acc = newveh.cf_model(newveh.cf_parameters, [hd, spd, lead.speed])
+        if acc > accel_bound and hd > 0:
             return curlane.start, spd, hd
         else:
             return None
@@ -495,11 +493,10 @@ def newell_inflow(curlane, inflow, timeind, p=None, accel_bound=-2, **kwargs):
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
     newveh = curlane.newveh
-    newveh.lane = curlane
     spd = max(min((hd - p[1])/p[0], newveh.maxspeed), 0)
 
     if accel_bound is not None:
-        acc = newveh.get_cf(hd, spd, lead, timeind)
+        acc = newveh.cf_model(newveh.cf_parameters, [hd, spd, lead.speed])
         if acc > accel_bound and hd > 0:
             return curlane.start, spd, hd
         else:
@@ -516,8 +513,7 @@ def speed_inflow(curlane, inflow, timeind, speed_series=None, accel_bound=-2, **
 
     if accel_bound is not None:
         newveh = curlane.newveh
-        newveh.lane = curlane
-        acc = newveh.get_cf(hd, spd, lead, timeind)
+        acc = newveh.cf_model(newveh.cf_parameters, [hd, spd, lead.speed])
         if acc > accel_bound and hd > 0:
             return curlane.start, spd, hd
         else:
@@ -540,6 +536,8 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
     Args:
         method: One of 'ceql' (eql_inflow_congested), 'feql' (eql_inflow_free), 'seql' (eql_speed),
             'shifted' (shifted_speed_inflow), 'newell', or 'speed' (speed_inflow) - refer to those functions.
+            Note that the method is only used when the lead is not None; otherwise the vehicle will always be added
+            with close to maximum speed.
             We suggest using 'seql' method as it seems to provide the most consistent results and works in
             both congested/uncongested conditions, including the transition between those.
             The function should take in the inflow lane, inflow amount, timeind, as well as any
@@ -579,14 +577,6 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
         if self.inflow_buffer >= 1:
 
             if self.anchor.lead is None:  # rule for adding vehicles when road is empty
-                # old rule
-                #     if spd is None:
-                #         if speed_series is not None:
-                #             spd = speed_series(timeind)
-                #         else:
-                #             spd = self.newveh.inv_flow(inflow, congested=True)
-
-                # new rule
                 spd = self.newveh.maxspeed*.9 if spd is None else spd
                 out = (self.start, spd, None)
             else:  # normal rule for adding vehicles
@@ -709,8 +699,8 @@ class AnchorVehicle:
         self.len = 0
 
     def get_cf(self, *args):
-        """Dummy method returns 0 for cf model - so we don't have to check for anchors when calling set_lc."""
-        return 0
+        """Dummy method - so we don't have to check for anchors when calling set_lc."""
+        return None, 0
 
     def set_relax(self, *args):
         """Dummy method does nothing - it's so we don't have to check for anchors when applying relax."""

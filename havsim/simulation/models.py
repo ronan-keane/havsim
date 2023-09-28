@@ -2,6 +2,7 @@
 
 import math
 import numpy as np
+from havsim.simulation.road_networks import get_headway
 
 
 def IDM(p, state):
@@ -127,17 +128,25 @@ def havsim_mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd
     Returns:
         None. (modifies lc_actions in place)
     """
-    p = veh.lc_parameters
-    if veh.in_disc:
-        if timeind < veh.disc_cooldown:
-            return lc_actions, lc_fol
-        elif np.random.rand() > p[6]:
-            return lc_actions, lc_fol
+    if veh.chk_disc:
+        if np.random.rand() > veh.lc_parameters[6]:
+            return lc_actions, lc_followers
 
-    llc, rlc = veh.l_lc, veh.r_lc
-    if llc == 'd':
-        if rlc is None:
-            pass
+    p, l_lc, r_lc = veh.lc_parameters, veh.l_lc, veh.r_lc
+    if l_lc == 'd':
+        if r_lc is None:
+            new_lcfol = veh.lfol
+            new_lcfol_hd, new_lcfol_a = new_lcfol.get_cf(veh, timeind)
+            new_veh_hd, new_veh_a = veh.get_cf(new_lcfol.lead, timeind)
+            new_fol_hd, new_fol_a = veh.fol.get_cf(veh.lead, timeind)
+
+            incentive = new_veh_a - veh.acc + p[3]*(new_lcfol_a - new_lcfol.acc + new_fol_a - veh.fol.acc) + p[4]
+
+
+
+    if veh.in_disc:
+        pass
+
     p = veh.lc_parameters
     lincentive = rincentive = -math.inf
     in_disc = veh.in_disc
@@ -273,6 +282,20 @@ def mobil_helper(polite, bias, in_disc, lfol, llead, veh, vehlane, newlfolhd, ne
 
     else:
         return newlfola, newla, 0
+
+def get_new_hd_and_safety(new_fol, veh, timeind):
+    new_acc = veh.get_cf(new_hd, veh.speed, new_lead, timeind)
+
+    new_fol_hd = get_headway(new_fol, veh)
+    new_fol_acc = new_fol.get_cf(new_fol_hd, new_fol.speed, veh, timeind)
+    return new_hd, new_acc, new_fol_hd, new_fol_acc
+
+def get_fol_safety(fol, new_lead, timeind):
+    if new_lead is None:
+        new_hd = None
+    else:
+        new_hd = get_headway(fol, new_lead)
+    new_acc = fol.get_cf(new_hd, fol.speed, new_lead, timeind)
 
 
 def coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol, in_disc, use_coop=True,

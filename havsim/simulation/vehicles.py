@@ -237,18 +237,14 @@ class Vehicle:
     """Base Vehicle class. Implemented for a second order ODE car following model.
 
     Vehicles are responsible for implementing the rules to update their positions. This includes a
-    'car following' (cf) model which is used to update the longitudinal (in the direction of travel) position.
-    There is also a 'lane changing' (lc) model which is used to update the latitudinal (which lane) position.
-    Besides these two fundamental components, Vehicles also need an update method, which updates their
-    longitudinal positions and memory of their past (past memory includes any quantities which are needed
-    to differentiate the simulation).
-    Vehicles also contain the quantities lead, fol, lfol, rfol, llead, and rlead, (i.e. their vehicle
-    relationships) which define the order of vehicles on the road, and is necessary for calling the cf
-    and lc models.
-    Vehicles also maintain a route, which defines what roads they want to travel on in the road network.
-    Besides their actual lc model, Vehicles also handle any additional components of lane changing,
-    such as relaxation, cooperation, or tactical lane changing models.
-    Lastly, the vehicle class has some methods which may be used for certain boundary conditions.
+    'car following' (cf) model which is used to update the position (in the direction of travel).
+    There is also a 'lane changing' (lc) model which can update the vehicle's lane and also add
+    a separate acceleration which affects the car following behavior.
+
+    The cf model is defined primarily through the method cf_model; the method set_cf implements the per-timestep
+    call to cf_model, and the method get_cf exists to evaluate a potential call to cf_model.
+    The lc model is defined through the set_lc method. Note that set_lc relies on the get_cf method by default.
+    The vehicle is updated by the update method.
 
     Attributes:
         vehid: unique vehicle ID for hashing
@@ -258,6 +254,7 @@ class Vehicle:
         cf_parameters: list of float parameters for the cf model
         lc_parameters: list of float parameters for the lc model
         relax_parameters: float parameter for relaxation; if None, no relaxation
+        relaxs_parameters: list of float parameters for relaxation safeguard
         relax: if there is currently relaxation, a list of floats or list of tuples giving the relaxation
             values.
         in_relax: bool, True if there is currently relaxation
@@ -301,27 +298,25 @@ class Vehicle:
         speedmem: list of floats giving the speed, where the 0 index corresponds to the speed at start
         relaxmem: list of tuples where each tuple is (relaxation, first_time) where relaxation
             gives the relaxation values and first_time is the starting time index
-        pos: position (float)
-        speed: speed (float)
-        hd: headway (float)
+        pos: current position (float)
+        speed: current speed (float)
+        hd: current headway (float), or if leader is None, the previous headway
         acc: acceleration (float)
+        lc_acc: acceleration due to lane change model
         llane: the Lane to the left of the current lane the vehicle is on, or None
         rlane: the Lane to the right of the current lane the vehicle is on, or None
-        l_lc: the current lane changing state for the left side, None, 'discretionary' or 'mandatory'
-        r_lc: the current lane changing state for the right side, None, 'discretionary' or 'mandatory'
-        lside: If True, we need to evaluate making a left lane change
-        rside: If True, we need to evaluate making a right lane change
-        in_disc: If True, we are in a discretionary lane changing state
-        chk_lc: If True, we are either in a mandatory or active discretionary lane changing state
+        l_lc: the current lane changing state for the left side, None, 'd' (discretionary) or 'm' (mandatory)
+        r_lc: the current lane changing state for the right side, None, 'd' (discretionary) or 'm' (mandatory)
+        chk_disc: If True, do additional check to enter into lane change model calculation (for discretionary state).
+        is_disc: If True, lane changing model checks discretionary condition. Check mandatory condition otherwise.
         cur_route: dictionary where keys are lanes, value is a list of route event dictionaries which
             defines the route a vehicle with parameters p needs to take on that lane
         route_events: list of current route events for current lane
         lane_events: list of lane events for current lane
     """
     # TODO implementation of adjoint method for cf, relax, shift parameters
-    # TODO set_route_events should be a method of vehicle? use cases -
-        # 1. need to customize route model
-        # 2. want to get rid of route model (e.g. ring road simulation)
+    # TODO set_route_events should be a method of vehicle? (more generally, better compartmentalization of core methods)
+    # TODO numba implementation
 
     def __init__(self, vehid, curlane, cf_parameters, lc_parameters, lead=None, fol=None, lfol=None, rfol=None,
                  llead=None, rlead=None, length=3, eql_type='v', relax_parameters=8.7, relaxs_parameters=None,
@@ -329,7 +324,7 @@ class Vehicle:
                  maxspeed=1e4, hdbounds=None):
         """Inits Vehicle. Cannot be used for simulation until initialize is also called.
 
-        After a Vehicle is created, it is not immediatley added to simulation. This is because different
+        After a Vehicle is created, it is not immediately added to simulation. This is because different
         upstream (inflow) boundary conditions may require to have access to the vehicle's parameters
         and methods before actually adding the vehicle. Thus, to use a vehicle you need to first call
         initialize, which sets the remaining attributes.
@@ -451,14 +446,14 @@ class Vehicle:
         if self.llane is None:
             self.l_lc = None
         elif self.llane.roadname == self.road:
-            self.l_lc = 'discretionary'
+            self.l_lc = 'd'
         else:
             self.l_lc = None
         self.rlane = self.lane.get_connect_right(pos)
         if self.rlane is None:
             self.r_lc = None
         elif self.rlane.roadname == self.road:
-            self.r_lc = 'discretionary'
+            self.r_lc = 'd'
         else:
             self.r_lc = None
         self.update_lc_state(start)
@@ -484,30 +479,31 @@ class Vehicle:
         return p[3]*(1-(state[1]/p[0])**4-((p[2]+state[1]*p[1]+(state[1]*(state[1]-state[2])) /
                                             (2*(p[3]*p[4])**(1/2)))/(state[0]))**2)
 
-    def get_cf(self, hd, spd, lead, timeind):
-        """Responsible for normal call to cf_model / call_downstream.
+    def get_cf(self, lead, timeind):
+        """Evaluates car following model if lead was the lead vehicle.
 
         Args:
-            hd (float): headway
-            spd (float): speed
             lead (Vehicle): lead Vehicle
             timeind (int): time index
         Returns:
+            hd (float or None): if lead is not None, the bumper to bumper distance between self and lead.
             acc (float): longitudinal acceleration for current timestep
         """
         if lead is None:
             acc = self.lane.call_downstream(self, timeind)
-        else:
-            acc = self.cf_model(self.cf_parameters, [max(hd, .1), spd, lead.speed])
-        return acc
+            return None, acc
+        hd = get_headway(self, lead)
+        acc = self.cf_model(self.cf_parameters, [max(hd, .1), self.speed, lead.speed])
+        return hd, acc
 
     def set_cf(self, timeind):
         """Sets a vehicle's acceleration, with relaxation added after lane changing."""
+        hd, spd, lead = self.hd, self.speed, self.lead
         if self.in_relax:
-            if self.lead is None:
+            if lead is None:
                 self.acc = self.lane.call_downstream(self, timeind)
                 return
-            hd, spd, lead, p = self.hd, self.speed, self.lead, self.relaxs_parameters
+            p = self.relaxs_parameters
             ttc = hd - 2 - p[0]*spd
             ttc = 0 if ttc < 0 else ttc / (spd - lead.speed + 1e-6)
             currelax, currelax_v = self.relax[timeind - self.relax_start]
@@ -516,7 +512,10 @@ class Vehicle:
                 currelax_v = currelax_v * (ttc / p[1]) ** 2 if currelax_v > 0 else currelax_v
             self.acc = self.cf_model(self.cf_parameters, [max(hd + currelax, .1), spd, lead.speed + currelax_v])
         else:
-            self.acc = self.get_cf(self.hd, self.speed, self.lead, timeind)
+            if lead is None:
+                self.acc = self.lane.call_downstream(self, timeind)
+                return
+            self.acc = self.cf_model(self.cf_parameters, [max(hd, .1), spd, lead.speed])
 
     def set_relax(self, timeind, dt):
         """Creates a new relaxation after lane change."""
@@ -590,19 +589,25 @@ class Vehicle:
         return inv_flow_helper(self, x, leadlen, output_type, congested, self.eql_type,
                                (0, self.maxspeed), self.hdbounds)
 
-    def set_lc(self, lc_actions, lc_fol, timeind):
+    def set_lc(self, lc_actions, lc_followers, timeind):
         """Evaluates a vehicle's lane changing model.
 
-        The result of the lane changing (lc) model can be either 'l' or 'r' for left/right respectively,
-        or None, in which case there is no lane change. If the model has tactical/cooperative elements added,
-        calling the lc model may cause some vehicles to enter into a tactical or cooperative state, which
-        modifies the vehicle's acceleration by using the shift_eql method.
+        If a vehicle makes a lane change, it must be recorded in the dictionary lc_actions. The LC will be completed
+        except in the case where multiple vehicles try to change in front of the same vehicle. In that case, only
+        one of the lane changes can be completed.
+
+        The set_lc method may also affect the acceleration by setting the attribute lc_acc. This is a separate
+        acceleration from the 'acc' attribute set by set_cf. The lc_acc and acc are added to get the final acceleration.
 
         Args:
-            lc_actions: dictionary where keys are Vehicles which changed lanes, values are the side of change
+            lc_actions: dictionary where keys are Vehicles which request to change lanes, values are the side of change
+                (either 'l' or 'r')
+            lc_followers: For any Vehicle which request to change lanes, the new follower must be a key in lc_followers,
+                value is a list of all vehicles which requested change. Used to prevent multiple vehicles from changing
+                in front of same follower in the same timestep.
             timeind: time index
         Returns:
-            None. (Modifies lc_actions, some vehicle attributes, in place)
+            lc_actions, lc_followers. (Note that the self is also modified in place.)
         """
         call_model, args = set_lc_helper(self, self.l_lc, self.r_lc, timeind, self.chk_lc, self.lc_parameters[6])
         if call_model:

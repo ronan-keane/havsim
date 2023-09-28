@@ -74,23 +74,23 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
     """
     # options - time_series
     if method == 'speed':  # specify a function which takes in time and returns the speed
-        def call_downstream(self, veh, timeind, dt):
+        def call_downstream(self, veh, timeind):
             speed = time_series(timeind)
-            return veh.acc_bounds((speed - veh.speed)/dt)
+            return veh.acc_bounds((speed - veh.speed)/self.dt)
         return call_downstream
 
     # options - none
     elif method == 'free':  # use free flow method of the vehicle
-        def free_downstream(self, veh, *args):
+        def free_downstream(self, veh, timeind):
             return veh.free_cf(veh.cf_parameters, veh.speed)
         return free_downstream
 
     # options - time_series, congested
     elif method == 'flow':  # specify a function which gives the flow, we invert the flow to obtain speed
-        def call_downstream(self, veh, timeind, dt):
+        def call_downstream(self, veh, timeind):
             flow = time_series(timeind)
             speed = veh.inv_flow(flow, output_type='v', congested=congested)
-            return (speed - veh.speed)/dt
+            return (speed - veh.speed)/self.dt
         return call_downstream
 
     # options - minacc, self_lane
@@ -98,21 +98,20 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
         endanchor = AnchorVehicle(self_lane, None)
         endanchor.pos = self_lane.end
 
-        def free_downstream(self, veh, timeind, dt):
+        def free_downstream(self, veh, timeind):
             hd = get_headway(veh, endanchor)
 
             # more aggressive breaking strategy is based on car following model
             if stopping[0] == 'c':
-                acc = veh.get_cf(hd, veh.speed, endanchor, veh.lane, timeind, dt, veh.in_relax)
+                acc = veh.get_cf(hd, veh.speed, endanchor, timeind)
                 if acc < minacc:
                     return acc
-
             # another strategy is to only decelerate when absolutely necessary
             else:
-                if hd < veh.speed**2*.5/-veh.minacc+dt*veh.speed:
+                if hd < veh.speed**2*.5/-veh.minacc+self.dt*veh.speed:
                     return veh.minacc
             if time_series is not None:
-                return (time_series(timeind) - veh.speed)/dt
+                return (time_series(timeind) - veh.speed)/self.dt
             return veh.free_cf(veh.cf_parameters, veh.speed)
         return free_downstream
 
@@ -131,21 +130,19 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
         else:
             endanchor = None
 
-        def call_downstream(self, veh, timeind, dt):
+        def call_downstream(self, veh, timeind):
             # stop if we are nearing end of self_lane
             if endanchor is not None:
                 hd = get_headway(veh, endanchor)
                 # more aggressive breaking strategy is based on car following model
                 if stopping[0] == 'c':
-                    acc = veh.get_cf(hd, veh.speed, endanchor, veh.lane, timeind, dt, veh.in_relax)
+                    acc = veh.get_cf(hd, veh.speed, endanchor, timeind)
                     if acc < minacc:
                         return acc
-
                 # another strategy is to only decelerate when absolutely necessary
                 else:
-                    if hd < veh.speed**2*.5/-veh.minacc+dt*veh.speed:
+                    if hd < veh.speed**2*.5/-veh.minacc+self.dt*veh.speed:
                         return veh.minacc
-
             # try to find a vehicle to use for shifted speed
             # first check if we can use your current lc side follower
             # if that fails, try using the merge anchor for the target_lane.
@@ -162,12 +159,12 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
                 fol = fol.lead
 
             if fol is not None:  # fol must either be none or a vehicle (can't be anchor)
-                speed = shift_speed(fol.speedmem, shift, dt)
+                speed = shift_speed(fol.speedmem, shift, self.dt)
             elif time_series is not None:
                 speed = time_series(timeind)
             else:
                 return veh.free_cf(veh.cf_parameters, veh.speed)
-            return (speed - veh.speed)/dt
+            return (speed - veh.speed)/self.dt
 
         return call_downstream
 
@@ -194,9 +191,9 @@ def get_inflow_wrapper(time_series=None, args=(None,), inflow_type='flow'):
             condition caused by simulations with different Vehicle parameters.
             Requires get_eql method of the Vehicle.
 
-            'arrivals' - We sample from some distribution to generate the next (continuous) arrival time.
-            When we pass that time in the simulation (time index >= next arrival time), we add 1 flow. *args
-            is passed to arrival_time_inflow.__init__
+            'arrivals' - We sample from some distribution to generate the next (continuous) arrival time. This is
+            converted to an instantaneous arrival rate.
+
 
     Returns:
         get_inflow method for a Lane. Takes in (timeind) and returns instantaneous flow, vehicle speed,
@@ -282,26 +279,39 @@ class M3Arrivals:
 class arrival_time_inflow:
     """Implements get_inflow method for a Lane where inflow is generated by stochastic arrival times."""
 
-    def __init__(self, dist, dt, timeind=0):
+    def __init__(self, dist, dt, start=0):
         """
         Args:
             dist: calling dist() should generate an arrivals time. Can be a class, e.g. M3Arrivals.
             dt: timestep
-            timeind: index of the first inflow
+            start: timeind of the first inflow
         """
         self.dist = dist  # distribution
         self.dt = dt
-        self.next_timeind = timeind + dist(timeind)/dt
+
+        self.arrival_time = dist(start)
+        assert self.arrival_time > self.dt
+        assert start >= 0
+        self.flow = 1/self.arrival_time
+        self.next_time = start + self.arrival_time / self.dt
+        self.next_timeind = int(self.next_time) + 1
 
     def __call__(self, timeind):
-        if timeind >= self.next_timeind:
-            self.next_timeind += self.dist(timeind)/self.dt
-            return 1/self.dt
+        if timeind == self.next_timeind:
+            self.arrival_time = self.dist(timeind)
+            self.next_time += self.arrival_time/self.dt
+            assert self.next_time > timeind
+            new_flow = 1/self.arrival_time
+            overlap_time = timeind - (self.next_time - self.arrival_time/self.dt)
+            cur_flow = self.flow*(1 - overlap_time) + new_flow*overlap_time
+            self.next_timeind = int(self.next_time) + 1
+            self.flow = new_flow
+            return cur_flow
         else:
-            return 0
+            return self.flow
 
 
-def eql_inflow_congested(curlane, inflow, *args, c=.8, check_gap=True, **kwargs):
+def eql_inflow_congested(curlane, inflow, timeind, c=.8, check_gap=True, **kwargs):
     """Condition when adding vehicles for use in congested conditions. Requires to invert flow.
 
     Suggested by Treiber, Kesting in their traffic flow book for congested conditions. Requires to invert
@@ -321,12 +331,6 @@ def eql_inflow_congested(curlane, inflow, *args, c=.8, check_gap=True, **kwargs)
         If The vehicle is not to be added, we return None. Otherwise, we return the (pos, spd, hd) for the
         vehicle to be added with.
     """
-    # lead = curlane.anchor.lead
-    # if lead is None:  # special case where the first vehicle is being added # treated in increment_inflow
-    #     leadlen = curlane.newveh.len
-    #     spd = curlane.newveh.inv_flow(inflow, leadlen = leadlen, output_type = 'v')
-    #     return curlane.start, spd, None
-
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
     leadlen = lead.len
@@ -342,7 +346,7 @@ def eql_inflow_congested(curlane, inflow, *args, c=.8, check_gap=True, **kwargs)
         return None
 
 
-def eql_inflow_free(curlane, inflow, *args, **kwargs):
+def eql_inflow_free(curlane, inflow, timeind, **kwargs):
     """Suggested by Treiber, Kesting for free conditions. Requires to invert the inflow to obtain velocity."""
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
@@ -351,7 +355,7 @@ def eql_inflow_free(curlane, inflow, *args, **kwargs):
     return curlane.start, spd, hd
 
 
-def eql_speed(curlane, *args, c=.8, minspeed=0, eql_speed=True, **kwargs):
+def eql_speed(curlane, inflow, timeind, c=.8, minspeed=0, eql_speed=True, **kwargs):
     """Add a vehicle with a speed determined from the vehicle's equilibrium solution.
 
     This is similar to the eql_inflow but uses microscopic quantities instead of flow. First, calculate the
@@ -390,7 +394,7 @@ def eql_speed(curlane, *args, c=.8, minspeed=0, eql_speed=True, **kwargs):
         return None
 
 
-def eql_speed2(curlane, *args, c=.8, minspeed=0, eql_speed=True, transition=20, **kwargs):
+def eql_speed2(curlane, inflow, timeind, c=.8, minspeed=0, eql_speed=True, transition=20, **kwargs):
     """Allow transition back to uncongested state corresponding to inflow with speed transition."""
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
@@ -413,7 +417,7 @@ def eql_speed2(curlane, *args, c=.8, minspeed=0, eql_speed=True, transition=20, 
         return None
 
 
-def shifted_speed_inflow(curlane, inflow, timeind, dt, shift=1, accel_bound=-.5, **kwargs):
+def shifted_speed_inflow(curlane, inflow, timeind, shift=1, accel_bound=-.5, **kwargs):
     """Extra condition for upstream boundary based on Newell model and a vehicle's car following model.
 
     We get the first speed for the vehicle based on the shifted speed of the lead vehicle (similar to Newell
@@ -433,11 +437,12 @@ def shifted_speed_inflow(curlane, inflow, timeind, dt, shift=1, accel_bound=-.5,
     # might make more sense to use the lead.lead if leader trajectory is not long enough.
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
-    spd = shift_speed(lead.speedmem, shift, dt)
+    spd = shift_speed(lead.speedmem, shift, curlane.dt)
 
     if accel_bound is not None:
         newveh = curlane.newveh
-        acc = newveh.get_cf(hd, spd, lead, curlane, None, dt, False)
+        newveh.lane = curlane
+        acc = newveh.get_cf(hd, spd, lead, timeind)
         if acc > accel_bound and hd > 0:  # headway required to be positive for IDM
             return curlane.start, spd, hd
         else:
@@ -463,7 +468,7 @@ def shift_speed(speed_series, shift, dt):
     return spd
 
 
-def newell_inflow(curlane, inflow, timeind, dt, p=[1, 2], accel_bound=-2, **kwargs):
+def newell_inflow(curlane, inflow, timeind, p=None, accel_bound=-2, **kwargs):
     """Extra condition for upstream boundary based on DE form of Newell model.
 
     This is like shifted_speed_inflow, but since we use the DE form of the Newell model, there is a maximum
@@ -480,13 +485,15 @@ def newell_inflow(curlane, inflow, timeind, dt, p=[1, 2], accel_bound=-2, **kwar
 
     Returns: None if no vehicle is to be added, otherwise a (pos, speed, headway) tuple for IC of new vehicle.
     """
+    p = p if p else [1, 2]
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
     newveh = curlane.newveh
+    newveh.lane = curlane
     spd = max(min((hd - p[1])/p[0], newveh.maxspeed), 0)
 
     if accel_bound is not None:
-        acc = newveh.get_cf(hd, spd, lead, curlane, None, dt, False)
+        acc = newveh.get_cf(hd, spd, lead, timeind)
         if acc > accel_bound and hd > 0:
             return curlane.start, spd, hd
         else:
@@ -495,7 +502,7 @@ def newell_inflow(curlane, inflow, timeind, dt, p=[1, 2], accel_bound=-2, **kwar
     return curlane.start, spd, hd
 
 
-def speed_inflow(curlane, inflow, timeind, dt, speed_series=None, accel_bound=-2, **kwargs):
+def speed_inflow(curlane, inflow, timeind, speed_series=None, accel_bound=-2, **kwargs):
     """Like shifted_speed_inflow, but gets speed from speed_series instead of the shifted leader speed."""
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
@@ -503,7 +510,8 @@ def speed_inflow(curlane, inflow, timeind, dt, speed_series=None, accel_bound=-2
 
     if accel_bound is not None:
         newveh = curlane.newveh
-        acc = newveh.get_cf(hd, spd, lead, curlane, None, dt, False)
+        newveh.lane = curlane
+        acc = newveh.get_cf(hd, spd, lead, timeind)
         if acc > accel_bound and hd > 0:
             return curlane.start, spd, hd
         else:
@@ -528,7 +536,7 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
             'shifted' (shifted_speed_inflow), 'newell', or 'speed' (speed_inflow) - refer to those functions.
             We suggest using 'seql' method as it seems to provide the most consistent results and works in
             both congested/uncongested conditions, including the transition between those.
-            The function should take in the inflow lane, inflow amount, timeind, and dt, as well as any
+            The function should take in the inflow lane, inflow amount, timeind, as well as any
             extra keyword options, and return the initial position, speed, and headway of the vehicle to be
             added. If a vehicle cannot be added, it should return None.
         kwargs: dictionary of keyword arguments for the method chosen.
@@ -558,9 +566,9 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
     elif method == 'newell':
         method_fun == newell_inflow
 
-    def increment_inflow(self, vehicles, vehid, timeind, dt):
+    def increment_inflow(self, vehicles, vehid, timeind):
         inflow, spd = self.get_inflow(timeind)
-        self.inflow_buffer += inflow * dt
+        self.inflow_buffer += inflow * self.dt
 
         if self.inflow_buffer >= 1:
 
@@ -576,7 +584,7 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
                 spd = self.newveh.maxspeed*.9
                 out = (self.start, spd, None)
             else:  # normal rule for adding vehicles
-                out = method_fun(self, inflow, timeind, dt, **kwargs)
+                out = method_fun(self, inflow, timeind, **kwargs)
 
             if out is None:
                 return vehid

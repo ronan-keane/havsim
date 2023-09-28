@@ -202,5 +202,64 @@ class Simulation:
         for i in range(timesteps):
             self.step()
 
-    def reset(self):  # noqa # TODO - ability to put simulation back to initial time
-        pass
+    def reset(self):
+        """Reset simulation to initial state."""
+        self.vehicles = set() if self.init_vehicles is None else copy.deepcopy(self.init_vehicles)
+        self.prev_vehicles = [] if self.init_prev_vehicles is None else copy.deepcopy(self.init_prev_vehicles)
+        self.vehid = self.init_vehid
+        self.timeind = self.init_timeind
+        # reset state of boundary conditions
+        for curlane in self.inflow_lanes:
+            self.vehid = curlane.initialize_inflow(self.vehid)
+        # reset state of all AnchorVehicles
+        for road in self.roads:
+            for lane in road.lanes:
+                lane.anchor.reset()
+                lane.dt = self.dt  # also make sure all lanes have access to dt
+        # reset merge anchors
+        for lane in self.merge_lanes:
+            lane.merge_anchors = [anchor.copy() for anchor in self.init_merge_anchors[lane]]
+
+
+class CrashesSimulation(Simulation):
+    """Keeps track of crashes in a simulation. Vehicles must have update_after_crash method."""
+    def __init__(self, **kwargs):
+        self.near_miss_veh = set()
+        self.crashed_veh = set()
+        self.crashes = []
+        super().__init__(**kwargs)
+
+    def reset(self):
+        super().reset()
+        self.near_miss_veh = set()
+        self.crashed_veh = set()
+        self.crashes = []
+
+    def step(self):
+        super().step()
+
+        for veh in self.vehicles:
+            lead, hd = veh.lead, veh.hd
+            if lead is not None:
+                if 0 < hd/(veh.speed - lead.speed + 1e-6) < 0.4 or hd < 0:  # check for possible near misses
+                    self.near_miss_veh.add(veh)
+                if hd < 0:  # check for crashes
+                    if veh.crashed and lead.crashed:
+                        continue
+                    most_recent_lc_time = max(veh.lanemem[-1][1], lead.lanemem[-1][1])
+                    if self.timeind - most_recent_lc_time < 6:  # LC is not 'completed', so no crash has occured yet
+                        continue
+                    if not veh.crashed and not lead.crashed:  # normal case of new crash
+                        veh.update_after_crash(self.timeind)
+                        lead.update_after_crash(self.timeind)
+                        self.crashed_veh.add(veh)
+                        self.crashed_veh.add(lead)
+                        self.crashes.append([veh, lead])
+                    else:  # another vehicle is added to the previous crash
+                        (crashed_veh, new_veh) = (veh, lead) if veh.crashed else (lead, veh)
+                        new_veh.update_after_crash(self.timeind)
+                        self.crashed_veh.add(new_veh)
+                        for crash in self.crashes[-1::-1]:
+                            if crashed_veh in crash:
+                                crash.append(new_veh)
+                                break

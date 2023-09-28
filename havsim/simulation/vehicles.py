@@ -197,12 +197,12 @@ def set_lc_helper(veh, lside, rside, timeind, chk_lc=True, chk_lc_prob=1, get_fo
 
     # next we compute quantities to send to LC model for the required sides
     if lside:
-        newlfolhd, newlhd = get_new_hd(veh.lfol, veh, veh.llane)
+        newlfolhd, newlhd = get_new_hd(veh.lfol, veh)
     else:
         newlfolhd = newlhd = None
 
     if rside:
-        newrfolhd, newrhd = get_new_hd(veh.rfol, veh, veh.rlane)
+        newrfolhd, newrhd = get_new_hd(veh.rfol, veh)
     else:
         newrfolhd = newrhd = None
 
@@ -217,14 +217,12 @@ def set_lc_helper(veh, lside, rside, timeind, chk_lc=True, chk_lc_prob=1, get_fo
     return True, (newlfolhd, newlhd, newrfolhd, newrhd, newfolhd)
 
 
-def get_new_hd(lcsidefol, veh, lcsidelane):
+def get_new_hd(lcsidefol, veh):
     """Calculates new headways for a vehicle and its left or right follower.
 
     Args:
         lcsidefol: either the lfol or rfol of veh.
         veh: Vehicle whose lane changing model is being evaluated
-        lcsidelane: the lcside lane of veh.
-
     Returns:
         newlcsidefolhd: new float headway for lcsidefol
         newlcsidehd: new float headway for veh
@@ -331,8 +329,8 @@ class Vehicle:
         # 1. need to customize route model
         # 2. want to get rid of route model (e.g. ring road simulation)
 
-    def __init__(self, vehid, curlane, cf_parameters, lc_parameters, lead=None, fol=None, lfol=None,
-                 rfol=None, llead=None, rlead=None, length=3, eql_type='v', relax_parameters=15,
+    def __init__(self, vehid, curlane, cf_parameters, lc_parameters, lead=None, fol=None, lfol=None, rfol=None,
+                 llead=None, rlead=None, length=3, eql_type='v', relax_parameters=8.7, relaxs_parameters=None,
                  shift_parameters=None, coop_parameters=.2, route_parameters=None, route=None, accbounds=None,
                  maxspeed=1e4, hdbounds=None):
         """Inits Vehicle. Cannot be used for simulation until initialize is also called.
@@ -359,6 +357,7 @@ class Vehicle:
             eql_type: If 'v', the vehicle's eqlfun accepts a speed and returns a headway. Otherwise it
             accepts a headway and returns a speed.
             relax_parameters: float parameter for relaxation; if None, no relaxation
+            relaxs_parameters: list of float parameters for relaxation safeguard
             shift_parameters: list of float parameters for the tactical/cooperative model. shift_parameters
                 control how a vehicle can modify its acceleration in order to facilitate lane changing.
                 By default, gives the deceleration/acceleration amounts which are added to the car following
@@ -383,6 +382,7 @@ class Vehicle:
 
         # relaxation
         self.relax_parameters = relax_parameters
+        self.relaxs_parameters = [.1, 1.5] if relaxs_parameters is None else relaxs_parameters
         self.in_relax = False
         self.relax = None
         self.relax_start = None
@@ -490,68 +490,42 @@ class Vehicle:
         return p[3]*(1-(state[1]/p[0])**4-((p[2]+state[1]*p[1]+(state[1]*(state[1]-state[2])) /
                                             (2*(p[3]*p[4])**(1/2)))/(state[0]))**2)
 
-    def get_cf(self, hd, spd, lead, curlane, timeind, dt, userelax):
-        """Responsible for the actual call to cf_model / call_downstream.
+    def get_cf(self, hd, spd, lead, timeind):
+        """Responsible for normal call to cf_model / call_downstream.
 
         Args:
             hd (float): headway
             spd (float): speed
             lead (Vehicle): lead Vehicle
-            curlane (Lane): lane self Vehicle is on
             timeind (int): time index
-            dt (float): timestep
-            userelax (bool): boolean for relaxation
-
         Returns:
             acc (float): longitudinal acceleration for current timestep
         """
         if lead is None:
-            acc = curlane.call_downstream(self, timeind, dt)
-
+            acc = self.lane.call_downstream(self, timeind)
         else:
-            if userelax:
-                ### relaxation formulations
-                # always use vanilla - can potentially lead to collisions
-                # normal_relax=True
-
-                # safeguard for relaxation
-                ttc = max(hd - 2 - .6*spd, 1e-6)/(spd-lead.speed+1e-6)
-                if ttc < 1.5 and ttc > 0:
-                    normal_relax = False
-                    currelax, currelax_v = self.relax[timeind-self.relax_start]
-                    # safeguard based on equilibrium
-                    # if currelax > 0:
-                    #     eql_hd = self.get_eql(lead.speed, input_type='v')
-                    #     currelax = min(currelax, eql_hd - hd)
-                    currelax = currelax*(ttc/1.5) if currelax > 0 else currelax
-                    currelax_v = currelax_v*(ttc/1.5) if currelax_v > 0 else currelax_v
-                    acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
-                    # acc = max(acc, self.minacc)
-                else:
-                    normal_relax = True
-
-                # alternative formulation applies control to ttc (not recommended)
-                # v_sens = .3+(timeind-self.relax_start)*dt/self.relax_parameters
-                # acc, normal_relax = models.relaxation_model_ttc([1.5, 2, v_sens, 1],
-                #                                                 [hd, spd, lead.speed], dt)
-                ###
-                if normal_relax:
-                    currelax, currelax_v = self.relax[timeind-self.relax_start]
-                    # currelax = self.relax[timeind - self.relax_start]
-
-                    acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed + currelax_v])
-                    # acc = self.cf_model(self.cf_parameters, [hd + currelax, spd, lead.speed])
-            else:
-                acc = self.cf_model(self.cf_parameters, [hd, spd, lead.speed])
-
+            acc = self.cf_model(self.cf_parameters, [max(hd, .1), spd, lead.speed])
         return acc
 
-    def set_cf(self, timeind, dt):
-        """Sets a vehicle's acceleration by calling get_cf."""
-        self.acc = self.get_cf(self.hd, self.speed, self.lead, self.lane, timeind, dt, self.in_relax)
+    def set_cf(self, timeind):
+        """Sets a vehicle's acceleration, with relaxation added after lane changing."""
+        if self.in_relax:
+            if self.lead is None:
+                self.acc = self.lane.call_downstream(self, timeind)
+                return
+            hd, spd, lead, p = self.hd, self.speed, self.lead, self.relaxs_parameters
+            ttc = hd - 2 - p[0]*spd
+            ttc = 0 if ttc < 0 else ttc / (spd - lead.speed + 1e-6)
+            currelax, currelax_v = self.relax[timeind - self.relax_start]
+            if p[1] > ttc >= 0:
+                currelax = currelax * (ttc / p[1]) ** 2 if currelax > 0 else currelax
+                currelax_v = currelax_v * (ttc / p[1]) ** 2 if currelax_v > 0 else currelax_v
+            self.acc = self.cf_model(self.cf_parameters, [max(hd + currelax, .1), spd, lead.speed + currelax_v])
+        else:
+            self.acc = self.get_cf(self.hd, self.speed, self.lead, timeind)
 
     def set_relax(self, timeind, dt):
-        """Applies relaxation - make sure get_cf is set up to correctly use relaxation."""
+        """Creates a new relaxation after lane change."""
         new_relaxation(self, timeind, dt, True)
 
     def free_cf(self, p, spd):
@@ -622,22 +596,8 @@ class Vehicle:
         return inv_flow_helper(self, x, leadlen, output_type, congested, self.eql_type,
                                (0, self.maxspeed), self.hdbounds)
 
-    def shift_eql(self, state):
-        """Model used for applying tactical/cooperative acceleration during lane changes.
-
-        It is assumed that we can give one of two commands - either 'decel' or 'accel' to make the vehicle
-        give more or less space, respectively.
-
-        Args:
-            state: either 'decel' if we want vehicle to increase its headway, otherwise 'accel'
-
-        Returns:
-            TYPE: float acceleration
-        """
-        return models.generic_shift(0, 0, self.shift_parameters, state)
-
-    def set_lc(self, lc_actions, timeind, dt):
-        """Evaluates a vehicle's lane changing model, recording the result in lc_actions.
+    def set_lc(self, lc_actions, lc_fol, timeind):
+        """Evaluates a vehicle's lane changing model.
 
         The result of the lane changing (lc) model can be either 'l' or 'r' for left/right respectively,
         or None, in which case there is no lane change. If the model has tactical/cooperative elements added,
@@ -647,13 +607,10 @@ class Vehicle:
         Args:
             lc_actions: dictionary where keys are Vehicles which changed lanes, values are the side of change
             timeind: time index
-            dt: timestep
-
         Returns:
             None. (Modifies lc_actions, some vehicle attributes, in place)
         """
-        call_model, args = set_lc_helper(self, self.lside, self.rside, timeind, self.chk_lc,
-                                         self.lc_parameters[6])
+        call_model, args = set_lc_helper(self, self.l_lc, self.r_lc, timeind, self.chk_lc, self.lc_parameters[6])
         if call_model:
             models.mobil(self, lc_actions, *args, timeind, dt)
         return

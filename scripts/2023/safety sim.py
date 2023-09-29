@@ -11,7 +11,7 @@ def veh_parameters():
     s1 = np.random.rand()*6-4
     s2 = np.random.rand()*.3-.2
     cf_p = [35+s1, 1.3+s2, 2, 1.1, 1.5]
-    lc_p = [-4, -8, .6, .1, 0., 0., .15, 25, 42]
+    lc_p = [-4, -8, .3, .15, 0., 0., .2, 10, 42]
     kwargs = {'relax_parameters': 8.7, 'relaxs_parameters': [0.05, 1.5],
               'shift_parameters': [-4, 2], 'coop_parameters': 0.2, 'route_parameters': [300, 200],
               'accbounds': [-10, None], 'maxspeed': cf_p[0]-1e-6, 'hdbounds': (cf_p[2]+1e-6, 1e4)}

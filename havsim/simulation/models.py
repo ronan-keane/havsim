@@ -135,17 +135,47 @@ def havsim_mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd
     p, l_lc, r_lc = veh.lc_parameters, veh.l_lc, veh.r_lc
     if l_lc == 'd':
         if r_lc is None:
-            new_lcfol = veh.lfol
-            new_lcfol_hd, new_lcfol_a = new_lcfol.get_cf(veh, timeind)
-            new_veh_hd, new_veh_a = veh.get_cf(new_lcfol.lead, timeind)
             new_fol_hd, new_fol_a = veh.fol.get_cf(veh.lead, timeind)
-
+            new_lcfol = veh.lfol
+            new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
             incentive = new_veh_a - veh.acc + p[3]*(new_lcfol_a - new_lcfol.acc + new_fol_a - veh.fol.acc) + p[4]
 
+        elif r_lc == 'd':
+            new_fol_hd, new_fol_a = veh.fol.get_cf(veh.lead, timeind)
+            new_lcfol = veh.lfol
+            new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+            incentive = new_veh_a - veh.acc + p[3]*(new_lcfol_a - new_lcfol.acc + new_fol_a - veh.fol.acc) + p[4]
 
+            new_lcfol2 = veh.rfol
+            new_lcfol_hd2, new_veh_hd2, new_lcfol_a2, new_veh_a2 = new_hd_acc_under_lc(new_lcfol2, veh, timeind)
+            incentive2 = new_veh_a2 - veh.acc + p[3]*(new_lcfol_a2 - new_lcfol2.acc + new_fol_a - veh.fol.acc) + p[5]
+            if incentive2 > incentive:
+                incentive = incentive2
+                # todo other stuff based on what is needed
+        else:
+            new_lcfol = veh.rfol
+            new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+    elif l_lc is None:
+        if r_lc == 'd':
+            new_fol_hd, new_fol_a = veh.fol.get_cf(veh.lead, timeind)
+            new_lcfol = veh.rfol
+            new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+            incentive = new_veh_a - veh.acc + p[3]*(new_lcfol_a - new_lcfol.acc + new_fol_a - veh.fol.acc) + p[5]
+
+        elif r_lc is None:
+            return lc_actions, lc_followers
+
+        else:
+            new_lcfol = veh.rfol
+            new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+    else:
+        new_lcfol = veh.lfol
+        new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
 
     if veh.in_disc:
-        pass
+        if timeind < veh.disc_cooldown:
+            return lc_actions, lc_followers
+
 
     p = veh.lc_parameters
     lincentive = rincentive = -math.inf
@@ -235,6 +265,12 @@ def havsim_mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd
             coop_tact_model(veh, newlcsidefolhd, lcsidefolsafe, vehsafe, safe, lcsidefol, in_disc,
                             use_coop=use_coop, use_tact=use_tact)
     return
+
+
+def new_hd_acc_under_lc(lcfol, veh, timeind):
+    new_lcfol_hd, new_lcfol_a = lcfol.get_cf(veh, timeind)
+    new_veh_hd, new_veh_a = veh.get_cf(lcfol.lead, timeind)
+    return new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a
 
 
 def mobil_helper(polite, bias, in_disc, lfol, llead, veh, vehlane, newlfolhd, newlhd, veha, fola, newfola,

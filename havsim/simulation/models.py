@@ -151,10 +151,13 @@ def havsim_mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd
             incentive2 = new_veh_a2 - veh.acc + p[3]*(new_lcfol_a2 - new_lcfol2.acc + new_fol_a - veh.fol.acc) + p[5]
             if incentive2 > incentive:
                 incentive = incentive2
-                # todo other stuff based on what is needed
+                new_lcfol = new_lcfol2
+                new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_lcfol_hd2, new_veh_hd2, new_lcfol_a2, new_veh_a2
+
         else:
             new_lcfol = veh.rfol
             new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+
     elif l_lc is None:
         if r_lc == 'd':
             new_fol_hd, new_fol_a = veh.fol.get_cf(veh.lead, timeind)
@@ -168,13 +171,30 @@ def havsim_mobil(veh, lc_actions, newlfolhd, newlhd, newrfolhd, newrhd, newfolhd
         else:
             new_lcfol = veh.rfol
             new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+
     else:
         new_lcfol = veh.lfol
         new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
 
-    if veh.in_disc:
+    if veh.in_disc:  # discretionary update
         if timeind < veh.disc_cooldown:
             return lc_actions, lc_followers
+        if veh.is_coop is not None:
+            if veh.lc_acc != 0:  # if cooperation is already applied
+                incentive -= veh.lc_acc
+            else:  # check if cooperation is valid
+                coop_ego_veh = veh.is_coop
+                pass  # todo
+        if incentive > p[2]:
+            if new_lcfol_a > p[0] and new_veh_a > p[0]:
+                complete_change(lc_actions, lc_followers, veh, new_lcfol)
+    else:  # mandatory update
+        if new_lcfol_a > p[1] and new_veh_a > p[1]:
+            complete_change(lc_actions, lc_followers, veh, new_lcfol)
+        else:
+            pass
+
+
 
 
     p = veh.lc_parameters
@@ -271,6 +291,27 @@ def new_hd_acc_under_lc(lcfol, veh, timeind):
     new_lcfol_hd, new_lcfol_a = lcfol.get_cf(veh, timeind)
     new_veh_hd, new_veh_a = veh.get_cf(lcfol.lead, timeind)
     return new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a
+
+
+def complete_change(lc_actions, lc_followers, veh, new_lcfol):
+    side = 'l' if new_lcfol is veh.lfol else 'r'
+    lc_actions[veh] = side
+    if new_lcfol in lc_followers:
+        lc_followers[new_lcfol].append(veh)
+    else:
+        lc_followers[new_lcfol] = [veh]
+
+
+def check_coop_is_valid():
+    pass
+
+
+def apply_tactical():
+    pass
+
+
+def check_coop_condition():
+    pass
 
 
 def mobil_helper(polite, bias, in_disc, lfol, llead, veh, vehlane, newlfolhd, newlhd, veha, fola, newfola,

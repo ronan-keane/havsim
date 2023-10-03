@@ -700,9 +700,12 @@ class AnchorVehicle:
         self.is_coop = -1  # for havsim_mobil cooperation model
         self.lc2_parameters = [None, None, None, -1e20]
 
-    def get_cf(self, *args):
+    def get_cf(self, lead, timeind):
         """Dummy method - so we don't have to check for anchors when calling set_lc."""
-        return None, 0
+        if lead is not None:
+            return get_headway(self, lead), 0
+        else:
+            return None, 0
 
     def set_relax(self, *args):
         """Dummy method does nothing - it's so we don't have to check for anchors when applying relax."""

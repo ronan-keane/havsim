@@ -110,7 +110,7 @@ def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, ve
 
     # update inflow, adding vehicles if necessary
     for curlane in inflow_lanes:
-        vehid = curlane.increment_inflow(vehicles, vehid, timeind, dt)
+        vehid = curlane.increment_inflow(vehicles, vehid, timeind)
 
     # for veh in vehicles:  # debugging
     #     if not veh._chk_leadfol(verbose = False):

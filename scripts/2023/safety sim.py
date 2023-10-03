@@ -11,9 +11,9 @@ def veh_parameters():
     s1 = np.random.rand()*6-4
     s2 = np.random.rand()*.3-.2
     cf_p = [35+s1, 1.3+s2, 2, 1.1, 1.5]
-    lc_p = [-4, -8, .3, .15, 0., 0., .2, 10, 42]
-    kwargs = {'relax_parameters': 8.7, 'relaxs_parameters': [0.05, 1.5],
-              'shift_parameters': [-4, 2], 'coop_parameters': 0.2, 'route_parameters': [300, 200],
+    lc_p = [-4, -8, .3, .15, 0., 0., .45, .2, 10, 42]
+    kwargs = {'relax_parameters': 8.7, 'relaxs_parameters': [0.1, 1.5],
+              'shift_parameters': [-3, 2, -3], 'coop_parameters': 0.2, 'route_parameters': [300, 500],
               'accbounds': [-10, None], 'maxspeed': cf_p[0]-1e-6, 'hdbounds': (cf_p[2]+1e-6, 1e4)}
     return cf_p, lc_p, kwargs
 
@@ -36,20 +36,20 @@ offramp3 = hs.Road(num_lanes=1, length=[(7810, 7990)], name='state off ramp')
 main_road.merge(offramp3, self_index=1, new_lane_index=0, self_pos=(7810, 7940), new_lane_pos=(7810, 7940))
 offramp3.connect('offramp 3', is_exit=True)
 onramp4 = hs.Road(num_lanes=1, length=[(8310, 8710)], name='state on ramp S')
-onramp4.merge(main_road, self_index=0, new_lane_index=1, self_pos=(8410, 8710), new_lane_pos=(8510, 8710))
+onramp4.merge(main_road, self_index=0, new_lane_index=1, self_pos=(8410, 8710), new_lane_pos=(8410, 8710))
 onramp5 = hs.Road(num_lanes=1, length=[(8830, 9230)], name='state on ramp N')
-onramp5.merge(main_road, self_index=0, new_lane_index=1, self_pos=(9030, 9230), new_lane_pos=(9030, 9230))
+onramp5.merge(main_road, self_index=0, new_lane_index=1, self_pos=(8980, 9230), new_lane_pos=(8980, 9230))
 
 # downstream boundary conditions
 main_road.set_downstream({'method': 'free'})
 offramp1.set_downstream({'method': 'free'})
 offramp2.set_downstream({'method': 'free'})
 offramp3.set_downstream({'method': 'free'})
-onramp1.set_downstream({'method': 'free merge', 'self_lane': onramp1[0], 'minacc': -2.5})
-onramp2.set_downstream({'method': 'free merge', 'self_lane': onramp2[0], 'minacc': -2.5})
-onramp3.set_downstream({'method': 'free merge', 'self_lane': onramp3[0], 'minacc': -2.5})
-onramp4.set_downstream({'method': 'free merge', 'self_lane': onramp4[0], 'minacc': -2.5})
-onramp5.set_downstream({'method': 'free merge', 'self_lane': onramp5[0], 'minacc': -2.5})
+onramp1.set_downstream({'method': 'free merge', 'self_lane': onramp1[0], 'minacc': -5})
+onramp2.set_downstream({'method': 'free merge', 'self_lane': onramp2[0], 'minacc': -5})
+onramp3.set_downstream({'method': 'free merge', 'self_lane': onramp3[0], 'minacc': -5})
+onramp4.set_downstream({'method': 'free merge', 'self_lane': onramp4[0], 'minacc': -5})
+onramp5.set_downstream({'method': 'free merge', 'self_lane': onramp5[0], 'minacc': -5})
 
 # upstream boundary conditions
 # inflow amounts and entering speeds

@@ -692,11 +692,13 @@ class AnchorVehicle:
         self.leadmem = [[self.lead, self.start]]
 
         self.pos = curlane.start
-        self.speed = 0
+        self.speed = 1e-6
         self.acc = 0
-        self.in_relax = False  # for mobil model
         self.hd = None
         self.len = 0
+
+        self.is_coop = -1  # for havsim_mobil cooperation model
+        self.lc2_parameters = [None, None, None, -1e20]
 
     def get_cf(self, *args):
         """Dummy method - so we don't have to check for anchors when calling set_lc."""

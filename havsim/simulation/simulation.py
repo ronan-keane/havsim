@@ -81,8 +81,7 @@ def update_net(vehicles, lc_actions, inflow_lanes, merge_lanes, vehid, timeind, 
             veh.hd = get_headway(veh, veh.lead)
 
     # update left and right followers
-    # vehicle_orders.update_all_lrfol(vehicles)
-    vehicle_orders.update_all_lrfol_multiple(vehicles)  # handles edge cases explicitly, slower
+    vehicle_orders.update_all_lrfol_multiple(vehicles)
 
     # update merge_anchors
     for curlane in merge_lanes:

@@ -54,10 +54,10 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
 
         relaxamount_s = olds-news
         relaxamount_v = oldv-newv
-        relax_helper_vhd(rp, relaxamount_s, relaxamount_v, veh, timeind, dt)
+        relax_helper_vhd(rp[0], relaxamount_s, relaxamount_v, veh, timeind, dt)
     else:  # relax headway only = list of float of relax values
         relaxamount = olds-news  # edge case error here, see update_lane_routes.update_veh_after_lc
-        relax_helper(rp, relaxamount, veh, timeind, dt)
+        relax_helper(rp[0], relaxamount, veh, timeind, dt)
 
 
 def relax_helper_vhd(rp, relaxamount_s, relaxamount_v, veh, timeind, dt):

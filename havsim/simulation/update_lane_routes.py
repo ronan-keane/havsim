@@ -382,13 +382,14 @@ def make_cur_route(p, curlane, nextroadname):
         at x - 2*p[0] - 2*p[1] you will end discretionary changing into lane '0'
         at x - p[0] - p[1] you wil begin mandatory changing into lane '2'
         at x - p[0] your mandatory change will have urgency of 100% which will always force
-            cooperation of your l/rfol (assuming you have cooperation added to your lc model)
+            cooperation of your l/rfol
     for lane changing with a merge/diverse (e.g. on/off-ramp) which begins at 'x' and ends at 'y',
     you will start mandatory at 'x' always, reaching 100% cooperation by 'y' - p[0]
 
     Args:
-        p: parameters, length 2 list of floats, where p[0] is a safety buffer for merging and p[1]
-            is a comfortable distance for merging
+        p: parameters, length 2 list of floats, where p[0] controls how quickly a vehicle with mandatory LC can
+            force cooperation of the lfol/rfol, larger is faster to force cooperation. p[0] + p[1] is a comfortable
+            distance for completing a mandatory lane change
         curlane: Lane object to create route events for
         nextroadname: str name of the next road in the route (the next road you want to be on after leaving
             curlane's road)

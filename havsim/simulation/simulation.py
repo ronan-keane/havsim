@@ -13,7 +13,7 @@ from havsim.simulation import vehicle_orders
 import copy
 
 
-def update_net(vehicles, lc_actions, inflow_lanes, merge_lanes, vehid, timeind, dt):
+def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, vehid, timeind, dt):
     """Updates all quantities for a road network.
 
     The simulation logics are as follows. At the beginning of the timestep, all vehicles/states/events
@@ -39,6 +39,8 @@ def update_net(vehicles, lc_actions, inflow_lanes, merge_lanes, vehid, timeind, 
         vehicles: set containing all vehicle objects being actively simulated
         lc_actions: dictionary with keys as vehicles which request lane changes in the current timestep,
             values are a string either 'l' or 'r' which indicates the side of the change
+        lc_followers: For any Vehicle which request to change lanes, the new follower must be a key in lc_followers,
+                value is a list of all vehicles which requested change.
         inflow_lanes: iterable of lanes which have upstream (inflow) boundary conditions. These lanes
             must have get_inflow, increment_inflow, and new_vehicle methods
         merge_lanes: iterable of lanes which have merge anchors. These lanes must have a merge_anchors
@@ -50,18 +52,27 @@ def update_net(vehicles, lc_actions, inflow_lanes, merge_lanes, vehid, timeind, 
     Returns:
         vehid: updated int value of next vehicle ID to be added
         remove_vehicles: list of vehicles which were removed from simulation at current timestep
-
-        Modifies vehicles in place (potentially all their non-parameter/bounds attributes, e.g. pos/spd,
-        lead/fol relationships, their lane/roads, memory, etc.).
     """
     # update followers/leaders for all lane changes
-    relaxvehs = []  # keeps track of vehicles which have relaxation applied
-    for veh in lc_actions.keys():
+    for vehlist in lc_followers.values():  # check for multiple vehicles changing at the same time into the same gap
+        if len(vehlist) > 1:
+            for count, veh in enumerate(vehlist):
+                if not veh.in_disc:
+                    tiebreak_ind = count
+                    break
+            else:
+                tiebreak_ind = 0
+            for count, veh in enumerate(vehlist):
+                if count == tiebreak_ind:
+                    continue
+                del lc_actions[veh]
+
+    relaxvehs = []  # keeps track of vehicles which need relaxation applied
+    for veh in lc_actions:
         relaxvehs.append(veh.fol)
 
         # update leader follower relationships, lane/road
-        update_lane_routes.update_veh_after_lc(lc_actions, veh, timeind)  # this is the only thing
-        # which can't be done in parralel
+        update_lane_routes.update_veh_after_lc(lc_actions, veh, timeind)
 
         relaxvehs.append(veh)
         relaxvehs.append(veh.fol)
@@ -140,8 +151,7 @@ class Simulation:
             vehid: vehicle ID used for the next vehicle to be created.
             timeind: starting time index (int) for the simulation.
             dt: float for how many time units pass for each timestep. Defaults to .25.
-            roads: optional, list of all the roads in the simulation, if this field is specified,
-              inflow_lanes and merge_lanes will be deduced using roads.
+            roads: list of all the roads in the simulation
 
         Returns:
             None. Note that we keep references to all vehicles through vehicles and prev_vehicles,
@@ -177,14 +187,15 @@ class Simulation:
     def step(self):
         """Logic for doing a single step of simulation."""
         lc_actions = {}
+        lc_followers = {}
 
         for veh in self.vehicles:
-            veh.set_cf(self.timeind, self.dt)
+            veh.set_cf(self.timeind)
 
         for veh in self.vehicles:
-            veh.set_lc(lc_actions, self.timeind, self.dt)
+            lc_actions, lc_followers = veh.set_lc(lc_actions, lc_followers, self.timeind)
 
-        self.vehid, remove_vehicles = update_net(self.vehicles, lc_actions, self.inflow_lanes,
+        self.vehid, remove_vehicles = update_net(self.vehicles, lc_actions, lc_followers, self.inflow_lanes,
                                                  self.merge_lanes, self.vehid, self.timeind, self.dt)
 
         self.timeind += 1

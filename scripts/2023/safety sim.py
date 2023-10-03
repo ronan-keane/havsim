@@ -10,12 +10,10 @@ import time
 def veh_parameters():
     s1 = np.random.rand()*6-4
     s2 = np.random.rand()*.3-.2
-    cf_p = [35+s1, 1.3+s2, 2, 1.1, 1.5]
-    lc_p = [-4, -8, .3, .15, 0., 0., .45, .2, 10, 42]
-    kwargs = {'relax_parameters': 8.7, 'relaxs_parameters': [0.1, 1.5],
-              'shift_parameters': [-3, 2, -3], 'coop_parameters': 0.2, 'route_parameters': [300, 500],
-              'accbounds': [-10, None], 'maxspeed': cf_p[0]-1e-6, 'hdbounds': (cf_p[2]+1e-6, 1e4)}
-    return cf_p, lc_p, kwargs
+    kwargs = {'cf_parameters': [35+s1, 1.3+s2, 2, 1.1, 1.5],
+              'lc_parameters': [-4, -8, .3, .15, 0, 0, .2, 10, 42], 'lc2_parameters': [-3, 2, -4, .5, .2],
+              'relax_parameters': [8.7, .1, 1.5], 'route_parameters': [300, 500], 'accbounds': [-10, None]}
+    return kwargs
 
 # road network
 main_road = hs.Road(num_lanes=2, length=12000, name='E94')
@@ -78,8 +76,8 @@ def make_newveh(route_picker):
     MyVeh = hs.vehicles.add_crash_behavior(hs.Vehicle)
     def newveh(self, vehid):
         route = route_picker()
-        cf_p, lc_p, kwargs = veh_parameters()
-        self.newveh = MyVeh(vehid, self, cf_p, lc_p, route=route, **kwargs)
+        kwargs = veh_parameters()
+        self.newveh = MyVeh(vehid, self, route=route, **kwargs)
     return newveh
 
 main_routes = [['jackson off ramp', 'offramp 1'], ['ann arbor saline off ramp', 'offramp 2'], ['state off ramp', 'offramp 3'], ['exit']]
@@ -98,7 +96,7 @@ onramp4_newveh = make_newveh(lambda: ['E94', 'exit'])
 onramp5_newveh = make_newveh(lambda: ['E94', 'exit'])
 # define set_upstream method
 main_road.set_upstream(increment_inflow={'method': 'seql', 'kwargs': {'c': .8}}, get_inflow={'time_series': main_inflow, 'inflow_type': 'flow speed'}, new_vehicle=main_newveh)
-increment_inflow = {'method': 'speed', 'kwargs': {'speed_series': lambda *args: 5., 'accel_bound': -2}}
+increment_inflow = {'method': 'speed', 'kwargs': {'speed_series': lambda *args: 10., 'accel_bound': -2}}
 # increment_inflow = {'method': 'seql', 'kwargs': {'c': .8, 'eql_speed': True}}
 onramp1.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp1_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp1_newveh)
 onramp2.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp2_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp2_newveh)

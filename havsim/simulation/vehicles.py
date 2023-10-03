@@ -300,7 +300,6 @@ class Vehicle:
         self.maxspeed = self.cf_parameters[0] - 1e-6 if maxspeed is None else maxspeed
         self.hdbounds = (self.cf_parameters[2] + 1e-6, 1e4) if hdbounds is None else hdbounds
         self.eql_type = eql_type
-
         # relaxation
         self.in_relax = False
         self.relax = None
@@ -321,12 +320,12 @@ class Vehicle:
         self.speed = None
         self.acc = None
         self.lc_acc = None
-        self.start = None
         self.llane = None
         self.rlane = None
         self.l_lc = None
         self.r_lc = None
         self.start = None
+        self.end = None
         self.lane_events = None
         self.route_events = None
         self.cur_route = None
@@ -340,7 +339,6 @@ class Vehicle:
         self.rlead = rlead
 
         # memory
-        self.end = None
         self.leadmem = []
         self.lanemem = []
         self.posmem = []

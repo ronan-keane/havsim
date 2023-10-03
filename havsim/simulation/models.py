@@ -308,11 +308,10 @@ def maybe_add_new_coop(test_veh, veh, new_lcfol, hd, timeind, coop_correction):
 
 def default_parameters():
     """Suggested parameters for the IDM and havsim lane changing model."""
-    # time headway parameter = 1 -> always unstable in congested regime.
-    # time headway = 1.5 -> restabilizes at high density
-    cf_parameters = [35, 1.3, 2, 1.1, 1.5]  # note speed is supposed to be in m/s
-    
-    # note last 3 parameters have units in terms of timesteps, not seconds
-    lc_parameters = [-8, -20, .6, .1, 0, .2, .1, 20, 20]
-
-    return cf_parameters, lc_parameters
+    cf_parameters = [35, 1.3, 2, 1.1, 1.5]
+    lc_parameters = [-4, -8, .3, .15, 0, 0, .2, 10, 42]
+    lc2_parameters = [-3, 2, -4, .5, .2]
+    relax_parameters = [8.7, .1, 1.5]
+    route_parameters = [300, 500]
+    return {'cf_parameters': cf_parameters, 'lc_parameters': lc_parameters, 'lc2_parameters': lc2_parameters,
+            'relax_parameters': relax_parameters, 'route_parameters': route_parameters}

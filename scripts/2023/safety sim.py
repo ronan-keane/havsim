@@ -10,9 +10,9 @@ import time
 def veh_parameters():
     s1 = np.random.rand()*6-4
     s2 = np.random.rand()*.3-.2
-    kwargs = {'cf_parameters': [35+s1, 1.3+s2, 2, 1.1, 1.5],
-              'lc_parameters': [-4, -8, .3, .15, 0, 0, .2, 10, 42], 'lc2_parameters': [-4, 2, -3, .7, .2],
-              'relax_parameters': [8.7, .3, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
+    kwargs = {'cf_parameters': [35, 1.3, 2, 1.1, 1.5],
+              'lc_parameters': [-4, -10, .3, .15, 0, 0, .2, 10, 42], 'lc2_parameters': [-4, 2, -2, .4, .2],
+              'relax_parameters': [8.7, .3, 2.], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
     return kwargs
 
 # road network
@@ -96,8 +96,8 @@ onramp4_newveh = make_newveh(lambda: ['E94', 'exit'])
 onramp5_newveh = make_newveh(lambda: ['E94', 'exit'])
 # define set_upstream method
 main_road.set_upstream(increment_inflow={'method': 'seql', 'kwargs': {'c': .8}}, get_inflow={'time_series': main_inflow, 'inflow_type': 'flow speed'}, new_vehicle=main_newveh)
-increment_inflow = {'method': 'speed', 'kwargs': {'speed_series': lambda *args: 10., 'accel_bound': -2}}
-# increment_inflow = {'method': 'seql', 'kwargs': {'c': .8, 'eql_speed': True}}
+# increment_inflow = {'method': 'speed', 'kwargs': {'speed_series': lambda *args: 15., 'accel_bound': -1}}
+increment_inflow = {'method': 'seql', 'kwargs': {'c': .8, 'eql_speed': True}}
 onramp1.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp1_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp1_newveh)
 onramp2.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp2_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp2_newveh)
 onramp3.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp3_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp3_newveh)

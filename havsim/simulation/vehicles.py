@@ -297,8 +297,8 @@ class Vehicle:
             self.minacc, self.maxacc = -12, 5
         else:
             self.minacc, self.maxacc = accbounds[0], accbounds[1]
-        self.maxspeed = self.cf_parameters[0] - 1e-6 if maxspeed is None else maxspeed
-        self.hdbounds = (self.cf_parameters[2] + 1e-6, 1e4) if hdbounds is None else hdbounds
+        self.maxspeed = self.cf_parameters[0] - .2 if maxspeed is None else maxspeed
+        self.hdbounds = (self.cf_parameters[2] + 1e-6, 200) if hdbounds is None else hdbounds
         self.eql_type = eql_type
         # relaxation
         self.in_relax = False
@@ -420,7 +420,7 @@ class Vehicle:
             acc = self.lane.call_downstream(self, timeind)
             return None, acc
         hd = get_headway(self, lead)
-        acc = self.cf_model(self.cf_parameters, [max(hd, .1), self.speed, lead.speed])
+        acc = self.cf_model(self.cf_parameters, [max(hd, .01), self.speed, lead.speed])
         return hd, acc
 
     def set_cf(self, timeind):

@@ -56,7 +56,7 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
         relaxamount_v = oldv-newv
         relax_helper_vhd(rp[0], relaxamount_s, relaxamount_v, veh, timeind, dt)
     else:  # relax headway only = list of float of relax values
-        relaxamount = olds-news  # edge case error here, see update_lane_routes.update_veh_after_lc
+        relaxamount = olds-news
         relax_helper(rp[0], relaxamount, veh, timeind, dt)
 
 
@@ -75,7 +75,7 @@ def relax_helper_vhd(rp, relaxamount_s, relaxamount_v, veh, timeind, dt):
     # positive relax only
     # temp = [relaxamount_s + tempdt*i for i in range(1,relaxlen+1)] if relaxamount_s > 0 else [0]*relaxlen
     # temp2 = [relaxamount_v + tempdt2*i for i in range(1, relaxlen+1)] if relaxamount_v > 0 else [0]*relaxlen
-    curr = list(zip(temp,temp2))
+    curr = list(zip(temp, temp2))
 
     if veh.in_relax:  # add to existing relax
         # find indexes with overlap - need to combine relax values for those

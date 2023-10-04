@@ -1018,8 +1018,8 @@ def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsi
 
     fig = plt.figure(figsize=(10, 4))  # initialize figure and axis
     ax = fig.add_axes([0, 0, 1, 1], frameon=False)
-    ax.set_xlim(0, 1600), ax.set_xlabel('localY')
-    ax.set_ylim(7.5, 0), ax.set_ylabel('laneID')
+    # ax.set_xlim(0, 1600), ax.set_xlabel('localY')
+    # ax.set_ylim(7.5, 0), ax.set_ylabel('laneID')
 
     scatter_pts = ax.scatter([], [], c=[], cmap=palettable.colorbrewer.diverging.RdYlGn_4.mpl_colormap,
                              marker=">")  # cm.get_cmap('RdYlBu')

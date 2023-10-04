@@ -11,8 +11,8 @@ def veh_parameters():
     s1 = np.random.rand()*6-4
     s2 = np.random.rand()*.3-.2
     kwargs = {'cf_parameters': [35, 1.3, 2, 1.1, 1.5],
-              'lc_parameters': [-4, -10, .3, .15, 0, 0, .2, 10, 42], 'lc2_parameters': [-4, 2, -2, .4, .2],
-              'relax_parameters': [8.7, .3, 2.], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
+              'lc_parameters': [-4, -10, .3, .15, 0, 0, .2, 10, 100], 'lc2_parameters': [-4, 2, -2, .4, .2],
+              'relax_parameters': [8.7, .3, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
     return kwargs
 
 # road network
@@ -57,11 +57,11 @@ inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4
 # inflow[0] = inflow[0] * .863
 # inflow[1:] = inflow[1:] * .382
 main_inflow = lambda *args: (inflow[0], None)
-onramp1_inflow = lambda *args: (inflow[1], 10)
-onramp2_inflow = lambda *args: (inflow[2], 10)
-onramp3_inflow = lambda *args: (inflow[3], 10)
-onramp4_inflow = lambda *args: (inflow[4], 10)
-onramp5_inflow = lambda *args: (inflow[5], 10)
+onramp1_inflow = lambda *args: (inflow[1], None)
+onramp2_inflow = lambda *args: (inflow[2], None)
+onramp3_inflow = lambda *args: (inflow[3], None)
+onramp4_inflow = lambda *args: (inflow[4], None)
+onramp5_inflow = lambda *args: (inflow[5], None)
 # define the routes of vehicles
 def select_route(routes, probabilities):
     p = np.cumsum(probabilities)
@@ -97,7 +97,7 @@ onramp5_newveh = make_newveh(lambda: ['E94', 'exit'])
 # define set_upstream method
 main_road.set_upstream(increment_inflow={'method': 'seql', 'kwargs': {'c': .8}}, get_inflow={'time_series': main_inflow, 'inflow_type': 'flow speed'}, new_vehicle=main_newveh)
 # increment_inflow = {'method': 'speed', 'kwargs': {'speed_series': lambda *args: 15., 'accel_bound': -1}}
-increment_inflow = {'method': 'seql', 'kwargs': {'c': .8, 'eql_speed': True}}
+increment_inflow = {'method': 'seql', 'kwargs': {'c': .9, 'eql_speed': True}}
 onramp1.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp1_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp1_newveh)
 onramp2.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp2_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp2_newveh)
 onramp3.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp3_inflow, 'inflow_type': 'flow speed'}, new_vehicle=onramp3_newveh)
@@ -108,7 +108,7 @@ onramp5.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series
 simulation = hs.simulation.CrashesSimulation(roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=.2)
 
 timesteps = 3600*5
-replications = 1
+replications = 20
 near_miss = 0
 rear_end = 0
 sideswipe = 0

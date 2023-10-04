@@ -5,7 +5,7 @@ Functions for applying relaxation after a lane change.
 import math
 from havsim.simulation.road_networks import get_headway
 
-def new_relaxation(veh, timeind, dt, relax_speed=False):
+def new_relaxation(veh, timeind, dt):
     """Generates relaxation for a vehicle after it experiences a lane change.
 
     This is called directly after a vehicle changes it lane, while it still has the old value for its
@@ -22,42 +22,35 @@ def new_relaxation(veh, timeind, dt, relax_speed=False):
         veh: Vehicle to add relaxation to
         timeind: int giving the timestep of the simulation (0 indexed)
         dt: float of time unit that passes in each timestep
-        relax_speed: If True, we relax leader's speed as well.
-
     Returns:
         None. Modifies relaxation attributes for vehicle in place.
     """
     rp = veh.relax_parameters
     if rp is None:  # no relax -> do nothing
         return
-    if veh.lead is None:  
-        if veh.in_relax:  # new lead is None -> reset relaxation
+    if veh.lead is None:  # new lead is None -> reset relaxation
+        if veh.in_relax:
             veh.in_relax = False
             veh.relax = veh.relax[:timeind-veh.relax_start]
             veh.relaxmem.append((veh.relax, veh.relax_start))
         return
-        
 
     prevlead = veh.leadmem[-2][0]
     if prevlead is None:
         olds = veh.get_eql(veh.speed)
+        oldv = veh.speed
     else:
         olds = veh.hd
+        if olds is None:  # this can happen if prevlead is not the actual previous leader
+            olds = veh.get_eql(veh.speed)
+        oldv = prevlead.speed
     news = get_headway(veh, veh.lead)
+    newv = veh.lead.speed
 
-    if relax_speed:  # relax speed + headway so we have a list of tuples
-        if prevlead is None:
-            oldv = veh.speed
-        else:
-            oldv = prevlead.speed
-        newv = veh.lead.speed
-
-        relaxamount_s = olds-news
-        relaxamount_v = oldv-newv
-        relax_helper_vhd(rp[0], relaxamount_s, relaxamount_v, veh, timeind, dt)
-    else:  # relax headway only = list of float of relax values
-        relaxamount = olds-news
-        relax_helper(rp[0], relaxamount, veh, timeind, dt)
+    relaxamount_s = olds-news
+    relaxamount_v = oldv-newv
+    relax_helper_vhd(rp[0], relaxamount_s, relaxamount_v, veh, timeind, dt)
+    # relax_helper(rp[0], relaxamount_s, veh, timeind, dt)
 
 
 def relax_helper_vhd(rp, relaxamount_s, relaxamount_v, veh, timeind, dt):

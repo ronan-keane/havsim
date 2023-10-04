@@ -8,10 +8,6 @@ from havsim.simulation.road_networks import get_headway
 def IDM(p, state):
     """Intelligent Driver Model (IDM), second order ODE.
 
-    Note that if the headway is negative, model will begin accelerating; If velocity is negative,
-    model will begin decelerating. Therefore you must take care to avoid any collisions or negative speeds
-    in the simulation.
-
     Args:
         p: parameters - [max speed, comfortable time headway, jam spacing, comfortable acceleration,
                          comfortable deceleration]

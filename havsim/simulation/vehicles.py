@@ -399,7 +399,6 @@ class Vehicle:
         Args:
             p: parameters for model (cf_parameters)
             state: list of headway, speed, leader speed
-
         Returns:
             float acceleration of the model.
         """
@@ -420,16 +419,21 @@ class Vehicle:
             acc = self.lane.call_downstream(self, timeind)
             return None, acc
         hd = get_headway(self, lead)
-        acc = self.cf_model(self.cf_parameters, [max(hd, .01), self.speed, lead.speed])
+        if hd < 0:
+            return hd, -100
+        acc = self.cf_model(self.cf_parameters, [hd, self.speed, lead.speed])
         return hd, acc
 
     def set_cf(self, timeind):
         """Sets a vehicle's acceleration, with relaxation added after lane changing."""
         hd, spd, lead = self.hd, self.speed, self.lead
+        if lead is None:
+            self.acc = self.lane.call_downstream(self, timeind)
+            return
+        if hd < 0:
+            self.acc = -100
+            return
         if self.in_relax:
-            if lead is None:
-                self.acc = self.lane.call_downstream(self, timeind)
-                return
             p = self.relax_parameters
             ttc = hd - 2 - p[1]*spd
             ttc = 0 if ttc < 0 else ttc / (spd - lead.speed + 1e-6)
@@ -437,19 +441,16 @@ class Vehicle:
             if p[2] > ttc >= 0:
                 currelax = currelax * (ttc / p[2]) ** 2 if currelax > 0 else currelax
                 currelax_v = currelax_v * (ttc / p[2]) ** 2 if currelax_v > 0 else currelax_v
-            self.acc = self.cf_model(self.cf_parameters, [max(hd + currelax, .1), spd, lead.speed + currelax_v])
+            self.acc = self.cf_model(self.cf_parameters, [max(hd + currelax, 1e-6), spd, lead.speed + currelax_v])
             if timeind == self.relax_end:
                 self.in_relax = False
                 self.relaxmem.append((self.relax, self.relax_start))
         else:
-            if lead is None:
-                self.acc = self.lane.call_downstream(self, timeind)
-                return
-            self.acc = self.cf_model(self.cf_parameters, [max(hd, .1), spd, lead.speed])
+            self.acc = self.cf_model(self.cf_parameters, [hd, spd, lead.speed])
 
     def set_relax(self, timeind, dt):
         """Creates a new relaxation after lane change."""
-        new_relaxation(self, timeind, dt, True)
+        new_relaxation(self, timeind, dt)
 
     def free_cf(self, p, spd):
         """Defines car following model in free flow.

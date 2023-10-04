@@ -392,18 +392,8 @@ def make_cur_route(p, curlane, nextroadname):
         cur_route: dictionary where keys are lanes, value is a list of route event dictionaries which
             defines the route a vehicle with parameters p needs to take on that lane
     """
-    # TODO we only get the route for the current road - no look ahead to take into account
-    # future roads. This modification may be needed if roads are short.
-    # Should only have to look forward one road at a time.
-
-    # TODO handle cases where LC cannot be completed successfully (put necessary info into cur_route dict)
-    # if you fail to follow your route, you need to be given a new route.
-    # the code which makes a new route can also be used if route = None when creating a vehicle
-    # would need to know latest point when change can take place ('pos' for 'continue' type
-    # or pos[1] for merge type)
-    # in lane changing model, it would need to check if we are getting too close and act accordingly
-    # (e.g. slow down) if needed. in this function, would need to add events if you miss the change,
-    # and in that case you would need to be given a new route.
+    # TODO we only get the route for the current road - no look ahead to take into account future roads
+    # TODO handle cases where LC cannot be completed successfully
 
     curroad = curlane.road
     curlaneind = curlane.laneind

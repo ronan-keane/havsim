@@ -82,7 +82,7 @@ def relax_helper_vhd(rp, relaxamount_s, relaxamount_v, veh, timeind, dt):
         overlap_end = min(veh.relax_end, timeind+relaxlen)
         prevr_indoffset = timeind - veh.relax_start+1
         prevr = veh.relax
-        overlap_len = max(overlap_end-timeind, 0)
+        overlap_len = max(overlap_end-timeind-1, 0)
         for i in range(overlap_len):
             curtime = prevr_indoffset+i
             prevrelax, currelax = prevr[curtime], curr[i]

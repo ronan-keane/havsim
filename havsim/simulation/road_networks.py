@@ -678,6 +678,7 @@ class AnchorVehicle:
         self.cf_parameters = None
         self.lane = curlane
         self.road = curlane.road.name
+        self.vehid = str(self.road)+str(self.lane.laneind)
 
         self.init_lead = lead
         self.init_rlead = rlead
@@ -726,6 +727,12 @@ class AnchorVehicle:
     def __str__(self):
         """Convert to string."""
         return self.__repr__()
+
+    def __eq__(self, other):
+        return self.vehid == other.vehid
+
+    def __hash__(self):
+        return hash(self.vehid)
 
 
 def get_headway(veh, lead):

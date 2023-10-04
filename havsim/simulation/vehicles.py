@@ -557,7 +557,7 @@ class Vehicle:
                 self.disc_cooldown = timeind + self.lc_parameters[8]
 
         if self.is_coop:
-            self.is_coop = self.is_coop.has_coop = None
+            self.is_coop.has_coop = self.is_coop = None
         if self.has_coop:
             coop_veh = self.has_coop
             coop_veh.chk_disc = timeind > coop_veh.disc_endtime if coop_veh.in_disc else False
@@ -803,6 +803,7 @@ def add_crash_behavior(vehicle, decel=-4., hold_timesteps=20):
             self.l_lc = None
             self.r_lc = None
             self.update_lc_state(timeind)
+            self.is_coop = -1
             # remove all lane and route events to ensure state will not change
             self.lane_events = []
             self.route_events = []

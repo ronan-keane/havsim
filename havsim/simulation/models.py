@@ -300,7 +300,7 @@ def maybe_add_new_coop(test_veh, veh, new_lcfol, hd, timeind, coop_correction):
         if np.random.rand() < coop_p:  # cooperation condition met
             test_veh.is_coop = veh
             veh.has_coop = test_veh
-            veh.coop_side_fol = 'lfol' if new_lcfol == veh.lfol else 'rfol'
+            veh.coop_side_fol = 'lfol' if new_lcfol is veh.lfol else 'rfol'
             test_veh.chk_disc = False
             test_veh.disc_endtime = timeind + test_veh.lc_parameters[7]
             apply_coop(test_veh, veh, hd, test_veh.lc2_parameters)

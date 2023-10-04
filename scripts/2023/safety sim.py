@@ -11,8 +11,8 @@ def veh_parameters():
     s1 = np.random.rand()*6-4
     s2 = np.random.rand()*.3-.2
     kwargs = {'cf_parameters': [35+s1, 1.3+s2, 2, 1.1, 1.5],
-              'lc_parameters': [-4, -8, .3, .15, 0, 0, .2, 10, 42], 'lc2_parameters': [-3, 2, -4, .5, .2],
-              'relax_parameters': [8.7, .1, 1.5], 'route_parameters': [300, 500], 'accbounds': [-10, None]}
+              'lc_parameters': [-4, -8, .3, .15, 0, 0, .2, 10, 42], 'lc2_parameters': [-3, 2, -3, .5, .2],
+              'relax_parameters': [8.7, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
     return kwargs
 
 # road network
@@ -107,7 +107,7 @@ onramp5.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series
 
 simulation = hs.simulation.CrashesSimulation(roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=.2)
 
-timesteps = 3600*10
+timesteps = 1800
 replications = 1
 near_miss = 0
 rear_end = 0

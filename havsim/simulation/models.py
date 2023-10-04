@@ -193,7 +193,7 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
                 veh.chk_disc = True
 
     else:  # mandatory update
-        fol_safe, veh_safe = new_lcfol_a, new_veh_a
+        fol_safe, veh_safe = new_lcfol_a > p[1], new_veh_a > p[1]
         if fol_safe and veh_safe:
             return complete_change(lc_actions, lc_followers, veh, new_lcfol)
 
@@ -227,10 +227,14 @@ def complete_change(lc_actions, lc_followers, veh, new_lcfol):
 
 def apply_coop(veh, ego_veh, hd, p2):
     lc_acc = veh.cf_model(veh.cf_parameters, [hd, veh.speed, ego_veh.speed])
-    if veh.acc > lc_acc > p2[2]:
-        veh.lc_acc = -veh.acc + lc_acc
-    else:
-        veh.lc_acc = p2[0]
+    if veh.acc > lc_acc:
+        if lc_acc > p2[2]:
+            veh.lc_acc = -veh.acc + lc_acc
+        elif veh.speed > ego_veh.speed + 1:
+            if veh.acc > 0:
+                veh.lc_acc = -veh.acc + p2[2]
+            else:
+                veh.lc_acc = p2[2]
 
 
 def check_coop_and_apply(veh, ego_veh, p2, timeind):

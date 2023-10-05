@@ -11,8 +11,8 @@ def veh_parameters():
     s1 = np.random.rand()*6-4
     s2 = np.random.rand()*.3-.2
     kwargs = {'cf_parameters': [35, 1.3, 2, 1.1, 1.5],
-              'lc_parameters': [-4, -10, .3, .15, 0, 0, .2, 10, 100], 'lc2_parameters': [-4, 2, -2, .4, .2],
-              'relax_parameters': [8.7, .3, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
+              'lc_parameters': [-4, -10, .3, .15, 0, 0, .2, 10, 100], 'lc2_parameters': [-4, 2, -2, .7, .2],
+              'relax_parameters': [8.7, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
     return kwargs
 
 # road network

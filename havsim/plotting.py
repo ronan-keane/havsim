@@ -1203,7 +1203,8 @@ def plotspacetime_helper(myinput, timeint, xint, lane, avg_type, return_discreti
                 cur = np.nan
             else:
                 cur = meanfunc(cur)
-            meanspeeds[i, j] = min(speed_bounds[1], max(cur, speed_bounds[0])) if speed_bounds else cur
+                cur = min(speed_bounds[1], max(cur, speed_bounds[0])) if speed_bounds else cur
+            meanspeeds[i, j] = cur
 
     out = (X, Y, meanspeeds, vehbins)
     if return_discretization:

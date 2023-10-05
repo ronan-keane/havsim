@@ -523,7 +523,7 @@ class Vehicle:
                                (0, self.maxspeed), self.hdbounds)
 
     def set_lc(self, lc_actions, lc_followers, timeind):
-        """Evaluates a vehicle's lane changing model. See havsim.models.lc_havsim for more information.
+        """Evaluates a vehicle's lane changing action.
 
         If a vehicle makes a lane change, it must be recorded in the dictionary lc_actions. The LC will be completed
         except in the case where multiple vehicles try to change in front of the same vehicle. In that case, only
@@ -531,6 +531,8 @@ class Vehicle:
 
         The set_lc method may also affect the acceleration by setting the attribute lc_acc. This is a separate
         acceleration from the 'acc' attribute set by set_cf. The lc_acc and acc are added to get the final acceleration.
+
+        See havsim.models.lc_havsim for more information.
 
         Args:
             lc_actions: dictionary where keys are Vehicles which request to change lanes, values are the side of change
@@ -582,10 +584,10 @@ class Vehicle:
     def update(self, timeind, dt):
         """Applies bounds and updates a vehicle's longitudinal state/memory."""
         acc = self.acc + self.lc_acc
-        self.lc_acc = 0
+        self.lc_acc = 0  # lc_acc must be reset each timestep
+
         # bounds on acceleration
         acc = max(self.minacc, acc)
-
         # bounds on speed
         temp = acc*dt
         nextspeed = self.speed + temp

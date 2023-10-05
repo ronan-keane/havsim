@@ -430,9 +430,6 @@ class Vehicle:
         if lead is None:
             self.acc = self.lane.call_downstream(self, timeind)
             return
-        if hd < 0:
-            self.acc = -100
-            return
         if self.in_relax:
             p = self.relax_parameters
             ttc = hd - 2 - p[1]*spd
@@ -441,12 +438,17 @@ class Vehicle:
             if p[2] > ttc >= 0:
                 currelax = currelax * (ttc / p[2]) ** 2 if currelax > 0 else currelax
                 currelax_v = currelax_v * (ttc / p[2]) ** 2 if currelax_v > 0 else currelax_v
-            self.acc = self.cf_model(self.cf_parameters, [max(hd + currelax, 1e-6), spd, lead.speed + currelax_v])
             if timeind == self.relax_end:
                 self.in_relax = False
                 self.relaxmem.append((self.relax, self.relax_start))
+            hd += currelax
+            lspd = lead.speed + currelax_v
         else:
-            self.acc = self.cf_model(self.cf_parameters, [hd, spd, lead.speed])
+            lspd = lead.speed
+        if hd < 0:
+            self.acc = -100
+            return
+        self.acc = self.cf_model(self.cf_parameters, [hd, spd, lspd])
 
     def set_relax(self, timeind, dt):
         """Creates a new relaxation after lane change."""

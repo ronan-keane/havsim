@@ -313,8 +313,8 @@ def default_parameters():
     """Suggested parameters for the IDM and havsim lane changing model."""
     cf_parameters = [35, 1.3, 2, 1.1, 1.5]
     lc_parameters = [-4, -8, .3, .15, 0, 0, .2, 10, 42]
-    lc2_parameters = [-3, 2, -4, .5, .2]
-    relax_parameters = [8.7, .1, 1.5]
+    lc2_parameters = [-3, 2, -4, 1, .2]
+    relax_parameters = [8.7, .6, 1.5]
     route_parameters = [300, 500]
     return {'cf_parameters': cf_parameters, 'lc_parameters': lc_parameters, 'lc2_parameters': lc2_parameters,
             'relax_parameters': relax_parameters, 'route_parameters': route_parameters}

@@ -10,8 +10,8 @@ import time
 def veh_parameters():
     s1 = np.random.rand()*6-4
     s2 = np.random.rand()*.3-.2
-    kwargs = {'cf_parameters': [35, 1.3, 2, 1.1, 1.5],
-              'lc_parameters': [-6, -8, .45, .1, 0, 0, .2, 10, 100], 'lc2_parameters': [-4, 2, -4, 1, .2],
+    kwargs = {'cf_parameters': [35+s1, 1.3+s2, 2, 1.1, 1.5],
+              'lc_parameters': [-6, -8, .45, .1, .3, 0, .2, 10, 100], 'lc2_parameters': [-4, 2, -4, 1, .2],
               'relax_parameters': [8.7, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
     return kwargs
 
@@ -43,16 +43,16 @@ main_road.set_downstream({'method': 'free'})
 offramp1.set_downstream({'method': 'free'})
 offramp2.set_downstream({'method': 'free'})
 offramp3.set_downstream({'method': 'free'})
-onramp1.set_downstream({'method': 'free merge', 'self_lane': onramp1[0], 'minacc': -5})
-onramp2.set_downstream({'method': 'free merge', 'self_lane': onramp2[0], 'minacc': -5})
-onramp3.set_downstream({'method': 'free merge', 'self_lane': onramp3[0], 'minacc': -5})
-onramp4.set_downstream({'method': 'free merge', 'self_lane': onramp4[0], 'minacc': -5})
-onramp5.set_downstream({'method': 'free merge', 'self_lane': onramp5[0], 'minacc': -5})
+onramp1.set_downstream({'method': 'free merge', 'self_lane': onramp1[0], 'minacc': -2})
+onramp2.set_downstream({'method': 'free merge', 'self_lane': onramp2[0], 'minacc': -2})
+onramp3.set_downstream({'method': 'free merge', 'self_lane': onramp3[0], 'minacc': -2})
+onramp4.set_downstream({'method': 'free merge', 'self_lane': onramp4[0], 'minacc': -2})
+onramp5.set_downstream({'method': 'free merge', 'self_lane': onramp5[0], 'minacc': -2})
 
 # upstream boundary conditions
 # inflow amounts and entering speeds
-inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4pm-6pm)
-# inflow = [2060/3600/2, 529/3600, 261/3600, 414/3600, 1260/3600, 1146/3600]  # (4pm-6pm)
+# inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4pm-6pm)
+inflow = [2000/3600/2, 529/3600, 261/3600, 414/3600, 1260/3600, 1146/3600]  # (4pm-6pm)
 # inflow = np.array(inflow)
 # inflow[0] = inflow[0] * .863
 # inflow[1:] = inflow[1:] * .382
@@ -81,7 +81,8 @@ def make_newveh(route_picker):
     return newveh
 
 main_routes = [['jackson off ramp', 'offramp 1'], ['ann arbor saline off ramp', 'offramp 2'], ['state off ramp', 'offramp 3'], ['exit']]
-main_probabilities = [.2170, .2054, .0682, .5095]
+# main_probabilities = [.2170, .2054, .0682, .5095]
+main_probabilities = [.1370, .1054, .0682, .7095]
 main_newveh = make_newveh(select_route(main_routes, main_probabilities))
 onramp1_routes = [['E94', 'ann arbor saline off ramp', 'offramp 2'], ['E94', 'state off ramp', 'offramp 3'], ['E94', 'exit']]
 onramp1_probabilities = [.2623, .0871, .651]
@@ -107,7 +108,7 @@ onramp5.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series
 
 simulation = hs.simulation.CrashesSimulation(roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=.2)
 
-timesteps = 3600*5
+timesteps = 3600*6
 replications = 1
 near_miss = 0
 rear_end = 0

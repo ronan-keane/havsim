@@ -1000,9 +1000,9 @@ def compute_line_data(headway, i, lentail, dataset, veh_id, time):
     return trajectory, label, x_min, y_min, x_max, y_max
 
 
-def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsim=True, datalen=9, speed_limit=[],
-                show_ID=True, interval=10):
-    # plots vehicles platoon using data meas.
+def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsim=True, datalen=9, speed_limit = [],
+                   show_ID = True, interval = 10):
+    #plots vehicles platoon using data meas.
 
     # platoon = [] - if given as a platoon, only plots those vehicles in the platoon (e.g. [[],1,2,3] )
     # usetime = [] - if given as a list, only plots those times in the list (e.g. list(range(1,100)) )
@@ -1018,23 +1018,22 @@ def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsi
 
     fig = plt.figure(figsize=(10, 4))  # initialize figure and axis
     ax = fig.add_axes([0, 0, 1, 1], frameon=False)
-    # ax.set_xlim(0, 1600), ax.set_xlabel('localY')
-    # ax.set_ylim(7.5, 0), ax.set_ylabel('laneID')
+    ax.set_xlim(0, 12000), ax.set_xlabel('localY')
+    ax.set_ylim(3, -1), ax.set_ylabel('laneID')
 
-    scatter_pts = ax.scatter([], [], c=[], cmap=palettable.colorbrewer.diverging.RdYlGn_4.mpl_colormap,
-                             marker=">")  # cm.get_cmap('RdYlBu')
+    scatter_pts = ax.scatter([], [], c=[], cmap=palettable.colorbrewer.diverging.RdYlGn_4.mpl_colormap, marker=">") #cm.get_cmap('RdYlBu')
 
     if speed_limit == []:
         maxspeed = 0
         minspeed = math.inf
         for i in followerchain.keys():
-            curmax = max(meas[i][:, 3])
-            curmin = min(meas[i][:, 3])
+            curmax = max(meas[i][:,3])
+            curmin = min(meas[i][:,3])
             if curmin < minspeed:
                 minspeed = curmin
             if curmax > maxspeed:
                 maxspeed = curmax
-        norm = plt.Normalize(minspeed, maxspeed)
+        norm = plt.Normalize(minspeed,maxspeed)
     else:
         norm = plt.Normalize(speed_limit[0], speed_limit[1])
 
@@ -1071,6 +1070,7 @@ def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsi
                     current_annotation_dict[vid].remove()
                     del current_annotation_dict[vid]
 
+
         c = speeds
         pts = [[X[i], Y[i]] for i in range(len(X))]
         data = np.vstack(pts)
@@ -1102,7 +1102,7 @@ def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsi
         scatter_pts.set_array(c)
         return artists
 
-    out = animation.FuncAnimation(fig, aniFunc, init_func=init, frames=len(usetime), interval=interval, blit=True)
+    out = animation.FuncAnimation(fig, aniFunc, init_func=init, frames=len(usetime), interval=interval, blit = True)
 
     return out
 

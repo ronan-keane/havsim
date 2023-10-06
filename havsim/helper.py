@@ -1294,39 +1294,33 @@ def merge_rconstant(platoons, platooninfo, sim, leadinfo, rinfo, relax_constant=
     return rinfo
 
 
-def arraytraj(meas, followerchain, presim=False, postsim=False, datalen=9):
+def arraytraj(meas, followerchain, mytime=None):
     # puts output from makefollerchain/makeplatooninfo into a dict where the key is frame ID, value is array of vehicle and their position, speed
     # we can include the presimulation (t_nstar to t_n) as well as postsimulation (T_nm1 to T_n) but including those are optional
     # this will put in the whole trajectory based off of the times in followerchain
-    t = 1  # index for first time
-    T = 2  # index for last time
-    if presim:  # if presim is true we want the presimulation, so we start with t_nstar
-        t = 0
-    if postsim:
-        T = 3
-    t_list = []  # t_n list
-    T_list = []  # T_n list
-    for i in followerchain.values():
-        t_list.append(i[t])
-        T_list.append(i[T])
+    if mytime is None:
+        t_list = []  # t_n list
+        T_list = []  # T_n list
+        for i in followerchain.values():
+            t_list.append(i[0])
+            T_list.append(i[3])
+        T_n = int(max(T_list))  # T_{n} #get maximum T
+        t_1 = int(min(t_list))  # t_1 #get minimum T
+        mytime = list(range(t_1, T_n + 1))  # time range of data
 
-    T_n = int(max(T_list))  # T_{n} #get maximum T
-    t_1 = int(min(t_list))  # t_1 #get minimum T
-    mytime = range(t_1, T_n + 1)  # time range of data
-    platoontraj = {k: np.empty((0, datalen)) for k in mytime}  # initialize output
-    # fix this part, also make something to use this output to fix the lead/follow stuff in ngsim data
+    platoontraj = {k: [] for k in mytime}
     for i in followerchain.keys():
-
-        curmeas = meas[i]  # i is the vehicle id, these are the current measuremeents
-        t_nstar = followerchain[i][0]
-        t_n = followerchain[i][t]  # first time we are using for current vehicle
-        T_n = followerchain[i][T]  # last time we are using for current vehicle
-        curmeas = curmeas[t_n - t_nstar:T_n - t_nstar + 1, :]  # get only the times requested
-        curtime = range(t_n, T_n + 1)
-        count = 0
-        for j in curtime:
-            platoontraj[j] = np.append(platoontraj[j], np.reshape(curmeas[count, :], (1, datalen)), axis=0)
-            count += 1
+        curmeas = meas[i]
+        t_n, T_n = followerchain[i][0], followerchain[i][3]
+        curtime = range(max(t_n, mytime[0]), min(T_n, mytime[-1])+1)
+        for t in curtime:
+            platoontraj[t].append(curmeas[t-t_n, [2, 7, 3, 0]])
+    for t in mytime:
+        cur = platoontraj[t]
+        if len(cur) > 0:
+            platoontraj[t] = np.stack(cur, axis=0)
+        else:
+            platoontraj[t] = np.empty((0, 4))
     return platoontraj, mytime
 
 

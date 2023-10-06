@@ -498,7 +498,7 @@ def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane=N
         plt.colorbar()
         plt.xlabel("density (veh/km)")
         plt.ylabel("flow (veh/hr)")
-        plt.show()
+        # plt.show()
 
     if Flows:
         plt.figure()
@@ -507,7 +507,7 @@ def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane=N
             plt.plot(time_sequence_for_line, q[i])
         plt.xlabel("time (.25s)")
         plt.ylabel("flow (veh/hr)")
-        plt.show()
+        # plt.show()
 
     return
 
@@ -1000,8 +1000,8 @@ def compute_line_data(headway, i, lentail, dataset, veh_id, time):
     return trajectory, label, x_min, y_min, x_max, y_max
 
 
-def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsim=True, datalen=9, speed_limit = [],
-                   show_ID = True, interval = 10):
+def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [], show_id = True, interval = 10,
+                spacelim=None, lanelim=None):
     #plots vehicles platoon using data meas.
 
     # platoon = [] - if given as a platoon, only plots those vehicles in the platoon (e.g. [[],1,2,3] )
@@ -1012,14 +1012,15 @@ def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsi
     # also make arraytraj faster
     if platoon != []:
         followerchain = helper.platoononly(followerchain, platoon)
-    platoontraj, mytime = helper.arraytraj(meas, followerchain, presim, postsim, datalen)
-    if not usetime:
-        usetime = mytime
+    platoontraj, usetime = helper.arraytraj(meas, followerchain, usetime)
 
     fig = plt.figure(figsize=(10, 4))  # initialize figure and axis
     ax = fig.add_axes([0, 0, 1, 1], frameon=False)
-    ax.set_xlim(0, 12000), ax.set_xlabel('localY')
-    ax.set_ylim(3, -1), ax.set_ylabel('laneID')
+    ax.set_xlabel('position'), ax.set_ylabel('lane')
+    if spacelim is not None:
+        ax.set_xlim(spacelim[0], spacelim[1])
+    if lanelim is not None:
+        ax.set_ylim(lanelim[0], lanelim[1])
 
     scatter_pts = ax.scatter([], [], c=[], cmap=palettable.colorbrewer.diverging.RdYlGn_4.mpl_colormap, marker=">") #cm.get_cmap('RdYlBu')
 
@@ -1042,18 +1043,15 @@ def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsi
 
     def aniFunc(frame):
         artists = [scatter_pts]
-        ax = plt.gca()
+        # ax = plt.gca()
         curdata = platoontraj[usetime[frame]]
-        X = curdata[:, 2]
-        Y = curdata[:, 7]
-        speeds = curdata[:, 3]
-        ids = curdata[:, 0]
+        X, Y, speeds, ids = curdata[:, 0], curdata[:, 1], curdata[:, 2], curdata[:, 3]
         existing_vids = list(current_annotation_dict.keys()).copy()
 
         # Go through ids list
         # If the annotation already exists, modify it via set_position
         # If the annotation doesn't exist before, introduce it via ax.annotate
-        if show_ID:
+        if show_id:
             for i in range(len(ids)):
                 vid = ids[i]
                 if vid in current_annotation_dict.keys():
@@ -1070,27 +1068,21 @@ def animatetraj(meas, followerchain, platoon=[], usetime=[], presim=True, postsi
                     current_annotation_dict[vid].remove()
                     del current_annotation_dict[vid]
 
-
-        c = speeds
-        pts = [[X[i], Y[i]] for i in range(len(X))]
-        data = np.vstack(pts)
+        data = np.stack([X, Y], axis=1)
         scatter_pts.set_offsets(data)
-        scatter_pts.set_array(c)
+        scatter_pts.set_array(speeds)
         return artists
 
     def init():
         artists = [scatter_pts]
-        ax = plt.gca()
-        if show_ID:
+        # ax = plt.gca()
+        if show_id:
             for vid, annotation in list(current_annotation_dict.items()).copy():
                 artists.append(annotation)
                 annotation.remove()
                 del current_annotation_dict[vid]
         curdata = platoontraj[usetime[0]]
-        X = curdata[:, 2]
-        Y = curdata[:, 7]
-        speeds = curdata[:, 3]
-        ids = curdata[:, 0]
+        X, Y, speeds, ids = curdata[:, 0], curdata[:, 1], curdata[:, 2], curdata[:, 3]
         for i in range(len(ids)):
             current_annotation_dict[ids[i]] = ax.annotate(str(int(ids[i])), (X[i], Y[i]), fontsize=7)
             artists.append(current_annotation_dict[ids[i]])

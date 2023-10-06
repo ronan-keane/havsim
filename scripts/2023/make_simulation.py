@@ -131,4 +131,34 @@ def e94():
 
 
 def merge_bottleneck():
-    return
+    """Test simulation of merge bottleneck."""
+    main_road = hs.Road(num_lanes=2, length=2000, name='main road')
+    main_road.connect('exit', is_exit=True)
+    onramp = hs.Road(num_lanes=1, length=[(1000, 1300)], name='on ramp')
+    onramp.merge(main_road, self_index=0, new_lane_index=1, self_pos=(1100, 1300), new_lane_pos=(1100, 1300))
+
+    main_road.set_downstream({'method': 'free'})
+    onramp.set_downstream({'method': 'free merge', 'self_lane': onramp[0]})
+
+    def veh_parameters(route): # todo fix
+        def newveh(self, vehid):
+            cf_p = [35, 1.3, 2, 1.1, 1.5]
+            lc_p = [-8, -20, .6, .1, 0, .2, .1, 20, 20]
+            kwargs = {'route': route.copy(), 'maxspeed': cf_p[0] - 1e-6, 'relax_parameters': 8.7,
+                      'shift_parameters': [-2, 2], 'hdbounds': (cf_p[2] + 1e-6, 1e4)}
+            self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
+        return newveh
+
+    mainroad_newveh = veh_parameters(['exit'])
+    onramp_newveh = veh_parameters(['main road', 'exit'])
+    increment_inflow = {'method': 'seql2', 'kwargs': {'c': .8, 'eql_speed': True, 'transition': 20}}
+    mainroad_inflow = lambda *args: .56
+    onramp_inflow = lambda *args: .11111
+
+    main_road.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': mainroad_inflow},
+                           new_vehicle=mainroad_newveh)
+    onramp.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp_inflow},
+                        new_vehicle=onramp_newveh)
+    simulation = hs.Simulation(roads=[main_road, onramp], dt=.2)
+
+    return simulation

@@ -244,7 +244,7 @@ class Vehicle:
     def __init__(self, vehid, curlane, cf_parameters=None, lc_parameters=None, lc2_parameters=None,
                  relax_parameters=None, route_parameters=None, route=None, disable_relax=False, lead=None, fol=None,
                  lfol=None, rfol=None, llead=None, rlead=None, length=3,
-                 eql_type='v', accbounds=None, maxspeed=None, hdbounds=None):
+                 eql_type='v', accbounds=None, maxspeed=None, hdbounds=None, seed=None):
         """Inits Vehicle. Cannot be used for simulation until initialize is also called.
 
         After a Vehicle is created, it is not immediately added to simulation. This is because different
@@ -272,10 +272,11 @@ class Vehicle:
                 by the boundary condition.
             length: float (optional). length of vehicle.
             eql_type: If 'v', the vehicle's eqlfun accepts a speed and returns a headway. Otherwise it
-            accepts a headway and returns a speed.
+                accepts a headway and returns a speed.
             accbounds: tuple of min/max bounds for acceleration.
             maxspeed: maximum allowed speed.
             hdbounds: tuple of bounds for headway.
+            seed: integer to seed random number generation (or None if using default seed)
         """
         self.vehid = vehid
         self.len = length
@@ -283,6 +284,7 @@ class Vehicle:
         self.road = curlane.road.name if curlane is not None else None
         self.route = [] if route is None else route
         self.routemem = self.route.copy()
+        self.npr = np.random.default_rng(seed=seed)
 
         # parameters
         self.cf_parameters = cf_parameters if cf_parameters is not None else [35, 1.3, 2, 1.1, 1.5]
@@ -389,7 +391,6 @@ class Vehicle:
         # set lane/route events - sets lane_events, route_events, cur_route attributes
         self.cur_route = update_lane_routes.make_cur_route(
             self.route_parameters, self.lane, self.route.pop(0))
-
         update_lane_routes.set_lane_events(self)
         update_lane_routes.set_route_events(self, start)
 

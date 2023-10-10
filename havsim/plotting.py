@@ -488,7 +488,7 @@ def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane=N
 
     if MFD:
         plt.figure()
-        marker_list = ['o', 'x', '^']
+        marker_list = ['o', '^', 'x']
         # different marker types
         for count, curq in enumerate(q):
             curmarker = marker_list[count]
@@ -1014,7 +1014,7 @@ def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [],
         followerchain = helper.platoononly(followerchain, platoon)
     platoontraj, usetime = helper.arraytraj(meas, followerchain, usetime)
 
-    fig = plt.figure(figsize=(10, 4))  # initialize figure and axis
+    fig = plt.figure(figsize=(14, 5))  # initialize figure and axis
     ax = fig.add_axes([0, 0, 1, 1], frameon=False)
     ax.set_xlabel('position'), ax.set_ylabel('lane')
     if spacelim is not None:
@@ -1022,7 +1022,8 @@ def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [],
     if lanelim is not None:
         ax.set_ylim(lanelim[0], lanelim[1])
 
-    scatter_pts = ax.scatter([], [], c=[], cmap=palettable.colorbrewer.diverging.RdYlGn_4.mpl_colormap, marker=">") #cm.get_cmap('RdYlBu')
+    scatter_pts = ax.scatter([], [], c=[], cmap=palettable.colorbrewer.diverging.RdYlGn_4.mpl_colormap, marker=">",
+                             s=10)
 
     if speed_limit == []:
         maxspeed = 0

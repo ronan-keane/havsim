@@ -214,7 +214,7 @@ class Simulation:
         self.timeind = self.init_timeind
         # reset state of boundary conditions
         for curlane in self.inflow_lanes:
-            self.vehid = curlane.initialize_inflow(self.vehid)
+            self.vehid = curlane.initialize_inflow(self.vehid, self.timeind)
         # reset state of all AnchorVehicles
         for road in self.roads:
             for lane in road.lanes:

@@ -110,7 +110,7 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
         lc_actions, lc_followers
     """
     if veh.chk_disc:
-        if np.random.rand() > veh.lc_parameters[6]:
+        if veh.npr.random() > veh.lc_parameters[6]:
             return lc_actions, lc_followers
 
     # get relevant accelerations/headways
@@ -300,7 +300,7 @@ def maybe_add_new_coop(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_corre
     """For a vehicle which meets the headway condition for cooperation, start new cooperation if possible."""
     if not test_veh.is_coop:  # not currently cooperating
         coop_p = test_veh.lc2_parameters[4] + coop_correction
-        if np.random.rand() < coop_p:  # cooperation condition met
+        if veh.npr.random() < coop_p:  # cooperation condition met
             test_veh.is_coop = veh
             veh.has_coop = test_veh
             veh.coop_side_fol = 'lfol' if new_lcfol is veh.lfol else 'rfol'

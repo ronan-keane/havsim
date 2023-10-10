@@ -201,8 +201,6 @@ def get_inflow_wrapper(time_series=None, args=(None,), inflow_type='flow'):
         get_inflow method for a Lane. Takes in (timeind) and returns instantaneous flow, vehicle speed,
         at that time. If we return None for the speed, increment_inflow will obtain the speed.
     """
-    # todo
-
     # give flow series - simple
     if inflow_type == 'flow':
         def get_inflow(self, timeind):
@@ -639,7 +637,7 @@ def increment_inflow_wrapper(method='ceql', kwargs={}):
             vehicles.add(newveh)
 
             # create next vehicle
-            self.new_vehicle(vehid)
+            self.new_vehicle(vehid, timeind)
             vehid = vehid + 1
         return vehid
 
@@ -849,13 +847,13 @@ class Lane:
             self.increment_inflow = increment_inflow_wrapper(**increment_inflow).__get__(self, Lane)
         """refer to increment_inflow_wrapper for documentation"""
 
-    def initialize_inflow(self, vehid):
+    def initialize_inflow(self, vehid, timeind):
         """Set inflow to initial state."""
         assert hasattr(self, 'increment_inflow')
         assert hasattr(self, 'get_inflow')
         assert hasattr(self, 'new_vehicle')
         self.inflow_buffer = 0
-        self.new_vehicle(vehid)
+        self.new_vehicle(vehid, timeind)
         return vehid+1
 
     def leadfol_find(self, veh, guess, side=None):

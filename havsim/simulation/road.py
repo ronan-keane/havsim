@@ -418,6 +418,7 @@ class Road:
             Args:
                 self: (this will be the instance of Lane after new_vehicle is bound to the Lane)
                 vehid: vehicle id
+                timeind: time index the vehicle is initiated for
             Returns:
                 None
             It should instantiate a new Vehicle with id vehid and set it to the newveh attribute of self.

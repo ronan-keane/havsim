@@ -69,6 +69,6 @@ if make_plots or save_output:
 
         hp.plotflows(sim, [[7000, 7100], [9230, 9330], [11000, 11100]], [0, timesteps], 300, h=.2)
 
-        ani = hp.animatetraj(sim, siminfo2, usetime=list(range(2000, 2100)), show_id=False, spacelim=(8000, 10000), lanelim=(-1, 3))
+        ani = hp.animatetraj(sim, siminfo2, usetime=list(range(2000, 2100)), show_id=False, spacelim=(8000, 10000), lanelim=(3, -1))
         plt.show()
 

@@ -1,6 +1,5 @@
 import havsim.simulation as hs
 import numpy as np
-import time
 
 def e94():
     """Simulation of 12km length of E94 in Ann Arbor area"""
@@ -76,7 +75,7 @@ def e94():
     def make_newveh(route_picker):
         MyVeh = hs.vehicles.add_crash_behavior(hs.Vehicle)
 
-        def newveh(self, vehid):
+        def newveh(self, vehid, timeind):
             route = route_picker()
             kwargs = veh_parameters()
             self.newveh = MyVeh(vehid, self, route=route, **kwargs)
@@ -130,7 +129,7 @@ def e94():
     return simulation, laneinds
 
 
-def merge_bottleneck():
+def merge_bottleneck(main_inflow=None, onramp_inflow=None):
     """Test simulation of merge bottleneck."""
     main_road = hs.Road(num_lanes=2, length=2000, name='main road')
     main_road.connect('exit', is_exit=True)
@@ -140,25 +139,30 @@ def merge_bottleneck():
     main_road.set_downstream({'method': 'free'})
     onramp.set_downstream({'method': 'free merge', 'self_lane': onramp[0]})
 
-    def veh_parameters(route): # todo fix
-        def newveh(self, vehid):
-            cf_p = [35, 1.3, 2, 1.1, 1.5]
-            lc_p = [-8, -20, .6, .1, 0, .2, .1, 20, 20]
-            kwargs = {'route': route.copy(), 'maxspeed': cf_p[0] - 1e-6, 'relax_parameters': 8.7,
-                      'shift_parameters': [-2, 2], 'hdbounds': (cf_p[2] + 1e-6, 1e4)}
-            self.newveh = hs.Vehicle(vehid, self, cf_p, lc_p, **kwargs)
+    def veh_parameters(route):
+        def newveh(self, vehid, timeind):
+            s1 = np.random.rand() * 6 - 4
+            s2 = np.random.rand() * .3 - .2
+            kwargs = {'cf_parameters': [35+s1, 1.3+s2, 2, 1.1, 1.5],
+                      'lc_parameters': [-6, -8, .45, .1, .1, 0, .2, 10, 100], 'lc2_parameters': [-2, 2, -2, 2, .2],
+                      'relax_parameters': [8.7, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None],
+                      'route': route.copy()}
+            self.newveh = hs.Vehicle(vehid, self, **kwargs)
         return newveh
 
     mainroad_newveh = veh_parameters(['exit'])
     onramp_newveh = veh_parameters(['main road', 'exit'])
     increment_inflow = {'method': 'seql2', 'kwargs': {'c': .8, 'eql_speed': True, 'transition': 20}}
-    mainroad_inflow = lambda *args: .56
-    onramp_inflow = lambda *args: .11111
+    if main_inflow is None:
+        main_inflow = lambda *args: .56
+    if onramp_inflow is None:
+        onramp_inflow = lambda *args: .11111
 
-    main_road.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': mainroad_inflow},
+    main_road.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': main_inflow},
                            new_vehicle=mainroad_newveh)
     onramp.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp_inflow},
                         new_vehicle=onramp_newveh)
     simulation = hs.Simulation(roads=[main_road, onramp], dt=.2)
+    laneinds = {main_road[0]: 0, main_road[1]: 1, onramp[0]: 2}
 
-    return simulation
+    return simulation, laneinds

@@ -7,9 +7,9 @@ def e94():
     def veh_parameters():
         s1 = np.random.rand() * 6 - 4
         s2 = np.random.rand() * .3 - .2
-        kwargs = {'cf_parameters': [35 + s1, 1.3 + s2, 2, 1.1, 1.5],
-                  'lc_parameters': [-8, -8, .3, .05, .3, 0, .2, 10, 100], 'lc2_parameters': [-4, 2, -4, 1, .2],
-                  'relax_parameters': [8.7, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
+        kwargs = {'cf_parameters': [35, 1.3, 2, 1.2, 1.5],
+                  'lc_parameters': [-8, -8, .3, .05, .3, 0, .2, 10, 100], 'lc2_parameters': [-1, 2, -3, 1, .2],
+                  'relax_parameters': [11., .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
         return kwargs
 
     # road network
@@ -48,8 +48,8 @@ def e94():
 
     # upstream boundary conditions
     # inflow amounts and entering speeds
-    # inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4pm-6pm)
-    inflow = [1950 / 3600 / 2, 529 / 3600, 261 / 3600, 414 / 3600, 1260 / 3600, 1146 / 3600]  # (4pm-6pm)
+    inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4pm-6pm)
+    # inflow = [1950 / 3600 / 2, 529 / 3600, 261 / 3600, 414 / 3600, 1260 / 3600, 1146 / 3600]  # (4pm-6pm)
     # inflow = np.array(inflow)
     # inflow[0] = inflow[0] * .863
     # inflow[1:] = inflow[1:] * .382
@@ -76,7 +76,6 @@ def e94():
         MyVeh = hs.vehicles.add_crash_behavior(hs.Vehicle)
         # MyVeh = hs.vehicles.add_crash_behavior(hs.vehicles.StochasticVehicle)
 
-
         def newveh(self, vehid, timeind):
             route = route_picker()
             kwargs = veh_parameters()
@@ -86,8 +85,8 @@ def e94():
 
     main_routes = [['jackson off ramp', 'offramp 1'], ['ann arbor saline off ramp', 'offramp 2'],
                    ['state off ramp', 'offramp 3'], ['exit']]
-    # main_probabilities = [.2170, .2054, .0682, .5095]
-    main_probabilities = [.1370, .1054, .0682, .7095]
+    main_probabilities = [.2170, .2054, .0682, .5095]
+    # main_probabilities = [.1370, .1054, .0682, .7095]
     main_newveh = make_newveh(select_route(main_routes, main_probabilities))
     onramp1_routes = [['E94', 'ann arbor saline off ramp', 'offramp 2'], ['E94', 'state off ramp', 'offramp 3'],
                       ['E94', 'exit']]
@@ -145,8 +144,8 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None):
         def newveh(self, vehid, timeind):
             s1 = np.random.rand() * 6 - 4
             s2 = np.random.rand() * .3 - .2
-            kwargs = {'cf_parameters': [35+s1, 1.3+s2, 2, 1.1, 1.5],
-                      'lc_parameters': [-6, -8, .45, .1, .1, 0, .2, 10, 100], 'lc2_parameters': [-2, 2, -2, 2, .2],
+            kwargs = {'cf_parameters': [35, 1.3, 2, 1.1, 1.5],
+                      'lc_parameters': [-6, -8, .45, .05, .1, 0, .2, 10, 100], 'lc2_parameters': [-2, 2, -2, 2, .2],
                       'relax_parameters': [8.7, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None],
                       'route': route.copy()}
             self.newveh = hs.Vehicle(vehid, self, **kwargs)

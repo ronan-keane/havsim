@@ -266,18 +266,17 @@ def apply_tactical(fol_safe, veh_safe, new_lcfol, veh):
         # if new_lcfol.speed + 6 > veh.speed > new_lcfol.speed - 2:
         return veh.lc2_parameters[1]
     elif fol_safe and not veh_safe:
-        lead = new_lcfol.lead
-        if lead is not None:
-            if veh.speed > lead.speed:
-                return veh.lc2_parameters[1]
-        if veh.speed > new_lcfol.speed:
+        # lead = new_lcfol.lead
+        # if lead is not None:
+        #     if veh.speed > lead.speed + 1:
+        #         return veh.lc2_parameters[1]
+        if veh.speed > new_lcfol.speed - 3:
             return veh.lc2_parameters[0]
     return 0
 
 
 def apply_tactical_discretionary(fol_safe, veh_safe, new_lcfol, veh):
-    if not fol_safe and veh_safe:
-        # if new_lcfol.speed + 6 > veh.speed > new_lcfol.speed - 2:
+    if not fol_safe:
         return veh.lc2_parameters[1]
     return 0
 

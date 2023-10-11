@@ -5,7 +5,7 @@ import time
 import pickle
 
 simulation, laneinds = e94()
-timesteps = 3600
+timesteps = 3600*6
 replications = 1
 make_plots = True
 save_output = False
@@ -69,6 +69,8 @@ if make_plots or save_output:
 
         hp.plotflows(sim, [[7000, 7100], [9230, 9330], [11000, 11100]], [0, timesteps], 300, h=.2)
 
-        ani = hp.animatetraj(sim, siminfo2, usetime=list(range(2000, 2100)), show_id=False, spacelim=(8000, 10000), lanelim=(3, -1))
+        ani = hp.animatetraj(sim, siminfo2, usetime=list(range(2000, 4000)), show_id=False, spacelim=(8000, 10000), lanelim=(3, -1))
+        ani2 = hp.animatetraj(sim, siminfo2, usetime=list(range(8000, 10000)), show_id=False, spacelim=(8000, 10000),
+                             lanelim=(3, -1))
         plt.show()
 

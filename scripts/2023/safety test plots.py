@@ -92,7 +92,7 @@ def sample_lognormal(p):
 
 
 def sample_pareto(p):
-    return p[0]/(RNG.random()**(1/p[1]))
+    return p[0]/(RNG.random()**(1/p[1])) - p[0]
 
 
 def sample_weibull(p):

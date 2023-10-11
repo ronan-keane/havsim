@@ -822,7 +822,64 @@ def add_crash_behavior(vehicle, decel=-4., hold_timesteps=20):
                         if self.speedmem[-hold_timesteps] == 0.:
                             # remove vehicle by creating lane event
                             self.lane_events = [{'pos': -1e6, 'event': 'exit'}]
+
+                if self.in_relax:
+                    if timeind == self.relax_end:
+                        self.in_relax = False
+                        self.relaxmem.append((self.relax, self.relax_start))
             else:
                 super().set_cf(timeind)
 
     return VehicleCanCrash
+
+
+class StochasticVehicle(Vehicle):
+    def __init__(self, vehid, curlane, gamma_parameters=None, xi_parameters=None, dt=.2, **kwargs):
+        super().__init__(vehid, curlane, **kwargs)
+        self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.4, .75, 1.66, .33]
+        self.xi_parameters = xi_parameters if xi_parameters is not None else [.1, 2.]
+        self.rvmem = []
+        self.dt = dt
+
+        self.prev_acc = 0
+        self.beta = 0
+        self.next_t_ind = None
+
+    def initialize(self, pos, spd, hd, start):
+        super().initialize(pos, spd, hd, start)
+        self.next_t_ind = start+1
+
+    def set_cf(self, timeind):
+        if timeind == self.next_t_ind:
+            super().set_cf(timeind)
+            new_acc = self.acc
+            self.acc = self.prev_acc*self.beta + new_acc*(1-self.beta)
+
+            self.prev_acc = new_acc
+            gamma = self.sample_gamma(new_acc, timeind)
+            bar_gamma = (gamma/self.dt) // 1.
+            self.beta = gamma/self.dt - bar_gamma
+            self.next_t_ind = timeind + int(bar_gamma) + 1
+        else:
+            self.acc = self.prev_acc
+
+        if self.in_relax:
+            if timeind == self.relax_end:
+                self.in_relax = False
+                self.relaxmem.append((self.relax, self.relax_start))
+
+    def set_lc(self, lc_actions, lc_followers, timeind):
+        return models.lc_havsim2(self, lc_actions, lc_followers, timeind)
+
+    def sample_gamma(self, acc, timeind):
+        p = self.gamma_parameters
+        gamma = np.exp(self.npr.standard_normal()*p[1] + p[0])/(max(p[2]*abs(acc)**2-p[3], 0) + 1)
+        self.rvmem.append((timeind, acc, gamma))
+        return gamma
+
+    def sample_xi(self, timeind):
+        p = self.xi_parameters
+        xi = p[0]/(self.npr.random()**(1/p[1]))-p[0]
+        self.rvmem.append((timeind, xi))
+        return xi
+

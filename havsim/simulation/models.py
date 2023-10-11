@@ -266,7 +266,11 @@ def apply_tactical(fol_safe, veh_safe, new_lcfol, veh):
         # if new_lcfol.speed + 6 > veh.speed > new_lcfol.speed - 2:
         return veh.lc2_parameters[1]
     elif fol_safe and not veh_safe:
-        if veh.speed > new_lcfol.speed - 3:
+        lead = new_lcfol.lead
+        if lead is not None:
+            if veh.speed > lead.speed:
+                return veh.lc2_parameters[1]
+        if veh.speed > new_lcfol.speed:
             return veh.lc2_parameters[0]
     return 0
 
@@ -318,3 +322,112 @@ def default_parameters():
     route_parameters = [300, 500]
     return {'cf_parameters': cf_parameters, 'lc_parameters': lc_parameters, 'lc2_parameters': lc2_parameters,
             'relax_parameters': relax_parameters, 'route_parameters': route_parameters}
+
+
+def lc_havsim2(veh, lc_actions, lc_followers, timeind):
+    # for stochastic vehicle
+    if veh.chk_disc:
+        if veh.npr.random() > veh.lc_parameters[6]:
+            return lc_actions, lc_followers
+
+    # get relevant accelerations/headways
+    p, l_lc, r_lc = veh.lc_parameters, veh.l_lc, veh.r_lc
+    if l_lc == 'd':
+        if r_lc is None:
+            new_fol_hd, new_fol_a = veh.fol.get_cf(veh.lead, timeind)
+            new_lcfol = veh.lfol
+            new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+            incentive = new_veh_a - veh.acc + p[3]*(new_lcfol_a - new_lcfol.acc + new_fol_a - veh.fol.acc) + p[4]
+
+        elif r_lc == 'd':
+            new_fol_hd, new_fol_a = veh.fol.get_cf(veh.lead, timeind)
+            new_lcfol = veh.lfol
+            new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+            incentive = new_veh_a - veh.acc + p[3]*(new_lcfol_a - new_lcfol.acc + new_fol_a - veh.fol.acc) + p[4]
+
+            new_lcfol2 = veh.rfol
+            new_lcfol_hd2, new_veh_hd2, new_lcfol_a2, new_veh_a2 = new_hd_acc_under_lc(new_lcfol2, veh, timeind)
+            incentive2 = new_veh_a2 - veh.acc + p[3]*(new_lcfol_a2 - new_lcfol2.acc + new_fol_a - veh.fol.acc) + p[5]
+            if incentive2 > incentive:
+                incentive = incentive2
+                new_lcfol = new_lcfol2
+                new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_lcfol_hd2, new_veh_hd2, new_lcfol_a2, new_veh_a2
+
+        else:
+            new_lcfol = veh.rfol
+            new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+
+    elif l_lc is None:
+        if r_lc == 'd':
+            new_fol_hd, new_fol_a = veh.fol.get_cf(veh.lead, timeind)
+            new_lcfol = veh.rfol
+            new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+            incentive = new_veh_a - veh.acc + p[3]*(new_lcfol_a - new_lcfol.acc + new_fol_a - veh.fol.acc) + p[5]
+
+        elif r_lc is None:
+            return lc_actions, lc_followers
+
+        else:
+            new_lcfol = veh.rfol
+            new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+    else:
+        new_lcfol = veh.lfol
+        new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
+
+    if veh.in_disc:  # discretionary update
+        if veh.is_coop:  # if cooperating, make sure the incentive includes lc_acceleration
+            if veh.lc_acc == 0:
+                ego_veh = veh.is_coop
+                ego_safety = ego_veh.lc_parameters[0] if ego_veh.in_disc else ego_veh.lc_parameters[1]
+                check_coop_and_apply(veh, ego_veh, veh.lc2_parameters, ego_safety, timeind)
+            incentive -= veh.lc_acc
+
+        if incentive > p[2]:
+            if timeind < veh.disc_cooldown:
+                return lc_actions, lc_followers
+            safety = p[0] - veh.sample_xi(timeind)
+            fol_safe, veh_safe = new_lcfol_a > safety, new_veh_a > safety
+            if fol_safe and veh_safe:
+                return complete_change(lc_actions, lc_followers, veh, new_lcfol)
+            if veh.chk_disc:
+                veh.chk_disc = False
+                veh.disc_endtime = timeind + p[7]
+
+            # apply tactical and cooperative
+            if veh.lc_acc == 0:
+                veh.lc_acc = apply_tactical_discretionary(fol_safe, veh_safe, new_lcfol, veh)
+            has_coop = veh.has_coop
+            if not has_coop:
+                try_find_new_coop(new_lcfol, veh, new_lcfol_a, safety, timeind, 0)
+            else:
+                check_coop_and_apply(has_coop, veh, has_coop.lc2_parameters, safety, timeind)
+
+        else:
+            if veh.has_coop:
+                coop_veh = veh.has_coop
+                coop_veh.chk_disc = timeind > coop_veh.disc_endtime if coop_veh.in_disc else False
+                coop_veh.is_coop = veh.has_coop = None
+
+        if not veh.chk_disc:
+            if timeind > veh.disc_endtime:
+                veh.chk_disc = True
+
+    else:  # mandatory update
+        safety = p[1] - veh.sample_xi(timeind)
+        fol_safe, veh_safe = new_lcfol_a > safety, new_veh_a > safety
+        if fol_safe and veh_safe:
+            return complete_change(lc_actions, lc_followers, veh, new_lcfol)
+
+        # apply tactical and cooperative
+        if veh.lc_acc == 0:
+            veh.lc_acc = apply_tactical(fol_safe, veh_safe, new_lcfol, veh)
+        has_coop = veh.has_coop
+        if not has_coop:
+            s1, s2 = veh.lc_urgency
+            coop_correction = (veh.pos - s1)/(s2 - s1 + 1)
+            try_find_new_coop(new_lcfol, veh, new_lcfol_a, safety, timeind, coop_correction)
+        else:
+            check_coop_and_apply(has_coop, veh, has_coop.lc2_parameters, safety, timeind)
+
+    return lc_actions, lc_followers
+

@@ -8,7 +8,7 @@ def e94():
         s1 = np.random.rand() * 6 - 4
         s2 = np.random.rand() * .3 - .2
         kwargs = {'cf_parameters': [35 + s1, 1.3 + s2, 2, 1.1, 1.5],
-                  'lc_parameters': [-6, -8, .45, .1, .3, 0, .2, 10, 100], 'lc2_parameters': [-4, 2, -4, 1, .2],
+                  'lc_parameters': [-8, -8, .3, .05, .3, 0, .2, 10, 100], 'lc2_parameters': [-4, 2, -4, 1, .2],
                   'relax_parameters': [8.7, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
         return kwargs
 
@@ -49,7 +49,7 @@ def e94():
     # upstream boundary conditions
     # inflow amounts and entering speeds
     # inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4pm-6pm)
-    inflow = [2000 / 3600 / 2, 529 / 3600, 261 / 3600, 414 / 3600, 1260 / 3600, 1146 / 3600]  # (4pm-6pm)
+    inflow = [1950 / 3600 / 2, 529 / 3600, 261 / 3600, 414 / 3600, 1260 / 3600, 1146 / 3600]  # (4pm-6pm)
     # inflow = np.array(inflow)
     # inflow[0] = inflow[0] * .863
     # inflow[1:] = inflow[1:] * .382
@@ -74,6 +74,8 @@ def e94():
 
     def make_newveh(route_picker):
         MyVeh = hs.vehicles.add_crash_behavior(hs.Vehicle)
+        # MyVeh = hs.vehicles.add_crash_behavior(hs.vehicles.StochasticVehicle)
+
 
         def newveh(self, vehid, timeind):
             route = route_picker()

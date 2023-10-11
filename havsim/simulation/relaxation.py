@@ -73,7 +73,7 @@ def relax_helper_vhd(rp, relaxamount_s, relaxamount_v, veh, timeind, dt):
     if veh.in_relax:  # add to existing relax
         # find indexes with overlap - need to combine relax values for those
         overlap_end = min(veh.relax_end, timeind+relaxlen)
-        prevr_indoffset = timeind - veh.relax_start+1
+        prevr_indoffset = timeind - veh.relax_start
         prevr = veh.relax
         overlap_len = max(overlap_end-timeind-1, 0)
         for i in range(overlap_len):

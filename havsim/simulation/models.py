@@ -263,13 +263,8 @@ def check_coop_and_apply(veh, ego_veh, veh_p, ego_safety, timeind):
 
 def apply_tactical(fol_safe, veh_safe, new_lcfol, veh):
     if not fol_safe and veh_safe:
-        # if new_lcfol.speed + 6 > veh.speed > new_lcfol.speed - 2:
         return veh.lc2_parameters[1]
     elif fol_safe and not veh_safe:
-        # lead = new_lcfol.lead
-        # if lead is not None:
-        #     if veh.speed > lead.speed + 1:
-        #         return veh.lc2_parameters[1]
         if veh.speed > new_lcfol.speed - 3:
             return veh.lc2_parameters[0]
     return 0
@@ -300,7 +295,7 @@ def try_find_new_coop(new_lcfol, veh, new_lcfol_a, veh_safety, timeind, coop_cor
 
 
 def maybe_add_new_coop(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_correction):
-    """For a vehicle which meets the headway condition for cooperation, start new cooperation if possible."""
+    """For a vehicle which meets the safety condition for cooperation, start new cooperation if possible."""
     if not test_veh.is_coop:  # not currently cooperating
         coop_p = test_veh.lc2_parameters[4] + coop_correction
         if veh.npr.random() < coop_p:  # cooperation condition met

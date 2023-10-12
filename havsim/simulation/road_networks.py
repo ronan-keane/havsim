@@ -697,7 +697,6 @@ class AnchorVehicle:
         self.len = 0
 
         self.is_coop = -1  # for havsim_mobil cooperation model
-        self.lc2_parameters = [None, None, None, -1e20]
 
     def get_cf(self, lead, timeind):
         """Dummy method - so we don't have to check for anchors when calling set_lc."""

@@ -82,11 +82,12 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
             possible (not in original model)
 
     lc2 parameters:
-        0 - deceleration applied for tactical movement in mandatory lane changes
-        1 - acceleration applied for tactical movement in lane changes
+        0 - comfortable deceleration for mandatory lane changes
+        1 - comfortable speed gap for mandatory lane change
         2 - comfortable deceleration for cooperation during lane change
-        3 - comfortable speed gap for cooperation during lane change. If parameters 2 and 3 are both set to very
-            large values, then cooperating will have no effect.
+        3 - comfortable speed gap for cooperation during lane change. The cooperation vehicle will slow down until
+            within p[3] speed of the changing vehicle. Note that if parameters 2 and 3 are both set to very large
+            values, then cooperating will have no effect.
         4 - default probability to cooperate. During mandatory changes, the probability is increased. If set to very
             negative value, then cooperation will never be applied.
 
@@ -159,10 +160,9 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
 
     if veh.in_disc:  # discretionary update
         if veh.is_coop:  # if cooperating, make sure the incentive includes lc_acceleration
-            if veh.lc_acc == 0:
-                ego_veh = veh.is_coop
-                ego_safety = ego_veh.lc_parameters[0] if ego_veh.in_disc else ego_veh.lc_parameters[1]
-                check_coop_and_apply(veh, ego_veh, veh.lc2_parameters, ego_safety, timeind)
+            ego_veh = veh.is_coop
+            ego_safety = ego_veh.lc_parameters[0] if ego_veh.in_disc else ego_veh.lc_parameters[1]
+            check_coop_and_apply(veh, ego_veh, veh.lc2_parameters, ego_safety, timeind)
             incentive -= veh.lc_acc
 
         if incentive > p[2]:
@@ -176,9 +176,7 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
                 veh.chk_disc = False
                 veh.disc_endtime = timeind + p[7]
 
-            # apply tactical and cooperative
-            if veh.lc_acc == 0:
-                veh.lc_acc = apply_tactical_discretionary(fol_safe, veh_safe, new_lcfol, veh)
+            # apply cooperative
             has_coop = veh.has_coop
             if not has_coop:
                 try_find_new_coop(new_lcfol, veh, new_lcfol_a, safety, timeind, 0)
@@ -203,7 +201,7 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
 
         # apply tactical and cooperative
         if veh.lc_acc == 0:
-            veh.lc_acc = apply_tactical(fol_safe, veh_safe, new_lcfol, veh)
+            apply_tactical(veh, new_lcfol, veh_safe, veh.lc2_parameters)
         has_coop = veh.has_coop
         if not has_coop:
             s1, s2 = veh.lc_urgency
@@ -233,6 +231,7 @@ def complete_change(lc_actions, lc_followers, veh, new_lcfol):
 
 def apply_coop(veh, ego_veh, lc_acc, p2):
     # veh = cooperating, ego_veh = trying to change, p2 = parameters for veh
+    # basically, follow the ego_veh if possible; if not possible, then always decelerate if going faster than ego_veh
     if veh.acc > lc_acc:
         if lc_acc > p2[2]:
             veh.lc_acc = -veh.acc + lc_acc
@@ -254,26 +253,24 @@ def check_coop_and_apply(veh, ego_veh, veh_p, ego_safety, timeind):
         elif veh.lead is not None:
             lead = veh.lead
             unused, lead_a = lead.get_cf(ego_veh, timeind)
-            if lead_a < ego_safety and lead.speed > ego_veh.speed:
+            if lead_a < ego_safety:
                 apply_coop(veh, ego_veh, new_a, veh_p)
                 return
     veh.chk_disc = timeind > veh.disc_endtime if veh.in_disc else False
     veh.is_coop = ego_veh.has_coop = None
 
 
-def apply_tactical(fol_safe, veh_safe, new_lcfol, veh):
-    if not fol_safe and veh_safe:
-        return veh.lc2_parameters[1]
-    elif fol_safe and not veh_safe:
-        if veh.speed > new_lcfol.speed - 3:
-            return veh.lc2_parameters[0]
-    return 0
-
-
-def apply_tactical_discretionary(fol_safe, veh_safe, new_lcfol, veh):
-    if not fol_safe:
-        return veh.lc2_parameters[1]
-    return 0
+def apply_tactical(veh, new_lcfol, veh_safe, p2):
+    # decelerate to match leader speed if necessary
+    if not veh_safe:
+        lead = new_lcfol.lead
+        if lead is not None:
+            if veh.speed > lead.speed + p2[1]:
+                if veh.acc > 0:
+                    veh.lc_acc = -veh.acc + p2[0]
+                else:
+                    veh.lc_acc = p2[0]
+    return
 
 
 def try_find_new_coop(new_lcfol, veh, new_lcfol_a, veh_safety, timeind, coop_correction):
@@ -290,8 +287,7 @@ def try_find_new_coop(new_lcfol, veh, new_lcfol_a, veh_safety, timeind, coop_cor
         lead, lead_a = test_veh, test_veh_a
         test_veh = lead.fol
         unused, test_veh_a = test_veh.get_cf(veh, timeind)
-    if lead.speed > veh.speed:
-        maybe_add_new_coop(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_correction)
+    maybe_add_new_coop(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_correction)
 
 
 def maybe_add_new_coop(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_correction):
@@ -370,10 +366,9 @@ def lc_havsim2(veh, lc_actions, lc_followers, timeind):
 
     if veh.in_disc:  # discretionary update
         if veh.is_coop:  # if cooperating, make sure the incentive includes lc_acceleration
-            if veh.lc_acc == 0:
-                ego_veh = veh.is_coop
-                ego_safety = ego_veh.lc_parameters[0] if ego_veh.in_disc else ego_veh.lc_parameters[1]
-                check_coop_and_apply(veh, ego_veh, veh.lc2_parameters, ego_safety, timeind)
+            ego_veh = veh.is_coop
+            ego_safety = ego_veh.lc_parameters[0] if ego_veh.in_disc else ego_veh.lc_parameters[1]
+            check_coop_and_apply(veh, ego_veh, veh.lc2_parameters, ego_safety, timeind)
             incentive -= veh.lc_acc
 
         if incentive > p[2]:
@@ -387,9 +382,7 @@ def lc_havsim2(veh, lc_actions, lc_followers, timeind):
                 veh.chk_disc = False
                 veh.disc_endtime = timeind + p[7]
 
-            # apply tactical and cooperative
-            if veh.lc_acc == 0:
-                veh.lc_acc = apply_tactical_discretionary(fol_safe, veh_safe, new_lcfol, veh)
+            # apply cooperative
             has_coop = veh.has_coop
             if not has_coop:
                 try_find_new_coop(new_lcfol, veh, new_lcfol_a, safety, timeind, 0)
@@ -414,7 +407,7 @@ def lc_havsim2(veh, lc_actions, lc_followers, timeind):
 
         # apply tactical and cooperative
         if veh.lc_acc == 0:
-            veh.lc_acc = apply_tactical(fol_safe, veh_safe, new_lcfol, veh)
+            apply_tactical(veh, new_lcfol, veh_safe, veh.lc2_parameters)
         has_coop = veh.has_coop
         if not has_coop:
             s1, s2 = veh.lc_urgency

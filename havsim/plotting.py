@@ -1124,7 +1124,7 @@ def plotspacetime(meas, platooninfo, timeint=50, xint=70, lane=1, use_avg='mean'
     cmap.set_bad('white', 1.)  # change np.nan into white color
     fig, current_ax = plt.subplots(figsize=(12, 8))
     plt.pcolormesh(X, Y, meanspeeds,
-                   cmap=cmap)  # pcolormesh is similar to imshow but is meant for plotting whereas imshow is for actual images
+                   cmap=cmap, vmin=speed_bounds[0], vmax=speed_bounds[1])  # pcolormesh is similar to imshow but is meant for plotting whereas imshow is for actual images
     plt.xlabel('Time')
     plt.ylabel('Space')
     cbar = plt.colorbar()  # colorbar

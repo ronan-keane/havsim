@@ -288,7 +288,7 @@ class Vehicle:
         # parameters
         self.cf_parameters = cf_parameters if cf_parameters is not None else [35, 1.3, 2, 1.1, 1.5]
         self.lc_parameters = lc_parameters if lc_parameters is not None else [-4, -8, .3, .15, 0, 0, .2, 10, 42]
-        self.lc2_parameters = lc2_parameters if lc2_parameters is not None else [-3, 2, -4, .5, .2]
+        self.lc2_parameters = lc2_parameters if lc2_parameters is not None else [-2, 2, 2, -2, 2, .2]
         self.relax_parameters = relax_parameters if relax_parameters is not None else [8.7, 3, .1, 1.5]
         self.route_parameters = route_parameters if route_parameters is not None else [300, 500]
         self.relax_parameters = None if disable_relax else self.relax_parameters
@@ -760,9 +760,9 @@ class Vehicle:
         res = lfolpass and rfolpass and rleadpass and lleadpass and leadpass and folpass
         if verbose:
             if res:
-                print('passing results for '+str(self))
+                print('\npassing results for '+str(self))
             else:
-                print('errors for '+str(self))
+                print('\nerrors for '+str(self))
             if not lfolpass:
                 for i in lfolmsg:
                     print(i)

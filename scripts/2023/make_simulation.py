@@ -8,7 +8,7 @@ def e94():
         s1 = np.random.rand() * 6 - 4
         s2 = np.random.rand() * .3 - .2
         kwargs = {'cf_parameters': [35, 1.3, 2, 1.2, 1.5],
-                  'lc_parameters': [-8, -8, .3, .05, .1, 0, .3, 50, 30], 'lc2_parameters': [-2, 1, -2, 2, .2],
+                  'lc_parameters': [-8, -8, .3, .05, .1, 0, .3, 50, 30], 'lc2_parameters': [-2, 2, 2, -2, 2, .2],
                   'relax_parameters': [9., 3, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
         return kwargs
 
@@ -48,8 +48,8 @@ def e94():
 
     # upstream boundary conditions
     # inflow amounts and entering speeds
-    inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4pm-6pm)
-    # inflow = [1950 / 3600 / 2, 529 / 3600, 261 / 3600, 414 / 3600, 1260 / 3600, 1146 / 3600]  # (4pm-6pm)
+    # inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4pm-6pm)
+    inflow = [1950 / 3600 / 2, 529 / 3600, 261 / 3600, 414 / 3600, 1260 / 3600, 1146 / 3600]  # (4pm-6pm)
     # inflow = np.array(inflow)
     # inflow[0] = inflow[0] * .863
     # inflow[1:] = inflow[1:] * .382
@@ -142,11 +142,11 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None):
 
     def veh_parameters(route):
         def newveh(self, vehid, timeind):
-            s1 = np.random.rand() * 6 - 4
-            s2 = np.random.rand() * .3 - .2
-            kwargs = {'cf_parameters': [35, 1.3, 2, 1.1, 1.5],
-                      'lc_parameters': [-6, -8, .3, .05, .1, 0, .3, 50, 30], 'lc2_parameters': [-2, 2, -2, 2, .2],
-                      'relax_parameters': [8.7, 3, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None],
+            s1 = min(max(np.random.normal()*1.5, -4), 2)
+            s2 = np.random.rand() * .1 - .1
+            kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1., 1.5],
+                      'lc_parameters': [-4, -8, .3, .05, .1, 0, .3, 50, 50], 'lc2_parameters': [-2, 2, .2, -1.5, 1, .2],
+                      'relax_parameters': [9., 5., .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-12, None],
                       'route': route.copy()}
             self.newveh = hs.Vehicle(vehid, self, **kwargs)
         return newveh

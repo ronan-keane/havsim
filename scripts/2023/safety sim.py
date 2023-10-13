@@ -8,7 +8,7 @@ simulation, laneinds = e94()
 timesteps = 3600*6
 replications = 1
 make_plots = True
-save_output = False
+save_output = True
 save_name = 'e94_sim_0'
 
 near_miss = 0

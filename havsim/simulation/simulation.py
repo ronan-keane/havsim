@@ -114,10 +114,7 @@ def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, ve
 
     # for veh in vehicles:  # debugging
     #     if not veh._chk_leadfol(verbose = False):
-    #         # print('-------- Report for Vehicle '+str(veh.vehid)+' at time '+str(timeind)+'--------')
-    #         # veh._leadfol()
     #         veh._chk_leadfol()
-    #         # raise ValueError('incorrect vehicle order')
 
     return vehid, remove_vehicles
 

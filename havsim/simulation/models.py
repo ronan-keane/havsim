@@ -1,7 +1,6 @@
 """Houses all the different models for simulation."""
 
 import math
-import numpy as np
 from havsim.simulation.road_networks import get_headway
 
 
@@ -92,9 +91,12 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
             negative value, then cooperation will never be applied.
 
     relax_parameters:
-        0 - relaxation time length, time needed to adjust after a lane change
-        1 - minimum time headway used for relaxation safeguard
-        2 - minimum time to collision used for relaxation safeguard
+        0 - relaxation time length, time needed to adjust after a lane change. Used for positive relaxation (vehicle
+            can accept shorter gaps after changing).
+            If both parameters 0 and 1 are zero (or less than dt) then there is no relaxation.
+        1 - relaxation time length for negative relaxation (vehicle is sluggish to adjust to new faster lane)
+        2 - minimum time headway used for relaxation safeguard
+        3 - minimum time to collision used for relaxation safeguard
 
     route_parameters: (see also simulation.update_lane_routes.make_cur_route)
         0 - reach 100% forced cooperation of follower when this distance from end of merge
@@ -303,12 +305,104 @@ def maybe_add_new_coop(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_corre
             apply_coop(test_veh, veh, test_veh_a, test_veh.lc2_parameters)
 
 
+def new_relaxation(veh, timeind, dt):
+    """Generates relaxation for a vehicle after it experiences a lane change.
+
+    This is called directly after a vehicle changes it lane, while it still has the old value for its
+    headway, and its position has not yet been updated.
+    See (https://arxiv.org/abs/1904.08395) for an explanation of the relaxation model.
+
+    Args:
+        veh: Vehicle to add relaxation to
+        timeind: int giving the timestep of the simulation (0 indexed)
+        dt: float of time unit that passes in each timestep
+    Returns:
+        None. Modifies relaxation attributes for vehicle in place.
+    """
+    rp = veh.relax_parameters
+    if veh.lead is None:  # new lead is None -> reset relaxation
+        if veh.in_relax:
+            veh.in_relax = False
+            veh.relax = veh.relax[:timeind-veh.relax_start]
+            veh.relaxmem.append((veh.relax, veh.relax_start))
+        return
+    prevlead = get_prev_lead(veh, timeind)
+    if prevlead is None:
+        if veh.in_relax:
+            veh.in_relax = False
+            veh.relax = veh.relax[:timeind-veh.relax_start]
+            veh.relaxmem.append((veh.relax, veh.relax_start))
+        return
+        # olds = veh.get_eql(veh.speed)
+        # oldv = veh.speed
+    olds = veh.hd
+    oldv = prevlead.speed
+    news = get_headway(veh, veh.lead)
+    newv = veh.lead.speed
+
+    relaxamount_s = olds-news
+    relaxamount_v = oldv-newv
+    relax_helper_vhd(rp[0], rp[1], relaxamount_s, relaxamount_v, veh, timeind, dt)
+
+
+def get_prev_lead(veh, timeind):
+    mem = veh.leadmem[-2]
+    if mem[1] > timeind:
+        for i in range(len(veh.leadmem)-2):
+            mem = veh.leadmem[-3-i]
+            if mem[1] < timeind + 1:
+                break
+        else:
+            return None
+        return mem[0]
+    else:
+        return mem[0]
+
+
+def relax_helper_vhd(pos_r, neg_r, relaxamount_s, relaxamount_v, veh, timeind, dt):
+    """Helper function for headway + speed relaxation."""
+    # rp = parameter, relaxamount_s = headway relaxation, _v = velocity relaxation
+    rp = neg_r if relaxamount_v < 0 else pos_r
+    relaxlen = math.ceil(rp/dt) - 1
+    if relaxlen <= 0:
+        return
+    tempdt = -dt/rp*relaxamount_s
+    tempdt2 = -dt/rp*relaxamount_v
+    temp = [relaxamount_s + tempdt*i for i in range(1, relaxlen+1)]
+    temp2 = [relaxamount_v + tempdt2*i for i in range(1, relaxlen+1)]
+    curr = list(zip(temp, temp2))
+
+    if veh.in_relax:  # add to existing relax
+        # find indexes with overlap - need to combine relax values for those
+        if veh.relax_end < timeind + relaxlen:
+            overlap_end = veh.relax_end
+            veh.relax_end = timeind + relaxlen
+            need_extend = True
+        else:
+            overlap_end = timeind + relaxlen
+            need_extend = False
+        prevr_indoffset = timeind - veh.relax_start + 1
+        prevr = veh.relax
+        overlap_len = max(overlap_end-timeind, 0)
+        for i in range(overlap_len):
+            curtime = prevr_indoffset+i
+            prevrelax, currelax = prevr[curtime], curr[i]
+            prevr[curtime] = (prevrelax[0]+currelax[0], prevrelax[1]+currelax[1])
+        if need_extend:
+            prevr.extend(curr[overlap_len:])
+    else:
+        veh.in_relax = True
+        veh.relax_start = timeind + 1  # add relax
+        veh.relax = curr
+        veh.relax_end = timeind + relaxlen
+
+
 def default_parameters():
     """Suggested parameters for the IDM and havsim lane changing model."""
     cf_parameters = [35, 1.3, 2, 1.1, 1.5]
     lc_parameters = [-4, -8, .3, .15, 0, 0, .2, 10, 42]
-    lc2_parameters = [-3, 2, -4, 1, .2]
-    relax_parameters = [8.7, .6, 1.5]
+    lc2_parameters = [-2, 2, -2, 2, .2]
+    relax_parameters = [8.7, 3, .6, 1.5]
     route_parameters = [300, 500]
     return {'cf_parameters': cf_parameters, 'lc_parameters': lc_parameters, 'lc2_parameters': lc2_parameters,
             'relax_parameters': relax_parameters, 'route_parameters': route_parameters}

@@ -6,7 +6,6 @@ import scipy.optimize as sc
 import numpy as np
 
 from havsim.simulation.road_networks import get_dist, get_headway
-from havsim.simulation.relaxation import new_relaxation
 from havsim.simulation import models
 from havsim.simulation import update_lane_routes
 
@@ -290,7 +289,7 @@ class Vehicle:
         self.cf_parameters = cf_parameters if cf_parameters is not None else [35, 1.3, 2, 1.1, 1.5]
         self.lc_parameters = lc_parameters if lc_parameters is not None else [-4, -8, .3, .15, 0, 0, .2, 10, 42]
         self.lc2_parameters = lc2_parameters if lc2_parameters is not None else [-3, 2, -4, .5, .2]
-        self.relax_parameters = relax_parameters if relax_parameters is not None else [8.7, .1, 1.5]
+        self.relax_parameters = relax_parameters if relax_parameters is not None else [8.7, 3, .1, 1.5]
         self.route_parameters = route_parameters if route_parameters is not None else [300, 500]
         self.relax_parameters = None if disable_relax else self.relax_parameters
 
@@ -433,12 +432,12 @@ class Vehicle:
             return
         if self.in_relax:
             p = self.relax_parameters
-            ttc = hd - 2 - p[1]*spd
+            ttc = hd - 2 - p[2]*spd
             ttc = 0 if ttc < 0 else ttc / (spd - lead.speed + 1e-6)
             currelax, currelax_v = self.relax[timeind - self.relax_start]
-            if p[2] > ttc >= 0:
-                currelax = currelax * (ttc / p[2]) ** 2 if currelax > 0 else currelax
-                currelax_v = currelax_v * (ttc / p[2]) ** 2 if currelax_v > 0 else currelax_v
+            if p[3] > ttc >= 0:
+                currelax = currelax * (ttc / p[3]) ** 2 if currelax > 0 else currelax
+                currelax_v = currelax_v * (ttc / p[3]) ** 2 if currelax_v > 0 else currelax_v
             if timeind == self.relax_end:
                 self.in_relax = False
                 self.relaxmem.append((self.relax, self.relax_start))
@@ -453,7 +452,7 @@ class Vehicle:
 
     def set_relax(self, timeind, dt):
         """Creates a new relaxation after lane change."""
-        new_relaxation(self, timeind, dt)
+        models.new_relaxation(self, timeind, dt)
 
     def free_cf(self, p, spd):
         """Defines car following model in free flow.

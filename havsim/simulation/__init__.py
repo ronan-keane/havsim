@@ -5,7 +5,6 @@
 
 from havsim.simulation import simulation
 from havsim.simulation import models
-from havsim.simulation import relaxation
 from havsim.simulation import road_networks
 from havsim.simulation import update_lane_routes
 from havsim.simulation import vehicle_orders

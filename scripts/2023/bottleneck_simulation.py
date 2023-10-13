@@ -33,9 +33,9 @@ if make_plots or save_output:
             pickle.dump([sim, siminfo], f)
     if make_plots:
         hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=1, speed_bounds=(0, 35))
-        # hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=0, speed_bounds=(0, 35))
+        hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=0, speed_bounds=(0, 35))
 
-        hp.plotflows(sim, [[0, 100], [1300, 1400], [1900, 2000]], [0, timesteps], 150, h=.2)
+        hp.plotflows(sim, [[900, 1000], [1300, 1400], [1900, 2000]], [0, timesteps], 150, h=.2)
 
         ani = hp.animatetraj(sim, siminfo, usetime=list(range(1000, 3000)), show_id=False, spacelim=(0, 2000), lanelim=(3, -1))
         ani2 = hp.animatetraj(sim, siminfo, usetime=list(range(10000, timesteps)), show_id=False, spacelim=(0, 2000),

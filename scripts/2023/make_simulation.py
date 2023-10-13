@@ -8,8 +8,8 @@ def e94():
         s1 = np.random.rand() * 6 - 4
         s2 = np.random.rand() * .3 - .2
         kwargs = {'cf_parameters': [35, 1.3, 2, 1.2, 1.5],
-                  'lc_parameters': [-8, -8, .3, .05, .3, 0, .2, 10, 100], 'lc2_parameters': [-1, 2, -3, 1, .2],
-                  'relax_parameters': [11., .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
+                  'lc_parameters': [-8, -8, .3, .05, .1, 0, .3, 50, 30], 'lc2_parameters': [-2, 1, -2, 2, .2],
+                  'relax_parameters': [9., 3, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
         return kwargs
 
     # road network
@@ -134,8 +134,8 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None):
     """Test simulation of merge bottleneck."""
     main_road = hs.Road(num_lanes=2, length=2000, name='main road')
     main_road.connect('exit', is_exit=True)
-    onramp = hs.Road(num_lanes=1, length=[(1000, 1300)], name='on ramp')
-    onramp.merge(main_road, self_index=0, new_lane_index=1, self_pos=(1100, 1300), new_lane_pos=(1100, 1300))
+    onramp = hs.Road(num_lanes=1, length=[(900, 1300)], name='on ramp')
+    onramp.merge(main_road, self_index=0, new_lane_index=1, self_pos=(1000, 1300), new_lane_pos=(1000, 1300))
 
     main_road.set_downstream({'method': 'free'})
     onramp.set_downstream({'method': 'free merge', 'self_lane': onramp[0]})
@@ -145,8 +145,8 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None):
             s1 = np.random.rand() * 6 - 4
             s2 = np.random.rand() * .3 - .2
             kwargs = {'cf_parameters': [35, 1.3, 2, 1.1, 1.5],
-                      'lc_parameters': [-6, -8, .45, .05, .1, 0, .3, 10, 100], 'lc2_parameters': [-2, 2, -2, 2, .4],
-                      'relax_parameters': [8.7, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None],
+                      'lc_parameters': [-6, -8, .3, .05, .1, 0, .3, 50, 30], 'lc2_parameters': [-2, 2, -2, 2, .2],
+                      'relax_parameters': [8.7, 3, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None],
                       'route': route.copy()}
             self.newveh = hs.Vehicle(vehid, self, **kwargs)
         return newveh

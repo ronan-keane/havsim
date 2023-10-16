@@ -471,9 +471,10 @@ def lc_havsim2(veh, lc_actions, lc_followers, timeind):
 
     if veh.in_disc:  # discretionary update
         if veh.is_coop:  # if cooperating, make sure the incentive includes lc_acceleration
-            ego_veh = veh.is_coop
-            ego_safety = ego_veh.lc_parameters[0] if ego_veh.in_disc else ego_veh.lc_parameters[1]
-            check_coop_and_apply(veh, ego_veh, veh.lc2_parameters, ego_safety, timeind)
+            if veh.lc_acc == 0:
+                ego_veh = veh.is_coop
+                ego_safety = ego_veh.lc_parameters[0] if ego_veh.in_disc else ego_veh.lc_parameters[1]
+                check_coop_and_apply(veh, ego_veh, veh.lc2_parameters, ego_safety, timeind)
             incentive -= veh.lc_acc
 
         if incentive > p[2]:
@@ -487,11 +488,13 @@ def lc_havsim2(veh, lc_actions, lc_followers, timeind):
                 veh.chk_disc = False
                 veh.disc_endtime = timeind + p[7]
 
-            # apply cooperative
+            # apply tactical and cooperative
+            if veh.lc_acc == 0:
+                apply_tactical_discretionary(veh, veh_safe, fol_safe, veh.lc2_parameters)
             has_coop = veh.has_coop
             if not has_coop:
                 try_find_new_coop(new_lcfol, veh, new_lcfol_a, safety, timeind, 0)
-            else:
+            elif has_coop.lc_acc == 0:
                 check_coop_and_apply(has_coop, veh, has_coop.lc2_parameters, safety, timeind)
 
         else:
@@ -512,13 +515,13 @@ def lc_havsim2(veh, lc_actions, lc_followers, timeind):
 
         # apply tactical and cooperative
         if veh.lc_acc == 0:
-            apply_tactical(veh, new_lcfol, veh_safe, veh.lc2_parameters)
+            apply_tactical(veh, new_lcfol, veh_safe, fol_safe, veh.lc2_parameters)
         has_coop = veh.has_coop
         if not has_coop:
             s1, s2 = veh.lc_urgency
             coop_correction = (veh.pos - s1)/(s2 - s1 + 1)
             try_find_new_coop(new_lcfol, veh, new_lcfol_a, safety, timeind, coop_correction)
-        else:
+        elif has_coop.lc_acc == 0:
             check_coop_and_apply(has_coop, veh, has_coop.lc2_parameters, safety, timeind)
 
     return lc_actions, lc_followers

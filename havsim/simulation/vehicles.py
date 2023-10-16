@@ -872,7 +872,7 @@ class StochasticVehicle(Vehicle):
 
     def sample_gamma(self, acc, timeind):
         p = self.gamma_parameters
-        gamma = np.exp(self.npr.standard_normal()*p[1] + p[0])/(max(p[2]*abs(acc)**2-p[3], 0) + 1)
+        gamma = np.exp(self.npr.standard_normal()*p[1] + p[0])/(max(p[2]*acc**2-p[3], 0) + 1)
         self.rvmem.append((timeind, acc, gamma))
         return gamma
 

@@ -9,7 +9,7 @@ def IDM(s, v, vl, p):
     s_star = p[2] + p[1]*v + (v*(v-vl))/(2*(p[3]*p[4])**.5)
     return p[3]*(1 - (v/p[0])**4 - (s_star/s)**2)
 
-def make_follower_trajectory(lead_pos, lead_speed, dt, l, veh_pos, veh_speed, p, gamma_p, gamma_fn):
+def make_follower_trajectory(lead_pos, lead_speed, dt, l, veh_pos, veh_speed, p, gamma_p, gamma_fn, seed=None):
     """Generates following trajectory given the lead vehicle trajectory.
 
     Args:
@@ -44,12 +44,53 @@ def make_follower_trajectory(lead_pos, lead_speed, dt, l, veh_pos, veh_speed, p,
 
             t_ind = next_t_ind
             prev_acc = new_acc
-            gamma = gamma_fn(gamma_p)/gamma_scale(new_acc)
+            if i == 0 and seed is not None:
+                gamma = seed/gamma_scale(new_acc)
+            else:
+                gamma = gamma_fn(gamma_p)/gamma_scale(new_acc)
             bar_gamma = (gamma / dt) // 1.
             beta = gamma / dt - bar_gamma
             next_t_ind = t_ind + bar_gamma + 1.
         else:
             veh_acc = prev_acc
+        veh_acc = max(min(veh_acc, 4), -6)
+        veh_pos += dt*veh_speed
+        veh_speed += dt*veh_acc
+        veh_speed = max(veh_speed, 0)
+        xn.append(veh_pos)
+        xn_dot.append(veh_speed)
+        xn_ddot.append(veh_acc)
+    return xn, xn_dot, xn_ddot
+
+
+def make_follower_trajectory_delay(lead_pos, lead_speed, dt, l, veh_pos, veh_speed, p, tau):
+    """Generates following trajectory given the lead vehicle trajectory.
+
+    Args:
+        lead_pos: list of floats giving leader position at times 0, dt, 2dt, etc.
+        lead_speed: list of floats giving leader speeds at times 0, dt, 2dt, etc.
+        dt: timestep
+        l: lead vehicle length
+        veh_pos: initial position of following vehicle
+        veh_speed: initial speed of following vehicle
+        p: parameters for car following model (IDM)
+        tau: the reaction time is tau * dt where tau is an integer
+    Returns:
+        xn: list of positions of follower vehicle, with same shape as lead_pos
+        xn_dot: list of speeds of follower vehicle
+    """
+
+    xn = [veh_pos]
+    xn_dot = [veh_speed]
+    xn_ddot = []
+
+    for i in range(len(lead_pos)-1):
+        if i < tau:  # assume start in equilibrium
+            s = lead_pos[0] - xn[0] - l
+            veh_acc = IDM(s, xn_dot[0], lead_speed[0], p)
+        else:
+            s = lead_pos[i-tau] - xn[i-tau] - l
+            veh_acc = IDM(s, xn_dot[i-tau], lead_speed[i - tau], p)
         veh_acc = max(min(veh_acc, 4), -6)
         veh_pos += dt*veh_speed
         veh_speed += dt*veh_acc
@@ -108,7 +149,7 @@ def plot_pdf(pdf_param, pdf_fn=None, end_value=10):
     # plt.show()
 
 p = [35, 1.3, 2, 1.1, 1.5]
-lognormal_p = [np.log(1.), .75]
+lognormal_p = [np.log(.6), .7]
 pareto_p = [1., 2.]
 
 zs = np.array([-1.28, -.52, .52, 1.28])  # .1, .3, .7, .9 percentiles
@@ -116,10 +157,12 @@ print('percentiles are '+str(np.exp(zs*lognormal_p[1] + lognormal_p[0])))
 print('mean is '+str(np.exp(lognormal_p[0]+lognormal_p[1]**2/2)))
 plot_pdf(lognormal_p, lognormal_pdf, 20)
 plot_pdf(pareto_p, pareto_pdf, 10)
+seeds = [.2, .45, .8, 1.2, 2.]
 
-lead_speed = [20 - i*.5 for i in range(11)]
-lead_speed.extend([15]*55)
-dt = .25
+lead_speed = [20.2 - i*.4 for i in range(14)]
+lead_speed.extend([15]*51)
+dt = .2
+t = [dt*i for i in range(len(lead_speed))]
 lead_pos = [0]
 for i in lead_speed[:-1]:
     lead_pos.append(lead_pos[-1]+i*dt)
@@ -127,29 +170,32 @@ l = 5
 eql_hd = ((p[2]+p[1]*lead_speed[0])**2/(1 - (lead_speed[0]/p[0])**4))**.5
 veh_pos = lead_pos[0]-l-eql_hd
 veh_speed = lead_speed[0]
-xn, xn_dot, xn_ddot = make_follower_trajectory(lead_pos, lead_speed, dt, l, veh_pos, veh_speed, p, lognormal_p, sample_lognormal)
+xn, xn_dot, xn_ddot = make_follower_trajectory(lead_pos, lead_speed, dt, l, veh_pos, veh_speed, p, lognormal_p, sample_lognormal, seed=seeds[0])
 xn1, xn_dot1, xn_ddot1 = make_follower_trajectory(lead_pos, lead_speed, dt, l, veh_pos, veh_speed, p, lognormal_p,
                                                    no_sample)
+xn2, xn_dot2, xn_ddot2 = make_follower_trajectory_delay(lead_pos, lead_speed, dt, l, veh_pos, veh_speed, p, 3)
 
 fig1 = plt.figure()
-plt.plot(lead_speed, 'k--')
-plt.plot(xn_dot1)
-plt.plot(xn_dot, 'C1', alpha=.5)
-plt.xlabel('time (.25s)')
+# plt.plot(t, lead_speed, 'k--')
+plt.plot(t, xn_dot1, 'k', linestyle='dashed')
+plt.plot(t, xn_dot2, 'C2', linestyle='dotted')
+plt.plot(t, xn_dot, 'C1', alpha=.5)
+plt.xlabel('time (s)')
 plt.ylabel('speed (m/s)')
-plt.legend(['leader', 'deterministic follower', 'stochastic followers'])
+plt.legend(['normal car following', 'delayed car following', 'stochastic car following (ours)'])
 fig2 = plt.figure()
-plt.plot(xn_ddot1)
-plt.plot(xn_ddot, 'C1', alpha=.5)
-plt.xlabel('time')
+plt.plot(t[:-1], xn_ddot1, 'k', linestyle='dashed')
+plt.plot(t[:-1], xn_ddot2, 'C2', linestyle='dotted')
+plt.plot(t[:-1], xn_ddot, 'C1', alpha=.5)
+plt.xlabel('time (s)')
 plt.ylabel('acceleration (m/s/s)')
-plt.legend(['deterministic follower', 'stochastic followers'])
+plt.legend(['normal car following', 'delayed car following', 'stochastic car following (ours)'])
 fig3 = plt.figure()
 plt.plot(np.array(lead_pos)-xn-l, alpha=.5)
-for i in range(5):
+for i in range(len(seeds)-1):
     xn, xn_dot, xn_ddot = make_follower_trajectory(lead_pos, lead_speed, dt, l, veh_pos, veh_speed, p, lognormal_p,
-                                                   sample_lognormal)
-    fig1.axes[0].plot(xn_dot, 'C1', alpha=.5)
-    fig2.axes[0].plot(xn_ddot, 'C1', alpha=.5)
+                                                   sample_lognormal, seed=seeds[i+1])
+    fig1.axes[0].plot(t, xn_dot, 'C1', alpha=.5)
+    fig2.axes[0].plot(t[:-1], xn_ddot, 'C1', alpha=.5)
     fig3.axes[0].plot(np.array(lead_pos)-xn-l, alpha=.5)
 plt.show()

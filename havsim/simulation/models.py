@@ -83,7 +83,8 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
     lc2 parameters:
         0 - comfortable deceleration for lane changes
         1 - comfortable acceleration for lane changes
-        2 - comfortable speed gap for mandatory lane change. Only decelerate if more than p[2] speed than new leader
+        2 - comfortable speed gap for mandatory lane change. Only decelerate if more than p[2] speed than new leader.
+            If parameters 1 is zero and parameter 2 is large, the tactical model has no effect.
         3 - comfortable deceleration for cooperation during lane change
         4 - comfortable speed gap for cooperation during lane change. The cooperation vehicle will slow down until
             within p[3] speed of the changing vehicle. Note that if parameters 3 and 4 are both set to very large
@@ -100,7 +101,8 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
         3 - minimum time to collision used for relaxation safeguard
 
     route_parameters: (see also simulation.update_lane_routes.make_cur_route)
-        0 - reach 100% forced cooperation of follower when this distance from end of merge
+        0 - reach 100% forced cooperation of follower when this distance from end of merge. If set to very negative,
+            then we will always stay at whatever the default probability to cooperate is.
         1 - 0 + 1 gives the minimum comfortable distance for completing a mandatory lane change
 
     Args:
@@ -115,6 +117,10 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
     """
     if veh.chk_disc:
         if veh.npr.random() > veh.lc_parameters[6]:
+            if veh.has_coop:  # remove coop
+                coop_veh = veh.has_coop
+                coop_veh.chk_disc = timeind > coop_veh.disc_endtime if coop_veh.in_disc else False
+                coop_veh.is_coop = veh.has_coop = None
             return lc_actions, lc_followers
 
     # get relevant accelerations/headways
@@ -423,6 +429,10 @@ def lc_havsim2(veh, lc_actions, lc_followers, timeind):
     # for stochastic vehicle
     if veh.chk_disc:
         if veh.npr.random() > veh.lc_parameters[6]:
+            if veh.has_coop:
+                coop_veh = veh.has_coop
+                coop_veh.chk_disc = timeind > coop_veh.disc_endtime if coop_veh.in_disc else False
+                coop_veh.is_coop = veh.has_coop = None
             return lc_actions, lc_followers
 
     # get relevant accelerations/headways

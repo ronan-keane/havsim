@@ -145,7 +145,7 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None):
             s1 = min(max(np.random.normal()*1.5, -4), 2)
             s2 = np.random.rand() * .1 - .1
             kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1.1, 1.6],
-                      'lc_parameters': [-6, -8, .6, .05, .1, 0, .3, 5, 30], 'lc2_parameters': [-1, 2, 2, -.5, 1, .2],
+                      'lc_parameters': [-6, -8, .6, .05, .1, 0, .3, 5, 30], 'lc2_parameters': [-1, 2, -.1, -.5, 1, .2],
                       'relax_parameters': [12., 3., .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-9, None],
                       'route': route.copy()}
             self.newveh = hs.Vehicle(vehid, self, **kwargs)

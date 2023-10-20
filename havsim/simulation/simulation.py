@@ -248,7 +248,7 @@ class CrashesSimulation(Simulation):
                     if veh.crashed and lead.crashed:
                         continue
                     most_recent_lc_time = max(veh.lanemem[-1][1], lead.lanemem[-1][1])
-                    if self.timeind - most_recent_lc_time < 6:  # LC is not 'completed', so no crash has occured yet
+                    if self.timeind - most_recent_lc_time < 8:  # LC is not 'completed', so no crash has occured yet
                         continue
                     if not veh.crashed and not lead.crashed:  # normal case of new crash
                         veh.update_after_crash(self.timeind)

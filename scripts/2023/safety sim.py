@@ -35,7 +35,7 @@ for i in range(replications):
             lc_times = []
         if len(crash[1].lanemem) > 1:
             lc_times.extend([lc[1] for lc in crash[1].lanemem[1:]])
-        if crash_time - 6 in lc_times:
+        if crash_time - 8 in lc_times:
             sideswipe += 1
         else:
             rear_end += 1

@@ -13,7 +13,7 @@ onramp = lambda timeind: 1150/3600
 simulation, laneinds = merge_bottleneck(main_inflow=main, onramp_inflow=onramp)
 timesteps = 3600*4
 make_plots = True
-save_output = True
+save_output = False
 save_name = 'bottleneck_sim_0'
 
 start = time.time()

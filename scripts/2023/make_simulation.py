@@ -5,18 +5,18 @@ def e94():
     """Simulation of 12km length of E94 in Ann Arbor area"""
     # specify vehicle parameters
     def veh_parameters():
-        s1 = np.random.rand() * 6 - 4
-        s2 = np.random.rand() * .3 - .2
-        kwargs = {'cf_parameters': [35, 1.3, 2, 1.2, 1.5],
-                  'lc_parameters': [-8, -8, .3, .05, .1, 0, .3, 50, 30], 'lc2_parameters': [-2, 2, 2, -2, 2, .2],
-                  'relax_parameters': [9., 3, .6, 1.5], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
+        s1 = min(max(np.random.normal() * 1.5, -4), 2)
+        s2 = np.random.rand() * .1 - .1
+        kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1.3, 1.9],
+                  'lc_parameters': [-4, -8, .3, .05, .1, 0, .3, 50, 50], 'lc2_parameters': [-1, 2, .1, -1, 2, .2],
+                  'relax_parameters': [12., 3., .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
         return kwargs
 
     # road network
     main_road = hs.Road(num_lanes=2, length=12000, name='E94')
     main_road.connect('exit', is_exit=True)
-    offramp1 = hs.Road(num_lanes=1, length=[(175, 275)], name='jackson off ramp')
-    main_road.merge(offramp1, self_index=1, new_lane_index=0, self_pos=(175, 260), new_lane_pos=(175, 260))
+    offramp1 = hs.Road(num_lanes=1, length=[(475, 675)], name='jackson off ramp')
+    main_road.merge(offramp1, self_index=1, new_lane_index=0, self_pos=(475, 660), new_lane_pos=(475, 660))
     offramp1.connect('offramp 1', is_exit=True)
     onramp1 = hs.Road(num_lanes=1, length=[(1000, 1350)], name='jackson on ramp')
     onramp1.merge(main_road, self_index=0, new_lane_index=1, self_pos=(1100, 1350), new_lane_pos=(1100, 1350))
@@ -49,7 +49,7 @@ def e94():
     # upstream boundary conditions
     # inflow amounts and entering speeds
     # inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4pm-6pm)
-    inflow = [1950 / 3600 / 2, 529 / 3600, 261 / 3600, 414 / 3600, 1260 / 3600, 1146 / 3600]  # (4pm-6pm)
+    inflow = [1930 / 3600 / 2, 529 / 3600, 261 / 3600, 414 / 3600, 1100 / 3600, 1100 / 3600]  # (4pm-6pm)
     # inflow = np.array(inflow)
     # inflow[0] = inflow[0] * .863
     # inflow[1:] = inflow[1:] * .382
@@ -85,18 +85,18 @@ def e94():
 
     main_routes = [['jackson off ramp', 'offramp 1'], ['ann arbor saline off ramp', 'offramp 2'],
                    ['state off ramp', 'offramp 3'], ['exit']]
-    main_probabilities = [.2170, .2054, .0682, .5095]
-    # main_probabilities = [.1370, .1054, .0682, .7095]
+    # main_probabilities = [.2170, .2054, .0682, .5095]
+    main_probabilities = [.172, .176, .0638, .589]
     main_newveh = make_newveh(select_route(main_routes, main_probabilities))
     onramp1_routes = [['E94', 'ann arbor saline off ramp', 'offramp 2'], ['E94', 'state off ramp', 'offramp 3'],
                       ['E94', 'exit']]
-    onramp1_probabilities = [.2623, .0871, .651]
+    onramp1_probabilities = [.213, .077, .71]
     onramp1_newveh = make_newveh(select_route(onramp1_routes, onramp1_probabilities))
     onramp2_routes = [['E94', 'state off ramp', 'offramp 3'], ['E94', 'exit']]
-    onramp2_probabilities = [.118, .882]
+    onramp2_probabilities = [.098, .9025]
     onramp2_newveh = make_newveh(select_route(onramp2_routes, onramp2_probabilities))
     onramp3_routes = [['E94', 'state off ramp', 'offramp 3'], ['E94', 'exit']]
-    onramp3_probabilities = [.118, .882]
+    onramp3_probabilities = [.098, .9025]
     onramp3_newveh = make_newveh(select_route(onramp3_routes, onramp3_probabilities))
     onramp4_newveh = make_newveh(lambda: ['E94', 'exit'])
     onramp5_newveh = make_newveh(lambda: ['E94', 'exit'])
@@ -144,9 +144,9 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None):
         def newveh(self, vehid, timeind):
             s1 = min(max(np.random.normal()*1.5, -4), 2)
             s2 = np.random.rand() * .1 - .1
-            kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1., 1.5],
-                      'lc_parameters': [-4, -8, .3, .05, .1, 0, .3, 50, 50], 'lc2_parameters': [-2, 2, .2, -1.5, 1, .2],
-                      'relax_parameters': [9., 5., .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-12, None],
+            kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1.1, 1.6],
+                      'lc_parameters': [-6, -8, .6, .05, .1, 0, .3, 5, 30], 'lc2_parameters': [-1, 2, 2, -.5, 1, .2],
+                      'relax_parameters': [12., 3., .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-9, None],
                       'route': route.copy()}
             self.newveh = hs.Vehicle(vehid, self, **kwargs)
         return newveh

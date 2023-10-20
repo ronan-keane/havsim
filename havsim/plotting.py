@@ -181,8 +181,8 @@ def clip_distance(all_vehicles, sim, clip):
 
 
 def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'],
-                fulltraj=True, lane=None, opacity=.4, colorcode=True, speed_limit=[],
-                timerange=[None, None]):  # plot platoon in space-time
+                lane=None, opacity=.4, colorcode=True, speed_limit=[],
+                timerange=None):  # plot platoon in space-time
     # meas - measurements in np array, rows are observations
     # sim - simulation in same format as meas. can pass in None and only meas will be shown, or can pass in the data and they will be plotted together
     # in different colors.
@@ -193,7 +193,6 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
     # newfig = True - if True will create a new figure, otherwise it will use the current figure
     # clr = 'C0', assuming Colors = False, clr will control what colors will be used. Default is ['C0','C1'] which are the default matplotlib colors
     # this is used is sim is not None and colorcode = False
-    # fulltraj = True controls how much of each trajectory to plot
 
     # lane = None - If passed in as a laneID, the parts of trajectories not in the lane ID given will be made opaque
     # colorcode = True - if colorcode is True, sim must be None, and we will plot the trajectories
@@ -242,10 +241,8 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
 
     for i in followerlist:  # iterate over each vehicle
         veh = meas[i]
-        veh = extract_relevant_data(veh, i, platooninfo, fulltraj, timerange)
-
-        # If current vehicle's data is irrelavant to given time range, move on to the next one
-        if veh is None:
+        veh = extract_relevant_data(veh, timerange)
+        if len(veh) == 0:
             continue
 
         x = veh[:, 1]
@@ -261,7 +258,6 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
                 plt.plot(x[LCind[j]:LCind[j + 1]], y[LCind[j]:LCind[j + 1]], clr[0], **kwargs)
                 artist2veh.append(counter)
             else:
-
                 X = x[LCind[j]:LCind[j + 1]]
                 Y = y[LCind[j]:LCind[j + 1]]
                 SPEED = speed_list[LCind[j]:LCind[j + 1]]
@@ -278,7 +274,7 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
         counter = 0
         for i in followerlist:  # iterate over each vehicle
             veh = sim[i]
-            veh = extract_relevant_data(veh, i, platooninfo, fulltraj, timerange)
+            veh = extract_relevant_data(veh, timerange)
 
             if len(veh) == 0:
                 continue
@@ -299,7 +295,7 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
     find_artists = []
     nartists = len(artist2veh)
 
-    def on_pick(event):
+    def on_pick(event):  # highlights selected vehicle and changes title to show the vehicle ID
         nonlocal find_artists
         ax = event.artist.axes
         curind = ax.lines.index(event.artist)  # artist index
@@ -324,9 +320,6 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
             plt.draw()
         plt.draw()
 
-    # recolor the selected artist and all other artists associated with the vehicle ID so you can see what line you clicked on
-    # change the title to say what vehicle you selected.
-
     fig.canvas.callbacks.connect('pick_event', on_pick)
     axs = plt.gca()
 
@@ -342,36 +335,19 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
     return
 
 
-def extract_relevant_data(veh, i, platooninfo, fulltraj, timerange):
-    # if fulltraj is True, plot between t_nstar - T_n; plot between t_n and T_nm1 otherwise
-    # trajectories additionally must be between timerange if possible
-    t_nstar, t_n, T_nm1, T_n = platooninfo[i][0:4]
-
-    if fulltraj:  # entire trajectory including pre simulation and shifted end
-        start = t_nstar
-        end = T_n
-    else:  # only show trajectory which is simulated
-        start = t_n
-        end = T_nm1
-
-    if timerange[0] != None:
-        if timerange[0] <= end:
-            if start > timerange[0]:
-                pass
-            else:
-                start = timerange[0]
+def extract_relevant_data(veh, timerange):
+    # trajectories must be between timerange if possible
+    if timerange is None:
+        return veh
+    else:
+        start, end = int(veh[0, 1]), int(veh[-1, 1])
+        if start > timerange[1] or end < timerange[0]:
+            return np.zeros((0, 8))
         else:
-            start = None
-
-    if timerange[1] != None:
-        if end < timerange[1]:
-            pass
-        else:
-            end = timerange[1]
-
-    if start == None:
-        return np.zeros((0, 8))
-    return veh[start - t_nstar:end - t_nstar + 1, :]
+            veh_start = start
+            start = max(start, timerange[0])
+            end = min(end, timerange[1])
+            return veh[start - veh_start:end - veh_start + 1, :]
 
 
 def generate_LCind(veh, lane):
@@ -1000,8 +976,8 @@ def compute_line_data(headway, i, lentail, dataset, veh_id, time):
     return trajectory, label, x_min, y_min, x_max, y_max
 
 
-def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [], show_id = True, interval = 10,
-                spacelim=None, lanelim=None):
+def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [], show_id = False, interval = 10,
+                spacelim=None, lanelim=None, timesteps=8):
     #plots vehicles platoon using data meas.
 
     # platoon = [] - if given as a platoon, only plots those vehicles in the platoon (e.g. [[],1,2,3] )
@@ -1012,7 +988,7 @@ def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [],
     # also make arraytraj faster
     if platoon != []:
         followerchain = helper.platoononly(followerchain, platoon)
-    platoontraj, usetime = helper.arraytraj(meas, followerchain, usetime)
+    platoontraj, usetime = helper.arraytraj(meas, followerchain, mytime=usetime, timesteps=timesteps)
 
     fig = plt.figure(figsize=(14, 5))  # initialize figure and axis
     ax = fig.add_axes([0, 0, 1, 1], frameon=False)

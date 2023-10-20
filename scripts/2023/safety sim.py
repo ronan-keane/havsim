@@ -56,12 +56,12 @@ print('average vmt (miles): {:.0f}'.format(vmt/replications/1609.34))
 
 if make_plots or save_output:
     sim, siminfo = hp.plot_format(all_vehicles, laneinds)
+    sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (8000, 10000))
     if save_output:
         with open(save_name+'.pkl', 'wb') as f:
-            pickle.dump([sim, siminfo], f)
+            pickle.dump([sim, siminfo, sim2, siminfo2], f)
     if make_plots:
-        sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (8000, 10000))
-        # hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0)
+        hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[8000, 10000])
         # hp.platoonplot(sim2, None, siminfo2, lane=2, opacity=0)
 
         hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 35))
@@ -69,8 +69,8 @@ if make_plots or save_output:
 
         hp.plotflows(sim, [[7000, 7100], [9230, 9330], [11000, 11100]], [0, timesteps], 300, h=.2)
 
-        ani = hp.animatetraj(sim, siminfo2, usetime=list(range(2000, 4000)), show_id=False, spacelim=(8000, 10000), lanelim=(3, -1))
-        ani2 = hp.animatetraj(sim, siminfo2, usetime=list(range(8000, 10000)), show_id=False, spacelim=(8000, 10000),
+        ani = hp.animatetraj(sim2, siminfo2, usetime=list(range(2000, 4000)), show_id=False, spacelim=(8000, 10000), lanelim=(3, -1))
+        ani2 = hp.animatetraj(sim2, siminfo2, usetime=list(range(8000, 10000)), show_id=False, spacelim=(8000, 10000),
                              lanelim=(3, -1))
         plt.show()
 

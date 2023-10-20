@@ -13,7 +13,7 @@ onramp = lambda timeind: 1150/3600
 simulation, laneinds = merge_bottleneck(main_inflow=main, onramp_inflow=onramp)
 timesteps = 3600*4
 make_plots = True
-save_output = False
+save_output = True
 save_name = 'bottleneck_sim_0'
 
 start = time.time()
@@ -32,8 +32,10 @@ if make_plots or save_output:
         with open(save_name+'.pkl', 'wb') as f:
             pickle.dump([sim, siminfo], f)
     if make_plots:
-        hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=1, speed_bounds=(0, 35))
-        hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=0, speed_bounds=(0, 35))
+        hp.platoonplot(sim, None, siminfo, lane=1, opacity=0, timerange=[10000, timesteps])
+
+        # hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=1, speed_bounds=(0, 35))
+        # hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=0, speed_bounds=(0, 35))
 
         hp.plotflows(sim, [[900, 1000], [1300, 1400], [1900, 2000]], [0, timesteps], 300, h=.2)
 

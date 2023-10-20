@@ -1294,7 +1294,7 @@ def merge_rconstant(platoons, platooninfo, sim, leadinfo, rinfo, relax_constant=
     return rinfo
 
 
-def arraytraj(meas, followerchain, mytime=None):
+def arraytraj(meas, followerchain, mytime=None, timesteps=8):
     # puts output from makefollerchain/makeplatooninfo into a dict where the key is frame ID, value is array of vehicle and their position, speed
     # we can include the presimulation (t_nstar to t_n) as well as postsimulation (T_nm1 to T_n) but including those are optional
     # this will put in the whole trajectory based off of the times in followerchain
@@ -1313,6 +1313,7 @@ def arraytraj(meas, followerchain, mytime=None):
         curmeas = meas[i]
         t_n, T_n = followerchain[i][0], followerchain[i][3]
         curtime = range(max(t_n, mytime[0]), min(T_n, mytime[-1])+1)
+        curmeas = add_lane_interp_to_data(curmeas, curtime, timesteps=timesteps)
         for t in curtime:
             platoontraj[t].append(curmeas[t-t_n, [2, 7, 3, 0]])
     for t in mytime:
@@ -1322,6 +1323,30 @@ def arraytraj(meas, followerchain, mytime=None):
         else:
             platoontraj[t] = np.empty((0, 4))
     return platoontraj, mytime
+
+
+def add_lane_interp_to_data(meas, curtime, timesteps=8):
+    # changes discrete lane positions to be continuous approximation, where lane change occurs over timesteps timesteps
+    if len(curtime) == 0:
+        return meas
+    start, end = curtime.start, curtime.stop
+    t_n = int(meas[0, 1])
+
+    new_meas = meas.copy()
+    lanedata = new_meas[start-t_n:end-t_n, 7]
+    lanejumps = lanedata[1:] - lanedata[:-1]
+    new_lane_inds = np.nonzero(lanejumps)[0]
+    for i in new_lane_inds:
+        init_lane = lanedata[i]
+        delta = lanejumps[i]
+        delta_pos = delta/timesteps
+        new_lanes = [init_lane + delta_pos*j for j in range(1, timesteps)]
+        if i + timesteps - 1 > len(lanedata)-1:
+            new_lanes = new_lanes[:len(lanedata)-i-1]
+            lanedata[i+1:] = np.array(new_lanes)
+        else:
+            lanedata[i+1:i+timesteps] = np.array(new_lanes)
+    return new_meas
 
 
 def platoononly(platooninfo, platoon):

@@ -225,7 +225,7 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
     if newfig:
         fig = plt.figure()
 
-    counter = 0
+
     mymin = 1e10
     mymax = 0
     for i in followerlist:
@@ -239,7 +239,9 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
     if not speed_limit:
         speed_limit = [mymin, mymax]
 
+    counter = -1
     for i in followerlist:  # iterate over each vehicle
+        counter += 1
         veh = meas[i]
         veh = extract_relevant_data(veh, timerange)
         if len(veh) == 0:
@@ -268,11 +270,12 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
                     plt.plot(x[LCind[j]:LCind[j + 1]], y[LCind[j]:LCind[j + 1]], clr[0], picker=5, **kwargs)
                     artist2veh.append(counter)
 
-        counter += 1
+
 
     if sim != None:
-        counter = 0
+        counter = -1
         for i in followerlist:  # iterate over each vehicle
+            counter += 1
             veh = sim[i]
             veh = extract_relevant_data(veh, timerange)
 
@@ -290,7 +293,7 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
                     kwargs = {'linestyle': '--', 'alpha': .4}  # dashed line .4 opacity (60% see through)
                 plt.plot(x[LCind[j]:LCind[j + 1]], y[LCind[j]:LCind[j + 1]], clr[1], **kwargs)
 
-            counter += 1
+
 
     find_artists = []
     nartists = len(artist2veh)
@@ -316,7 +319,7 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
                 ax.lines[j].set_color('C3')
                 if sim != None:
                     ax.lines[j + nartists].set_color('C3')
-            plt.title('Vehicle ID ' + str(list(followerlist)[vehind]))
+            plt.title('Vehicle ID ' + str(followerlist[vehind]))
             plt.draw()
         plt.draw()
 

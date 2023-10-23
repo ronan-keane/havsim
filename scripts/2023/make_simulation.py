@@ -5,11 +5,12 @@ def e94():
     """Simulation of 12km length of E94 in Ann Arbor area"""
     # specify vehicle parameters
     def veh_parameters():
-        s1 = min(max(np.random.normal() * 1.5, -4), 2)
-        s2 = np.random.rand() * .1 - .1
-        kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1.3, 1.9],
-                  'lc_parameters': [-4, -8, .3, .05, .1, 0, .3, 50, 50], 'lc2_parameters': [-1, 2, .1, -1, 2, .2],
-                  'relax_parameters': [12., 3., .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-12, None]}
+        s1 = min(max(np.random.normal() * 1.5 + 1, -4), 3)
+        s2 = np.random.rand() * .12 - .03
+        s3 = np.random.rand() * .3 - .2
+        kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1.3 + s3, 1.6],
+                  'lc_parameters': [-8, -8, .4, .05, .1, 0, .2, 10, 30], 'lc2_parameters': [-2, 2, -.1, -.5, 1, .2],
+                  'relax_parameters': [9., 5.5, .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-9, None]}
         return kwargs
 
     # road network
@@ -142,11 +143,12 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None):
 
     def veh_parameters(route):
         def newveh(self, vehid, timeind):
-            s1 = min(max(np.random.normal()*1.5, -4), 2)
-            s2 = np.random.rand() * .1 - .1
-            kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1.1, 1.6],
-                      'lc_parameters': [-6, -8, .6, .05, .1, 0, .3, 5, 30], 'lc2_parameters': [-1, 2, -.1, -.5, 1, .2],
-                      'relax_parameters': [12., 3., .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-9, None],
+            s1 = min(max(np.random.normal()*1.5 + 1, -4), 3)
+            s2 = np.random.rand() * .12 - .03
+            s3 = np.random.rand()*.3-.2
+            kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1.3 + s3, 1.6],
+                      'lc_parameters': [-8, -8, .4, .05, .1, 0, .2, 10, 30], 'lc2_parameters': [-2, 2, -.1, -.5, 1, .2],
+                      'relax_parameters': [9., 5.5, .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-9, None],
                       'route': route.copy()}
             self.newveh = hs.Vehicle(vehid, self, **kwargs)
         return newveh

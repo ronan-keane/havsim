@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import pickle
 
 # meas, platooninfo = havsim.calibration.algs.makeplatoonlist(data, 1, False)
-with open('C:\\Users\\MTL\\Documents\\havsim\\data\\recon-ngsim-old.pkl', 'rb') as f:
+with open('C:\\Users\\tawit\\Documents\\Github\\havsim\\data\\recon-ngsim-old.pkl', 'rb') as f:
     meas, platooninfo = pickle.load(f)
 
 #%%
@@ -30,6 +30,9 @@ sortedvehlist = havsim.calibration.platoon_formation.sortveh(6, meas, lane6vehli
 # hp.animatevhd(meas, None, platooninfo, sortedvehlist[50:52], interval = 30, lane = 6)
 
 hp.platoonplot(meas, None, platooninfo, lane = 6, opacity = 0)
+hp.platoonplot(meas, None, platooninfo, lane = 2, opacity = 0)
+hp.platoonplot(meas, None, platooninfo, lane = 3, opacity = 0)
+hp.platoonplot(meas, None, platooninfo, lane = 4, opacity = 0)
 
 #%%
 ani = hp.animatetraj(meas, platooninfo, spacelim=(0, 1600), lanelim=(8, -1),

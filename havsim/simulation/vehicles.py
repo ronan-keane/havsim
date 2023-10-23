@@ -432,12 +432,14 @@ class Vehicle:
             return
         if self.in_relax:
             p = self.relax_parameters
-            ttc = hd - 2 - p[2]*spd
-            ttc = 0 if ttc < 0 else ttc / (spd - lead.speed + 1e-6)
             currelax, currelax_v = self.relax[timeind - self.relax_start]
-            if p[3] > ttc >= 0:
-                currelax = currelax * (ttc / p[3]) ** 2 if currelax > 0 else currelax
-                currelax_v = currelax_v * (ttc / p[3]) ** 2 if currelax_v > 0 else currelax_v
+
+            if spd > lead.speed:  # safeguard
+                ttc = max(hd - 2 - p[2]*spd, 0) / (spd - lead.speed)
+                if p[3] > ttc >= 0:
+                    currelax = currelax * (ttc / p[3]) ** 2 if currelax > 0 else currelax
+                    currelax_v = currelax_v * (ttc / p[3]) ** 2 if currelax_v > 0 else currelax_v
+
             if timeind == self.relax_end:
                 self.in_relax = False
                 self.relaxmem.append((self.relax, self.relax_start))

@@ -435,7 +435,7 @@ class Vehicle:
             currelax, currelax_v = self.relax[timeind - self.relax_start]
 
             if spd > lead.speed:  # safeguard
-                ttc = max(hd - 2 - p[2]*spd, 0) / (spd - lead.speed)
+                ttc = max(hd - 2 - p[2]*spd, 0) / (spd - lead.speed + 1e-6)
                 if p[3] > ttc >= 0:
                     currelax = currelax * (ttc / p[3]) ** 2 if currelax > 0 else currelax
                     currelax_v = currelax_v * (ttc / p[3]) ** 2 if currelax_v > 0 else currelax_v

@@ -135,8 +135,8 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None):
     """Test simulation of merge bottleneck."""
     main_road = hs.Road(num_lanes=2, length=2000, name='main road')
     main_road.connect('exit', is_exit=True)
-    onramp = hs.Road(num_lanes=1, length=[(900, 1300)], name='on ramp')
-    onramp.merge(main_road, self_index=0, new_lane_index=1, self_pos=(1000, 1300), new_lane_pos=(1000, 1300))
+    onramp = hs.Road(num_lanes=1, length=[(950, 1300)], name='on ramp')
+    onramp.merge(main_road, self_index=0, new_lane_index=1, self_pos=(1050, 1300), new_lane_pos=(1050, 1300))
 
     main_road.set_downstream({'method': 'free'})
     onramp.set_downstream({'method': 'free merge', 'self_lane': onramp[0]})

@@ -275,15 +275,11 @@ def apply_tactical(veh, new_lcfol, veh_safe, fol_safe, p2):
     if not veh_safe:
         lead = new_lcfol.lead
         if lead is not None:
-            # speed_gap = 0 if fol_safe else p2[2]
             if veh.speed > lead.speed + p2[2]:  # forced deceleration to match leader speed if necessary
                 if veh.acc > 0:
                     veh.lc_acc = -veh.acc + p2[0]
                 else:
                     veh.lc_acc = p2[0]
-            # elif fol_safe:
-            #     if veh.speed > new_lcfol.speed + p2[2]:
-            #         veh.lc_acc = p2[0]
     elif not fol_safe:  # accelerate if possible
         veh.lc_acc = p2[1]
 

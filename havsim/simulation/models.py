@@ -243,15 +243,14 @@ def complete_change(lc_actions, lc_followers, veh, new_lcfol):
 
 def apply_coop(veh, ego_veh, lc_acc, p2):
     # veh = cooperating, ego_veh = trying to change, p2 = parameters for veh
-    # basically, follow the ego_veh if possible; if not possible, then always decelerate if going faster than ego_veh
-    if veh.acc > lc_acc:
-        if lc_acc > p2[3]:
+    if veh.speed > ego_veh.speed + p2[4]:  # speed too fast -> always decelerate
+        if veh.acc > 0:
+            veh.lc_acc = -veh.acc + p2[3]
+        else:
+            veh.lc_acc = p2[3]
+    elif lc_acc > p2[3]:  # safe to follow ego -> use min of leader, ego
+        if veh.acc > lc_acc:
             veh.lc_acc = -veh.acc + lc_acc
-        elif veh.speed > ego_veh.speed + p2[4]:
-            if veh.acc > 0:
-                veh.lc_acc = -veh.acc + p2[3]
-            else:
-                veh.lc_acc = p2[3]
 
 
 def check_coop_and_apply(veh, ego_veh, veh_p, ego_safety, timeind):
@@ -273,15 +272,18 @@ def check_coop_and_apply(veh, ego_veh, veh_p, ego_safety, timeind):
 
 
 def apply_tactical(veh, new_lcfol, veh_safe, fol_safe, p2):
-    # decelerate to match leader speed if necessary
     if not veh_safe:
         lead = new_lcfol.lead
         if lead is not None:
-            if veh.speed > lead.speed + p2[2]:
+            # speed_gap = 0 if fol_safe else p2[2]
+            if veh.speed > lead.speed + p2[2]:  # forced deceleration to match leader speed if necessary
                 if veh.acc > 0:
                     veh.lc_acc = -veh.acc + p2[0]
                 else:
                     veh.lc_acc = p2[0]
+            # elif fol_safe:
+            #     if veh.speed > new_lcfol.speed + p2[2]:
+            #         veh.lc_acc = p2[0]
     elif not fol_safe:  # accelerate if possible
         veh.lc_acc = p2[1]
 

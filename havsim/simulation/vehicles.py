@@ -210,8 +210,8 @@ class Vehicle:
         has_coop: if not None, has_coop is a Vehicle that is cooperating with self (self is the changer)
         coop_side_fol: if requesting cooperation on left side, has value 'lfol' otherwise 'rfol'
         cur_route: dictionary where keys are lanes, value is a list of route event dictionaries which
-            defines the route a vehicle with parameters p needs to take on that lane
-        route_events: list of current route events for current lane
+            defines the route a vehicle needs to take on that lane
+        route_events: list of route events for current lane
         lane_events: list of lane events for current lane
         lead: leading vehicle (Vehicle)
         fol: following vehicle (Vehicle)

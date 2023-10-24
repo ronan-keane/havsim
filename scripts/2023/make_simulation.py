@@ -9,7 +9,7 @@ def e94():
         s2 = np.random.rand() * .12 - .03
         s3 = np.random.rand() * .3 - .2
         kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1.3 + s3, 1.6],
-                  'lc_parameters': [-8, -8, .4, .05, .1, 0, .2, 10, 30], 'lc2_parameters': [-2, 2, -.1, -.5, 1, .2],
+                  'lc_parameters': [-8, -8, .4, .05, .1, 0, .2, 10, 30], 'lc2_parameters': [-2, 2, 1, -.5, 1, .2],
                   'relax_parameters': [9., 5.5, .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-9, None]}
         return kwargs
 
@@ -147,7 +147,7 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None):
             s2 = np.random.rand() * .12 - .03
             s3 = np.random.rand()*.3-.2
             kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1.3 + s3, 1.6],
-                      'lc_parameters': [-8, -8, .4, .05, .1, 0, .2, 10, 30], 'lc2_parameters': [-2, 2, -.1, -.5, 1, .2],
+                      'lc_parameters': [-8, -8, .4, .05, .1, 0, .2, 10, 30], 'lc2_parameters': [-2, 2, 1, -.5, 1, .2],
                       'relax_parameters': [9., 5.5, .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-9, None],
                       'route': route.copy()}
             self.newveh = hs.Vehicle(vehid, self, **kwargs)

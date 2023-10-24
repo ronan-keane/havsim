@@ -331,7 +331,7 @@ def update_route_events(veh, timeind):
         elif curevent['event'] == 'mandatory':
             side = curevent['side']
             if getattr(veh, side[0]+'lane') is None:  # handle edge cases due to missing planned route
-                setattr(veh, curevent['side'], None)
+                setattr(veh, side, None)
                 if side[0] == 'r':
                     veh.l_lc = 'd' if veh.llane is not None else None
                 else:
@@ -339,6 +339,7 @@ def update_route_events(veh, timeind):
             else:  # normal update
                 setattr(veh, side, 'm')
                 veh.lc_urgency = curevent['lc_urgency']  # must always set urgency for mandatory changes
+
             veh.update_lc_state(timeind)
 
         veh.route_events.pop(0)

@@ -311,6 +311,7 @@ def update_route_events(veh, timeind):
         lane changing states
     'side': 'l_lc' or 'r_lc' the side which is updated by the event
     'lc_urgency': only for a 'mandatory' event, a tuple giving the position for 0% and 100% forced cooperation
+    'endpos': only for a 'mandatory' event, last float position to complete the change
 
     Args:
         veh: Vehicle object to update
@@ -329,14 +330,14 @@ def update_route_events(veh, timeind):
             veh.update_lc_state(timeind)
 
         elif curevent['event'] == 'mandatory':
-            side = curevent['side']
-            if getattr(veh, side[0]+'lane') is None:  # handle edge cases due to missing planned route
-                setattr(veh, side, None)
-                if side[0] == 'r':
-                    veh.l_lc = 'd' if veh.llane is not None else None
-                else:
-                    veh.r_lc = 'd' if veh.rlane is not None else None
+            if veh.pos > curevent['endpos']:  # case where the mandatory LC can no longer be completed
+                # just reset to default state. The route will not be followed.
+                if veh.llane is not None:
+                    veh.l_lc = 'd' if veh.llane.roadname == veh.road else None
+                if veh.rlane is not None:
+                    veh.r_lc = 'd' if veh.rlane.roadname == veh.road else None
             else:  # normal update
+                side = curevent['side']
                 setattr(veh, side, 'm')
                 veh.lc_urgency = curevent['lc_urgency']  # must always set urgency for mandatory changes
 
@@ -394,20 +395,20 @@ def make_cur_route(p, curlane, nextroadname):
             defines the route a vehicle with parameters p needs to take on that lane
     """
     # TODO we only get the route for the current road - no look ahead to take into account future roads
-    # TODO handle cases where LC cannot be completed successfully
 
     curroad = curlane.road
     curlaneind = curlane.laneind
-    if nextroadname in curlane.connections:  # band aid for case when vehicles cannot follow their planned route
-        pos, change_type, laneind, side, nextroad = curlane.connections[nextroadname][:]
-    else:
-        print(' vehicle on ' + str(curlane) + ' missed route which planned for going to ' + nextroadname)
-        return {i: [] for i in curroad.lanes}
+    pos, change_type, laneind, side, nextroad = curlane.connections[nextroadname][:]
+    # if nextroadname in curlane.connections:
+    #     pos, change_type, laneind, side, nextroad = curlane.connections[nextroadname][:]
+    # else:
+    #     print(' vehicle on ' + str(curlane) + ' missed route which planned for going to ' + nextroadname)
+    #     return {i: [] for i in curroad.lanes}
 
     cur_route = {}
     if change_type == 'continue':  # -> vehicle needs to reach end of lane
         # initialize for lanes which vehicle needs to continue on
-        leftind, rightind = laneind[:] if len(laneind)==2 else (laneind[0], laneind[0])
+        leftind, rightind = laneind[:] if len(laneind) == 2 else (laneind[0], laneind[0])
         for i in range(leftind, rightind+1):
             cur_route[curroad[i]] = []
 
@@ -430,7 +431,8 @@ def make_cur_route(p, curlane, nextroadname):
         else:
             uselaneind = rightind
 
-        cur_route = make_route_helper(p, cur_route, curroad, curlaneind, uselaneind, curroad[uselaneind].end)
+        pos = min(curroad[uselaneind].end, pos)
+        cur_route = make_route_helper(p, cur_route, curroad, curlaneind, uselaneind, pos, pos)
 
     elif change_type == 'merge':  # logic is similar and also uses make_route_helper
         templane = curroad[laneind]
@@ -450,15 +452,16 @@ def make_cur_route(p, curlane, nextroadname):
                                             'event': 'end discretionary', 'side': 'l_lc'})
 
         cur_route[templane].append({'pos': pos, 'event': 'mandatory', 'side': side,
-                                    'lc_urgency': [pos, max(endpos - p[0], pos)]})
+                                    'lc_urgency': [pos, max(endpos - p[0], pos)],
+                                    'endpos': endpos})
 
         if curlaneind != laneind:
-            cur_route = make_route_helper(p, cur_route, curroad, curlaneind, laneind, pos)
+            cur_route = make_route_helper(p, cur_route, curroad, curlaneind, laneind, pos, endpos)
 
     return cur_route
 
 
-def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
+def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos, endpos):
     """Generates list of route events for all lanes with indexes [curlaneind, laneind).
 
     Starting on curroad in lane with index curlaneind, wanting to be in lane index laneind by position curpos,
@@ -486,6 +489,7 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
         curlaneind: index of the lane that the vehicle starts in
         laneind: index of the lane that we want to be in by position curpos
         curpos: we want to be in lane with index laneind by curpos
+        endpos: if in lane laneind by endpos, we've missed the route
 
     Returns:
         cur_route: Updates cur_route in place
@@ -493,7 +497,6 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
     nexttemplane = None
     if curlaneind < laneind:  # populate route events in lanes left of target
         curind = laneind - 1
-        prevtemplane = curroad[curind+1]
         templane = curroad[curind]
         while not curind < curlaneind:
             cur_route[templane] = []
@@ -512,17 +515,16 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
 
             # there is always a mandatory event
             cur_route[templane].append({'pos': curpos, 'event': 'mandatory', 'side': 'r_lc',
-                                        'lc_urgency': [curpos - (p[0] + p[1]), curpos - p[0]]})
+                                        'lc_urgency': [curpos, curpos + p[0]],
+                                        'endpos': endpos})
 
             # update iteration
             curind += -1
-            prevtemplane = templane
             templane = nexttemplane
 
     # same code but for opposite side
     elif curlaneind > laneind:  # populate route events in lanes right of target
         curind = laneind+1
-        prevtemplane = curroad[curind - 1]
         templane = curroad[curind]
         while not curind > curlaneind:
             cur_route[templane] = []
@@ -538,11 +540,11 @@ def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos):
                 cur_route[templane].append({'pos': enddiscpos, 'event': 'end discretionary', 'side': 'r_lc'})
 
             cur_route[templane].append({'pos': curpos, 'event': 'mandatory', 'side': 'l_lc',
-                                        'lc_urgency': [curpos - (p[0] + p[1]), curpos - p[0]]})
+                                        'lc_urgency': [curpos, curpos + p[0]],
+                                        'endpos': endpos})
 
             # update iteration
             curind += 1
-            prevtemplane = templane
             templane = nexttemplane
 
     return cur_route
@@ -582,11 +584,13 @@ def set_route_events(veh, timeind):
             prevlane_events = veh.cur_route[prevlane]
             if not prevlane_events:  # this can only happen for continue event => curpos = end of lane
                 curpos = prevlane.end
+                make_route_helper(p, veh.cur_route, veh.lane.road, newlane.laneind, prevlane.laneind, curpos, curpos)
             elif prevlane_events[0]['event'] == 'end discretionary':
-                curpos = prevlane_events[0]['pos'] + p[0] + p[1]
+                curpos = prevlane_events[0]['pos'] + 2*(p[0] + p[1])
+                make_route_helper(p, veh.cur_route, veh.lane.road, newlane.laneind, prevlane.laneind, curpos, curpos)
             else:  # mandatory event
-                curpos = prevlane_events[0]['pos']
-            make_route_helper(p, veh.cur_route, veh.lane.road, newlane.laneind, prevlane.laneind, curpos)
+                curpos, endpos = prevlane_events[0]['pos'], prevlane_events[0]['endpos']
+                make_route_helper(p, veh.cur_route, veh.lane.road, newlane.laneind, prevlane.laneind, curpos, endpos)
         else:  # on new road - we need to generate new cur_route and update the vehicle's route
             veh.cur_route = make_cur_route(p, newlane, veh.route.pop(0))
 

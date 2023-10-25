@@ -6,7 +6,7 @@ import pickle
 
 simulation, laneinds = e94()
 timesteps = 3600*6
-replications = 1
+replications = 10
 make_plots = True
 save_output = False
 save_name = 'e94_sim_0'

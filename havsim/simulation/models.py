@@ -388,6 +388,12 @@ def relax_helper_vhd(pos_r, neg_r, relaxamount_s, relaxamount_v, veh, timeind, d
     curr = list(zip(temp, temp2))
 
     if veh.in_relax:  # add to existing relax
+        if timeind > veh.relax_start + len(veh.relax) - 1:  # edge case where veh is not actually in_relax
+            veh.relaxmem.append((veh.relax, veh.relax_start))
+            veh.relax_start = timeind + 1
+            veh.relax = curr
+            veh.relax_end = timeind + relaxlen
+
         # find indexes with overlap - need to combine relax values for those
         if veh.relax_end < timeind + relaxlen:
             overlap_end = veh.relax_end

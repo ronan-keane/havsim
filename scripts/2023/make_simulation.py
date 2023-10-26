@@ -5,12 +5,12 @@ def e94():
     """Simulation of 12km length of E94 in Ann Arbor area"""
     # specify vehicle parameters
     def veh_parameters():
-        s1 = min(max(np.random.normal() * 2, -3), 4)
-        s2 = np.random.rand() * .14 - .05
-        s3 = np.random.rand() * .3 - .2
+        s1 = min(max(np.random.normal() * 2, -1), 4)
+        s2 = np.random.rand() * .12 - .03
+        s3 = np.random.rand() * .4 - .1
         kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1.3 + s3, 1.6],
-                  'lc_parameters': [-8, -8, .4, .05, .1, 0, .2, 10, 30], 'lc2_parameters': [-2, 2, 1, -.7, .5, .2],
-                  'relax_parameters': [9., 3., .4, 2.], 'route_parameters': [300, 500], 'accbounds': [-10, None]}
+                  'lc_parameters': [-7, -7, .4, .05, .1, 0, .2, 10, 30], 'lc2_parameters': [-2, 2, 1, -.5, 1, .2],
+                  'relax_parameters': [9., 4.5, .6, 2.], 'route_parameters': [300, 500], 'accbounds': [-10, None]}
         return kwargs
 
     # road network

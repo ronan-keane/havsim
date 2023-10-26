@@ -6,9 +6,9 @@ import pickle
 
 simulation, laneinds = e94()
 timesteps = 3600*6
-replications = 10
-make_plots = True
-save_output = False
+replications = 20
+make_plots = False
+save_output = True
 save_name = 'e94_sim_0'
 
 near_miss = 0
@@ -46,6 +46,10 @@ for i in range(replications):
     for veh in all_vehicles:  # vmt
         vmt += veh.posmem[-1] - veh.posmem[0]
 
+    if len(simulation.crashes) > 0:
+        print(simulation.crashes[0])
+        break
+
     if i < replications - 1:
         simulation.reset()
 print('\n-----------SUMMARY-----------')
@@ -55,11 +59,14 @@ print('average sideswipe crashes: {:n}'.format(sideswipe/replications))
 print('average vmt (miles): {:.0f}'.format(vmt/replications/1609.34))
 
 if make_plots or save_output:
-    sim, siminfo = hp.plot_format(all_vehicles, laneinds)
-    sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (8000, 10000))
+    # sim, siminfo = hp.plot_format(all_vehicles, laneinds)
+    # sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (8000, 10000))
+    # if save_output:
+    #     with open(save_name+'.pkl', 'wb') as f:
+    #         pickle.dump([sim, siminfo, sim2, siminfo2], f)
     if save_output:
         with open(save_name+'.pkl', 'wb') as f:
-            pickle.dump([sim, siminfo, sim2, siminfo2], f)
+            pickle.dump([all_vehicles, laneinds], f)
     if make_plots:
         hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[8000, 10000])
         # hp.platoonplot(sim2, None, siminfo2, lane=2, opacity=0)

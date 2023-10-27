@@ -156,6 +156,12 @@ def connect_lane_left_right(left_lane, right_lane, left_connection, right_connec
 
 
 class Road:
+    """
+    Attributes:
+        num_lanes: int number of lanes
+        name: str name of road
+        lanes: list of len num_lanes, giving the lane corresponding to the index
+    """
     def __init__(self, num_lanes, length, name, connections=None):
         """
         num_lanes: number of lanes (int)

@@ -945,6 +945,15 @@ class Lane:
         """Convert Lane to a string."""
         return self.__repr__()
 
+    def __getstate__(self):
+        """Save as serializable object for pickle."""
+        my_dict = self.__dict__
+        my_dict.pop('increment_inflow', None)  # remove all bound methods to make lane serializable
+        my_dict.pop('new_vehicle', None)
+        my_dict.pop('get_inflow', None)
+        my_dict.pop('call_downstream', None)
+        return my_dict
+
 
 def connect_helper(connect, pos):
     """Helper function takes in connect_left/right attribute, position, and returns the correct connection."""

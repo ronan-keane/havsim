@@ -51,9 +51,6 @@ def e94():
     # inflow amounts and entering speeds
     # inflow = [1530/3600/2, 529/3600, 261/3600, 414/3600, 1261/3600, 1146/3600]  # (4pm-6pm)
     inflow = [1930 / 3600 / 2, 529 / 3600, 261 / 3600, 414 / 3600, 1100 / 3600, 1100 / 3600]  # (4pm-6pm)
-    # inflow = np.array(inflow)
-    # inflow[0] = inflow[0] * .863
-    # inflow[1:] = inflow[1:] * .382
     main_inflow = lambda *args: (inflow[0], None)
     onramp1_inflow = lambda *args: (inflow[1], None)
     onramp2_inflow = lambda *args: (inflow[2], None)
@@ -74,8 +71,8 @@ def e94():
         return make_route
 
     def make_newveh(route_picker):
-        MyVeh = hs.vehicles.add_crash_behavior(hs.Vehicle)
-        # MyVeh = hs.vehicles.add_crash_behavior(hs.vehicles.StochasticVehicle)
+        MyVeh = hs.vehicles.CrashesVehicle
+        # MyVeh = hs.vehicles.CrashesStochasticVehicle
 
         def newveh(self, vehid, timeind):
             route = route_picker()

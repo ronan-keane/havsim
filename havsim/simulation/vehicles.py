@@ -786,53 +786,6 @@ class Vehicle:
         return res
 
 
-def add_crash_behavior(vehicle, decel=-4., hold_timesteps=20):
-    """Defines what a vehicle should do after crashing."""
-    # decel: after crash, decelerate at this rate
-    # hold_timesteps: remove the vehicle after hold_timesteps at 0 speed
-    assert issubclass(vehicle, Vehicle)
-
-    class VehicleCanCrash(vehicle):
-        def __init__(self, *args, **kwargs):
-            self.crashed = False
-            self.crash_time = None
-            self.crash_decel = decel
-            self.hold_timesteps = hold_timesteps
-            super().__init__(*args, **kwargs)
-
-        def update_after_crash(self, timeind):
-            """Called after a crash to enforce the crash behavior."""
-            self.crashed = True
-            self.crash_time = timeind
-
-            # turn off lane changing
-            self.l_lc = None
-            self.r_lc = None
-            self.update_lc_state(timeind)
-            self.is_coop = -1
-            # remove all lane and route events to ensure state will not change
-            self.lane_events = []
-            self.route_events = []
-
-        def set_cf(self, timeind):
-            if self.crashed:
-                self.acc = self.crash_decel
-                if self.speed == 0.:
-                    if len(self.speedmem) >= hold_timesteps:
-                        if self.speedmem[-hold_timesteps] == 0.:
-                            # remove vehicle by creating lane event
-                            self.lane_events = [{'pos': -1e6, 'event': 'exit'}]
-
-                if self.in_relax:
-                    if timeind == self.relax_end:
-                        self.in_relax = False
-                        self.relaxmem.append((self.relax, self.relax_start))
-            else:
-                super().set_cf(timeind)
-
-    return VehicleCanCrash
-
-
 class StochasticVehicle(Vehicle):
     def __init__(self, vehid, curlane, gamma_parameters=None, xi_parameters=None, dt=.2, **kwargs):
         super().__init__(vehid, curlane, **kwargs)
@@ -883,3 +836,67 @@ class StochasticVehicle(Vehicle):
         self.rvmem.append((timeind, xi))
         return xi
 
+
+def update_after_crash(veh, timeind):
+    veh.crashed = True
+    veh.crash_time = timeind
+
+    # turn off lane changing
+    veh.l_lc = None
+    veh.r_lc = None
+    veh.update_lc_state(timeind)
+    veh.is_coop = -1
+    # remove all lane and route events to ensure state will not change
+    veh.lane_events = []
+    veh.route_events = []
+
+
+def set_cf_crashed(veh, hold_timesteps):
+    veh.acc = veh.crash_decel
+    if veh.speed == 0.:
+        if len(veh.speedmem) >= hold_timesteps:
+            if veh.speedmem[-hold_timesteps] == 0.:
+                # remove vehicle by creating lane event
+                veh.lane_events = [{'pos': -1e6, 'event': 'exit'}]
+
+
+class CrashesVehicle(Vehicle):
+    def __init__(self, *args, decel=-3, hold_timesteps=20, **kwargs):
+        # decel: after crash, decelerate at this rate
+        # hold_timesteps: remove the vehicle after hold_timesteps at 0 speed
+        self.crashed = False
+        self.crash_time = None
+        self.crash_decel = decel
+        self.hold_timesteps = hold_timesteps
+        super().__init__(*args, **kwargs)
+
+    def update_after_crash(self, timeind):
+        """Called after a crash to implement the crash behavior."""
+        update_after_crash(self, timeind)
+
+    def set_cf(self, timeind):
+        if self.crashed:
+            set_cf_crashed(self, self.hold_timesteps)
+        else:
+            super().set_cf(timeind)
+
+
+class CrashesStochasticVehicle(StochasticVehicle):
+    def __init__(self, *args, decel=-3, hold_timesteps=20, **kwargs):
+        # decel: after crash, decelerate at this rate
+        # hold_timesteps: remove the vehicle after hold_timesteps at 0 speed
+        self.crashed = False
+        self.crash_time = None
+        self.crash_decel = decel
+        self.hold_timesteps = hold_timesteps
+        super().__init__(*args, **kwargs)
+
+    def update_after_crash(self, timeind):
+        """Called after a crash to implement the crash behavior."""
+        update_after_crash(self, timeind)
+
+    def set_cf(self, timeind):
+        if self.crashed:
+            set_cf_crashed(self, self.hold_timesteps)
+        else:
+            super().set_cf(timeind)

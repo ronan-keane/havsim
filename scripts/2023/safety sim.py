@@ -5,8 +5,8 @@ import time
 import pickle
 
 simulation, laneinds = e94()
-timesteps = 3600*6
-replications = 20
+timesteps = 3600
+replications = 1
 make_plots = False
 save_output = True
 save_name = 'e94_sim_0'
@@ -58,25 +58,20 @@ print('average rear end crashes: {:n}'.format(rear_end/replications))
 print('average sideswipe crashes: {:n}'.format(sideswipe/replications))
 print('average vmt (miles): {:.0f}'.format(vmt/replications/1609.34))
 
-if make_plots or save_output:
-    # sim, siminfo = hp.plot_format(all_vehicles, laneinds)
-    # sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (8000, 10000))
-    # if save_output:
-    #     with open(save_name+'.pkl', 'wb') as f:
-    #         pickle.dump([sim, siminfo, sim2, siminfo2], f)
-    if save_output:
-        with open(save_name+'.pkl', 'wb') as f:
-            pickle.dump([all_vehicles, laneinds], f)
-    if make_plots:
-        hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[8000, 10000])
-        # hp.platoonplot(sim2, None, siminfo2, lane=2, opacity=0)
+if save_output:
+    with open(save_name+'.pkl', 'wb') as f:
+        pickle.dump(all_vehicles, f)
+if make_plots:
+    sim, siminfo = hp.plot_format(all_vehicles, laneinds)
+    sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (8000, 10000))
 
-        hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 35))
-        hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=0, speed_bounds=(0, 35))
+    hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[8000, 10000])
+    # hp.platoonplot(sim2, None, siminfo2, lane=2, opacity=0)
 
-        hp.plotflows(sim, [[7000, 7100], [9230, 9330], [11000, 11100]], [0, timesteps], 300, h=.2)
+    hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 35))
 
-        ani = hp.animatetraj(sim2, siminfo2, usetime=list(range(2000, 4000)), spacelim=(8000, 10000), lanelim=(3, -1))
-        ani2 = hp.animatetraj(sim2, siminfo2, usetime=list(range(8000, 10000)), spacelim=(8000, 10000), lanelim=(3, -1))
-        plt.show()
+    hp.plotflows(sim, [[7000, 7100], [9230, 9330], [11000, 11100]], [0, timesteps], 300, h=.2)
+
+    ani = hp.animatetraj(sim2, siminfo2, usetime=list(range(2000, 4000)), spacelim=(8000, 10000), lanelim=(3, -1))
+    plt.show()
 

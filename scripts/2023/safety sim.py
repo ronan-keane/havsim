@@ -6,7 +6,7 @@ import pickle
 
 simulation, laneinds = e94()
 timesteps = 3600
-replications = 1
+replications = 200
 make_plots = False
 save_output = True
 save_name = 'e94_sim_0'
@@ -60,7 +60,7 @@ print('average vmt (miles): {:.0f}'.format(vmt/replications/1609.34))
 
 if save_output:
     with open(save_name+'.pkl', 'wb') as f:
-        pickle.dump(all_vehicles, f)
+        pickle.dump([all_vehicles, laneinds], f)
 if make_plots:
     sim, siminfo = hp.plot_format(all_vehicles, laneinds)
     sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (8000, 10000))

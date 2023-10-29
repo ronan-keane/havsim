@@ -241,7 +241,7 @@ class Vehicle:
     # TODO numba implementation
 
     def __init__(self, vehid, curlane, cf_parameters=None, lc_parameters=None, lc2_parameters=None,
-                 relax_parameters=None, route_parameters=None, route=None, disable_relax=False, lead=None, fol=None,
+                 relax_parameters=None, route_parameters=None, route=None, lead=None, fol=None,
                  lfol=None, rfol=None, llead=None, rlead=None, length=3,
                  eql_type='v', accbounds=None, maxspeed=None, hdbounds=None, seed=None):
         """Inits Vehicle. Cannot be used for simulation until initialize is also called.
@@ -260,7 +260,6 @@ class Vehicle:
             relax_parameters: list of float parameters for relaxation (see simulation.models.lc_havsim)
             route_parameters: list of float parameters for the route model (see simulation.models.lc_havsim)
             route: list of road names (str) which defines the route for the vehicle.
-            disable_relax: if True, relaxation will be disabled.
             lead: leading vehicle (Vehicle). Optional, can be set by the boundary condition.
             fol: following vehicle (Vehicle). Optional, can be set by the boundary condition.
             lfol: left follower (Vehicle). Optional, can be set by the boundary condition.
@@ -291,7 +290,6 @@ class Vehicle:
         self.lc2_parameters = lc2_parameters if lc2_parameters is not None else [-2, 2, 2, -2, 2, .2]
         self.relax_parameters = relax_parameters if relax_parameters is not None else [8.7, 3, .1, 1.5]
         self.route_parameters = route_parameters if route_parameters is not None else [300, 500]
-        self.relax_parameters = None if disable_relax else self.relax_parameters
 
         # bounds
         if accbounds is None:
@@ -336,8 +334,8 @@ class Vehicle:
         self.fol = fol
         self.lfol = lfol
         self.rfol = rfol
-        self.llead = llead
-        self.rlead = rlead
+        self.llead = [] if llead is None else llead
+        self.rlead = [] if rlead is None else rlead
 
         # memory
         self.leadmem = []
@@ -626,6 +624,30 @@ class Vehicle:
         """Convert vehicle to a str representation."""
         return self.__repr__()
 
+    def __getstate__(self):
+        """Serialize (pickle) the Vehicle."""
+        state = self.__dict__.copy()
+        del state['npr']
+        state['lead'] = veh_to_id(state['lead'])  # remove references to other vehicles
+        state['fol'] = veh_to_id_maybe_anchor(state['fol'])
+        state['lfol'] = veh_to_id_maybe_anchor(state['lfol'])
+        state['rfol'] = veh_to_id_maybe_anchor(state['rfol'])
+        rlead, llead = state['rlead'].copy(), state['llead'].copy()
+        for count, veh in enumerate(rlead):
+            rlead[count] = veh_to_id(veh)
+        for count, veh in enumerate(llead):
+            llead[count] = veh_to_id(veh)
+        leadmem = state['leadmem'].copy()
+        for count, curmem in enumerate(leadmem):
+            leadmem[count] = (veh_to_id(curmem[0]), curmem[1])
+        state['leadmem'], state['rlead'], state['llead'] = leadmem, rlead, llead
+        return state
+
+    def __setstate__(self, state):
+        """Load Vehicle from pickle. To get references to other vehicles, must also call vehicles.reload."""
+        self.__dict__ = state
+        self.npr = np.random.default_rng()
+
     def _leadfol(self):
         """Summarize the leader/follower relationships of the Vehicle."""
         print('-------leader and follower-------')
@@ -784,6 +806,59 @@ class Vehicle:
                     print(i)
 
         return res
+
+
+def veh_to_id(veh):  # convert Vehicle to vehid
+    if veh is None:
+        return None
+    else:
+        return veh.vehid
+
+
+def veh_to_id_maybe_anchor(veh):
+    if veh is None:
+        return None
+    elif type(veh.vehid) is str:
+        if veh.vehid[-7:] == '-anchor':
+            return veh
+    return veh.vehid
+
+
+def id_to_veh(a, veh_dict):  # convert id to Vehicle, given dict of (vehid: veh) pairs
+    if a is None:
+        return None
+    else:
+        return veh_dict[a]
+
+
+def id_to_veh_maybe_anchor(a, veh_dict):
+    if a is None:
+        return None
+    elif hasattr(a, 'vehid'):
+        if type(a.vehid) is str:
+            if a.vehid[-7:] == '-anchor':
+                return a
+    return veh_dict[a]
+
+
+def reload(all_vehicles):
+    """Given list of all vehicles, convert int memory back to Vehicle references."""
+    veh_dict = {}
+    for veh in all_vehicles:
+        veh_dict[veh.vehid] = veh
+    for veh in all_vehicles:
+        veh.lead = id_to_veh(veh.lead, veh_dict)
+        veh.fol = id_to_veh_maybe_anchor(veh.fol, veh_dict)
+        veh.lfol = id_to_veh_maybe_anchor(veh.lfol, veh_dict)
+        veh.rfol = id_to_veh_maybe_anchor(veh.rfol, veh_dict)
+        llead, rlead, leadmem = veh.llead, veh.rlead, veh.leadmem
+        for count, a in enumerate(rlead):
+            rlead[count] = id_to_veh(a, veh_dict)
+        for count, a in enumerate(llead):
+            llead[count] = id_to_veh(a, veh_dict)
+        for count, curmem in enumerate(leadmem):
+            leadmem[count] = (id_to_veh(curmem[0], veh_dict), curmem[1])
+    return all_vehicles
 
 
 class StochasticVehicle(Vehicle):

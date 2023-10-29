@@ -661,7 +661,7 @@ class AnchorVehicle:
     The way we check for anchors is because they have cf_parameters = None.
 
     Attributes:
-        cf_parameters: Always None, used to identify a vehicle as being an anchor
+        cf_parameters: None, used to identify a vehicle as being an anchor
         lane, road, lfol, rfol, lead, rlead, llead, all have the same meaning as for Vehicle
         pos: position anchor is on, used for headway/dist calculations
         speed: speed of anchor (acts as placeholder)
@@ -669,6 +669,7 @@ class AnchorVehicle:
         hd: always None
         len: length of anchor, should be 0
         leadmem: same format as Vehicle
+        vehid: str of roadname + land index + -anchor
     """
 
     def __init__(self, curlane, start, lead=None, rlead=None, llead=None):
@@ -676,7 +677,7 @@ class AnchorVehicle:
         self.cf_parameters = None
         self.lane = curlane
         self.road = curlane.road.name
-        self.vehid = str(self.road)+str(self.lane.laneind)
+        self.vehid = str(self.road)+str(self.lane.laneind)+'-anchor'
 
         self.init_lead = lead
         self.init_rlead = rlead
@@ -780,10 +781,11 @@ class Lane:
         merge_anchors: any merge anchors for the lane (see update_merge_anchors). List of list, where each list
             is a pair of [merge_anchor, position].
         events: lane events (see update_lane_events)
+        dt: timestep length
     """
 
     def __init__(self, start, end, road, laneind, connect_left=None, connect_right=None, connect_to=None,
-                 downstream=None, increment_inflow=None, get_inflow=None, new_vehicle=None):
+                 downstream=None, increment_inflow=None, get_inflow=None, new_vehicle=None, dt=None):
         """Inits Lane. Note methods for boundary conditions are defined (and bound) here.
 
         Args:
@@ -813,6 +815,7 @@ class Lane:
         self.connect_right = connect_right if connect_right is not None else [(start, None)]
         self.connect_to = connect_to
         self.connections = {}
+        self.dt = dt
 
         self.roadlen = {self.roadname: 0}
         self.events = []
@@ -924,7 +927,10 @@ class Lane:
 
     def __hash__(self):
         """Hash Lane based on its road name, and its lane index."""
-        return hash((self.roadname, self.laneind))
+        if hasattr(self, 'roadname'):
+            return hash((self.roadname, self.laneind))
+        else:  # needed so pickle can work correctly, since it uses __hash__
+            return super().__hash__()
 
     def __eq__(self, other):
         """Comparison for Lanes using ==."""
@@ -947,7 +953,7 @@ class Lane:
 
     def __getstate__(self):
         """Save as serializable object for pickle."""
-        my_dict = self.__dict__
+        my_dict = self.__dict__.copy()
         my_dict.pop('increment_inflow', None)  # remove all bound methods to make lane serializable
         my_dict.pop('new_vehicle', None)
         my_dict.pop('get_inflow', None)

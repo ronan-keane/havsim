@@ -5,11 +5,11 @@ import time
 import pickle
 
 simulation, laneinds = e94()
-timesteps = 3600
-replications = 200
+timesteps = 3600*5
+replications = 1
 make_plots = False
 save_output = True
-save_name = 'e94_sim_0'
+save_name = 'e94_sim_4'
 
 near_miss = 0
 rear_end = 0
@@ -46,10 +46,6 @@ for i in range(replications):
     for veh in all_vehicles:  # vmt
         vmt += veh.posmem[-1] - veh.posmem[0]
 
-    if len(simulation.crashes) > 0:
-        print(simulation.crashes[0])
-        break
-
     if i < replications - 1:
         simulation.reset()
 print('\n-----------SUMMARY-----------')
@@ -65,7 +61,7 @@ if make_plots:
     sim, siminfo = hp.plot_format(all_vehicles, laneinds)
     sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (8000, 10000))
 
-    hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[8000, 10000])
+    hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[6000, 10000])
     # hp.platoonplot(sim2, None, siminfo2, lane=2, opacity=0)
 
     hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 35))

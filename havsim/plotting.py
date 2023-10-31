@@ -1033,20 +1033,19 @@ def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [],
         # If the annotation doesn't exist before, introduce it via ax.annotate
         if show_id:
             for i in range(len(ids)):
-                vid = ids[i]
-                if vid in current_annotation_dict.keys():
-                    current_annotation_dict[vid].set_position((X[i], Y[i]))
-                    existing_vids.remove(vid)
+                vehid = ids[i]
+                if vehid in current_annotation_dict.keys():
+                    current_annotation_dict[vehid].set_position((X[i], Y[i]))
+                    existing_vids.remove(vehid)
                 else:
-                    current_annotation_dict[vid] = ax.annotate(str(int(vid)), (X[i], Y[i]), fontsize=7)
-                artists.append(current_annotation_dict[vid])
+                    current_annotation_dict[vehid] = ax.annotate(str(int(vehid)), (X[i], Y[i]), fontsize=7)
+                artists.append(current_annotation_dict[vehid])
 
             # Afterwards, check if existing annotations need to be removed, process it accordingly
             if len(existing_vids) > 0:
-                for vid in existing_vids:
-                    artists.append(current_annotation_dict[vid])
-                    current_annotation_dict[vid].remove()
-                    del current_annotation_dict[vid]
+                for vehid in existing_vids:
+                    current_annotation_dict[vehid].remove()
+                    del current_annotation_dict[vehid]
 
         data = np.stack([X, Y], axis=1)
         scatter_pts.set_offsets(data)
@@ -1057,10 +1056,9 @@ def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [],
         artists = [scatter_pts]
         # ax = plt.gca()
         if show_id:
-            for vid, annotation in list(current_annotation_dict.items()).copy():
-                artists.append(annotation)
+            for vehid, annotation in list(current_annotation_dict.items()).copy():
                 annotation.remove()
-                del current_annotation_dict[vid]
+                del current_annotation_dict[vehid]
         curdata = platoontraj[usetime[0]]
         X, Y, speeds, ids = curdata[:, 0], curdata[:, 1], curdata[:, 2], curdata[:, 3]
         for i in range(len(ids)):

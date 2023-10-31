@@ -392,7 +392,7 @@ class Vehicle:
         update_lane_routes.set_route_events(self, start)
 
     def cf_model(self, p, state):
-        """Defines car following model.
+        """Car following model.
 
         Args:
             p: parameters for model (cf_parameters)
@@ -456,12 +456,9 @@ class Vehicle:
     def free_cf(self, p, spd):
         """Defines car following model in free flow.
 
-        The free flow model can be obtained simply by letting the headway go to infinity for cf_model.
-
         Args:
             p: parameters for model (cf_parameters)
             spd: speed (float)
-
         Returns:
             float acceleration corresponding to the car following model in free flow.
         """
@@ -473,7 +470,6 @@ class Vehicle:
         Args:
             p:. car following parameters
             v: velocity/speed
-
         Returns:
             s: headway such that (v,s) is an equilibrium solution for parameters p
         """
@@ -864,7 +860,7 @@ def reload(all_vehicles):
 class StochasticVehicle(Vehicle):
     def __init__(self, vehid, curlane, gamma_parameters=None, xi_parameters=None, dt=.2, **kwargs):
         super().__init__(vehid, curlane, **kwargs)
-        self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.4, .75, 1.66, .33]
+        self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.4, .75, 2., .5]
         self.xi_parameters = xi_parameters if xi_parameters is not None else [.1, 2.]
         self.rvmem = []
         self.dt = dt
@@ -882,26 +878,34 @@ class StochasticVehicle(Vehicle):
             super().set_cf(timeind)
             new_acc = self.acc
             self.acc = self.prev_acc*self.beta + new_acc*(1-self.beta)
-
             self.prev_acc = new_acc
-            gamma = self.sample_gamma(new_acc, timeind)
-            bar_gamma = (gamma/self.dt) // 1.
-            self.beta = gamma/self.dt - bar_gamma
-            self.next_t_ind = timeind + int(bar_gamma) + 1
         else:
             self.acc = self.prev_acc
-
-        if self.in_relax:
-            if timeind == self.relax_end:
-                self.in_relax = False
-                self.relaxmem.append((self.relax, self.relax_start))
+            if self.in_relax:
+                if timeind == self.relax_end:
+                    self.in_relax = False
+                    self.relaxmem.append((self.relax, self.relax_start))
 
     def set_lc(self, lc_actions, lc_followers, timeind):
-        return models.lc_havsim2(self, lc_actions, lc_followers, timeind)
+        return models.stochastic_lc_havsim(self, lc_actions, lc_followers, timeind)
+
+    def update(self, timeind, dt):
+        if timeind == self.next_t_ind:
+            acc = max(abs(self.prev_acc), abs(self.acc + self.lc_acc))
+            if self.in_relax:
+                if self.lead is not None:
+                    no_r_acc = self.cf_model(self.cf_parameters, [self.hd, self.speed, self.lead.speed])
+                    acc = max(acc, abs(no_r_acc))
+            gamma = self.sample_gamma(acc, timeind)
+            bar_gamma = (gamma / self.dt) // 1.
+            self.beta = gamma / self.dt - bar_gamma
+            self.next_t_ind = timeind + int(bar_gamma) + 1
+
+        super().update(timeind, dt)
 
     def sample_gamma(self, acc, timeind):
         p = self.gamma_parameters
-        gamma = np.exp(self.npr.standard_normal()*p[1] + p[0])/(max(p[2]*acc**2-p[3], 0) + 1)
+        gamma = np.exp(self.npr.standard_normal()*p[1] + p[0])/(p[2]*acc**2 + p[3]*acc + 1)
         self.rvmem.append((timeind, acc, gamma))
         return gamma
 

@@ -450,11 +450,11 @@ def default_parameters():
             'relax_parameters': relax_parameters, 'route_parameters': route_parameters}
 
 
-def lc_havsim2(veh, lc_actions, lc_followers, timeind):
-    # for stochastic vehicle
+def stochastic_lc_havsim(veh, lc_actions, lc_followers, timeind):
+    """lc_havsim model for StochasticVehicle."""
     if veh.chk_disc:
         if veh.npr.random() > veh.lc_parameters[6]:
-            if veh.has_coop:
+            if veh.has_coop:  # remove coop
                 coop_veh = veh.has_coop
                 coop_veh.chk_disc = timeind > coop_veh.disc_endtime if coop_veh.in_disc else False
                 coop_veh.is_coop = veh.has_coop = None
@@ -515,8 +515,9 @@ def lc_havsim2(veh, lc_actions, lc_followers, timeind):
         if incentive > p[2]:
             if timeind < veh.disc_cooldown:
                 return lc_actions, lc_followers
-            safety = p[0] - veh.sample_xi(timeind)
-            fol_safe, veh_safe = new_lcfol_a > safety, new_veh_a > safety
+            safety = p[0]
+            stochastic_safety = safety - veh.sample_xi(timeind)
+            fol_safe, veh_safe = new_lcfol_a > stochastic_safety, new_veh_a > stochastic_safety
             if fol_safe and veh_safe:
                 return complete_change(lc_actions, lc_followers, veh, new_lcfol)
             if veh.chk_disc:
@@ -543,8 +544,9 @@ def lc_havsim2(veh, lc_actions, lc_followers, timeind):
                 veh.chk_disc = True
 
     else:  # mandatory update
-        safety = p[1] - veh.sample_xi(timeind)
-        fol_safe, veh_safe = new_lcfol_a > safety, new_veh_a > safety
+        safety = p[1]
+        stochastic_safety = safety - veh.sample_xi(timeind)
+        fol_safe, veh_safe = new_lcfol_a > stochastic_safety, new_veh_a > stochastic_safety
         if fol_safe and veh_safe:
             return complete_change(lc_actions, lc_followers, veh, new_lcfol)
 

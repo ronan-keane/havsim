@@ -981,14 +981,10 @@ def compute_line_data(headway, i, lentail, dataset, veh_id, time):
 
 def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [], show_id = False, interval = 10,
                 spacelim=None, lanelim=None, timesteps=8):
-    #plots vehicles platoon using data meas.
-
     # platoon = [] - if given as a platoon, only plots those vehicles in the platoon (e.g. [[],1,2,3] )
     # usetime = [] - if given as a list, only plots those times in the list (e.g. list(range(1,100)) )
-    # presim = True - presim and postsim control whether the entire trajectory is displayed or just the simulated parts (t_nstar - T_n versus T-n - T_nm1)
-    # postsim = True
+
     # TODO an interactive plotter for single times could be nice.
-    # also make arraytraj faster
     if platoon != []:
         followerchain = helper.platoononly(followerchain, platoon)
     platoontraj, usetime = helper.arraytraj(meas, followerchain, mytime=usetime, timesteps=timesteps)
@@ -1026,7 +1022,7 @@ def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [],
         # ax = plt.gca()
         curdata = platoontraj[usetime[frame]]
         X, Y, speeds, ids = curdata[:, 0], curdata[:, 1], curdata[:, 2], curdata[:, 3]
-        existing_vids = list(current_annotation_dict.keys()).copy()
+        existing_vids = set(current_annotation_dict.keys())
 
         # Go through ids list
         # If the annotation already exists, modify it via set_position

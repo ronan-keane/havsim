@@ -931,7 +931,13 @@ def update_after_crash(veh, timeind):
 
 
 def set_cf_crashed(veh, hold_timesteps):
-    veh.acc = veh.crash_decel
+    if veh.lead is not None:
+        if veh.hd < 0:
+            veh.acc = -100
+        else:
+            veh.acc = veh.crash_decel
+    else:
+        veh.acc = veh.crash_decel
     if veh.speed == 0.:
         if len(veh.speedmem) >= hold_timesteps:
             if veh.speedmem[-hold_timesteps] == 0.:

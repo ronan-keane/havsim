@@ -7,7 +7,8 @@ timesteps_before = 100
 timesteps_after = 25
 include_leaders = True
 max_crash_plots = 5
-saved_sim = '/scripts/2023/e94_sim_0.pkl'
+dt = .2
+saved_sim = 'pickle files/e94_sim_6.pkl'
 
 with open(saved_sim, 'rb') as f:
     all_vehicles, laneinds = pickle.load(f)
@@ -44,12 +45,63 @@ def prepare_speed_plot(my_veh, start, end):
         lc_times = []
     if len(lead.lanemem) > 1:
         lc_times.extend([lc[1] for lc in lead.lanemem[1:]])
-    if veh.crash_time - 8 in lc_times:
+    if my_veh.crash_time - 8 in lc_times:
         crash_type = 'sideswipe'
     else:
         crash_type = 'rear_end'
 
-    # get stochastic behavior
+    # get stochastic behavior - get state, relax, acc, lc_acc at every timestep
+    start = max(start, my_veh.start)
+    end = min(end, my_veh.end) if my_veh.end is not None else min(end, my_veh.start + len(my_veh.posmem)-1)
+    veh_pos = my_veh.posmem[start-my_veh.start:end-my_veh.start+1]
+    veh_speed = my_veh.speedmem[start-my_veh.start:end-my_veh.start+1]
+
+    lead_pos = []
+    lead_speed = []
+    lead_len = []
+    veh_leadmem = my_veh.leadmem[count_leadmem(my_veh, start):count_leadmem(my_veh, end)+1]
+    for i, leadmem in enumerate(veh_leadmem):
+        cur_end = end if i == len(veh_leadmem) - 1 else veh_leadmem[i+1][1]-1
+        cur_start = start if i == 0 else leadmem[1]
+        if leadmem[0] is not None:
+            lead_pos.extend(leadmem[0].posmem[cur_start-leadmem[0].start:cur_end-leadmem[0].start+1])
+            lead_speed.extend(leadmem[0].speedmem[cur_start - leadmem[0].start:cur_end - leadmem[0].start + 1])
+            lead_len.extend([leadmem[0].len]*(cur_start-cur_end+1))
+        else:
+            lead_pos.extend(my_veh.posmem[cur_start-my_veh.start:cur_end-my_veh.start+1])
+            lead_speed.extend([0] * (cur_start - cur_end + 1))
+            lead_len.extend([0] * (cur_start - cur_end + 1))
+
+    acc = []
+    for i in range(len(veh_speed)-1):
+        acc.append((veh_speed[i+1] - veh_speed[i])/dt)
+    relax = [(0, 0) for i in range(len(veh_speed))]
+    for cur_relax, relax_start in my_veh.relaxmem:
+        relax_end = relax_start + len(cur_relax) - 1
+        cur_start = max(relax_start, start)
+        cur_end = min(relax_end, end)
+        if cur_end >= cur_start:
+            relax[cur_start-start:cur_end-start+1] = cur_relax[cur_start-relax_start:cur_end-relax_start+1]
+    lc_acc = my_veh.lc_accmem[start-my_veh.start:end-my_veh.start]
+
+    # make deterministic behavior
+    params = {'cf_parameters': my_veh.cf_parameters, 'relax_parameters': my_veh.relax_parameters,
+              'acc_bounds': (my_veh.min_acc, None)}
+    test_veh = hs.Vehicle('test', None, **params)
+
+    test_pos, test_speed = veh_pos[0], veh_speed[0]
+    test_posmem = [test_pos]
+    test_speedmem = [test_speed]
+    p = test_veh.cf_parameters
+    for ind in range(end-start):
+        if lead_len[ind] == 0:
+            test_acc = test_veh.free_cf(p, test_speed)
+        else:
+            test_hd = lead_pos[ind] - test_pos - lead_len[ind]
+            test_relax = relax[ind]
+            if test_relax[0] != 0 or test_relax[1] != 0:
+                pass
+        pass
 
 
 all_platoons = []
@@ -84,7 +136,7 @@ for crash_time, crash in crashes.items():
     speed = []
     for veh in crash:
         mem = veh.leadmem[count_leadmem(veh, crash_time)]
-        if mem[0] in crash or len(crash)==1:
+        if mem[0] in crash or len(crash) == 1:
             pass
 
 
@@ -94,5 +146,5 @@ for count in range(min(len(all_platoons), max_crash_plots)):
     ani = hp.animatetraj(sim, siminfo, platoon=all_platoons[count], usetime=list(range(*all_usetime[count])),
                          spacelim=all_spacelim[count], lanelim=(3, -1), show_id=True, interval=20)
     all_ani.append(ani)
-    plt.show()
+plt.show()
 

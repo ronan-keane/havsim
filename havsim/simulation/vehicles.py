@@ -861,8 +861,9 @@ class StochasticVehicle(Vehicle):
     def __init__(self, vehid, curlane, gamma_parameters=None, xi_parameters=None, dt=.2, **kwargs):
         super().__init__(vehid, curlane, **kwargs)
         self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.8, .6, 4., 1]
-        self.xi_parameters = xi_parameters if xi_parameters is not None else [.04, 4]
+        self.xi_parameters = xi_parameters if xi_parameters is not None else [.1, 2.5]
         self.rvmem = []
+        self.lc_accmem = []
         self.dt = dt
 
         self.prev_acc = 0
@@ -900,6 +901,7 @@ class StochasticVehicle(Vehicle):
             bar_gamma = (gamma / self.dt) // 1.
             self.beta = gamma / self.dt - bar_gamma
             self.next_t_ind = timeind + int(bar_gamma) + 1
+        self.lc_accmem.append(self.lc_acc)
 
         super().update(timeind, dt)
 
@@ -930,7 +932,7 @@ def update_after_crash(veh, timeind):
     veh.route_events = []
 
 
-def set_cf_crashed(veh, hold_timesteps):
+def set_cf_crashed(veh, timeind, hold_timesteps):
     if veh.lead is not None:
         if veh.hd < 0:
             veh.acc = -100
@@ -939,7 +941,7 @@ def set_cf_crashed(veh, hold_timesteps):
     else:
         veh.acc = veh.crash_decel
     if veh.speed == 0.:
-        if len(veh.speedmem) >= hold_timesteps:
+        if timeind >= veh.crash_time + hold_timesteps:
             if veh.speedmem[-hold_timesteps] == 0.:
                 # remove vehicle by creating lane event
                 veh.lane_events = [{'pos': -1e6, 'event': 'exit'}]

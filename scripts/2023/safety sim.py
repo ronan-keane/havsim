@@ -9,7 +9,7 @@ timesteps = 3600*5
 replications = 1
 make_plots = False
 save_output = True
-save_name = 'e94_sim_4'
+save_name = 'pickle files/e94_sim_6'
 
 near_miss = 0
 rear_end = 0

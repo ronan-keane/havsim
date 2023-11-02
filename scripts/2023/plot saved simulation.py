@@ -3,7 +3,7 @@ import havsim.simulation as hs
 import havsim.plotting as hp
 import matplotlib.pyplot as plt
 
-with open('/scripts/2023/e94_sim_0.pkl', 'rb') as f:
+with open('pickle files/e94_sim_0.pkl', 'rb') as f:
     all_vehicles, laneinds = pickle.load(f)
 # with open('C:\\Users\\tawit\\Documents\\GitHub\\havsim\\scripts\\2023\\bottleneck_sim_0.pkl', 'rb') as f:
 #     all_vehicles, laneinds = pickle.load(f)

@@ -962,7 +962,7 @@ class CrashesVehicle(Vehicle):
 
     def set_cf(self, timeind):
         if self.crashed:
-            set_cf_crashed(self, self.hold_timesteps)
+            set_cf_crashed(self, timeind, self.hold_timesteps)
         else:
             super().set_cf(timeind)
 
@@ -983,6 +983,6 @@ class CrashesStochasticVehicle(StochasticVehicle):
 
     def set_cf(self, timeind):
         if self.crashed:
-            set_cf_crashed(self, self.hold_timesteps)
+            set_cf_crashed(self, timeind, self.hold_timesteps)
         else:
             super().set_cf(timeind)

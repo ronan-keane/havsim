@@ -979,49 +979,82 @@ def compute_line_data(headway, i, lentail, dataset, veh_id, time):
     return trajectory, label, x_min, y_min, x_max, y_max
 
 
-def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [], show_id = False, interval = 10,
-                spacelim=None, lanelim=None, timesteps=8):
-    # platoon = [] - if given as a platoon, only plots those vehicles in the platoon (e.g. [[],1,2,3] )
-    # usetime = [] - if given as a list, only plots those times in the list (e.g. list(range(1,100)) )
+def animatetraj(meas, followerchain, platoon=None, usetime=None, speed_limit=None, show_id=False, interval=10,
+                spacelim=None, lanelim=None, timesteps=8, show_lengths=True, show_axis=False):
+    # platoon: if given as a platoon, only plots those vehicles in the platoon (e.g. [1,2,3])
+    # usetime: if given as a list, only plots those times in the list (e.g. list(range(1,100)) )
+    # speed_limit: speed_limit[0], speed_limit[1] are the speed bounds for coloring (if None, get automatically)
+    # show_id: if True, plot the str vehid next to each vehicle (warning, this makes the animation much slower)
+    # interval: minimum time between frames in ms (actual time may be longer if plotting many vehicles)
+    # spacelim: x axis limits
+    # lanelim: y axis limits
+    # timesteps: number of timesteps to complete a lane change in animation
+    # show_lengths: if True, plot vehicles with their actual length. If False, use default value. If float, plot
+    #     vehicles with that float as length.
+    # show_axis: if True, show x axis (space axis)
 
-    # TODO an interactive plotter for single times could be nice.
-    if platoon != []:
+    if platoon is not None:
         followerchain = helper.platoononly(followerchain, platoon)
     platoontraj, usetime = helper.arraytraj(meas, followerchain, mytime=usetime, timesteps=timesteps)
 
-    fig = plt.figure(figsize=(14, 5))  # initialize figure and axis
-    ax = fig.add_axes([0, 0, 1, 1], frameon=False)
-    ax.set_xlabel('position'), ax.set_ylabel('lane')
-    if spacelim is not None:
-        ax.set_xlim(spacelim[0], spacelim[1])
-    if lanelim is not None:
-        ax.set_ylim(lanelim[0], lanelim[1])
+    fig = plt.figure(figsize=(18, 6))  # initialize figure and axis
+    ax = fig.add_axes([.035, .09, .95, .88])
 
-    scatter_pts = ax.scatter([], [], c=[], cmap=palettable.colorbrewer.diverging.RdYlGn_4.mpl_colormap, marker=">",
-                             s=10)
+    spacelim = (0, 2000) if spacelim is None else spacelim
+    lanelim = (3, -1) if lanelim is None else lanelim
+    ax.set_xlim(spacelim[0], spacelim[1])
+    ax.set_ylim(lanelim[0], lanelim[1])
+    if show_axis:
+        ax.set_xlabel('position (m)'), ax.set_ylabel('lane')
+        ax.spines[['right', 'left', 'top']].set_visible(False)
+        ax.set_yticks(list(range(lanelim[0]-1, lanelim[1], -1)))
+    else:
+        ax.spines[['right', 'left', 'top', 'bottom']].set_visible(False)
+        ax.set_yticks([])
+        ax.set_xticks([])
 
-    if speed_limit == []:
+    point_scale = (ax.transData.transform((1, 0)) - ax.transData.transform((0, 0)))[0]
+    if show_lengths:
+        if type(show_lengths) == float or type(show_lengths) == int:
+            s = (show_lengths*point_scale)**2*.51
+            plot_lengths = False
+        else:
+            s = max((4 * point_scale) ** 2 * .51, 8)
+            plot_lengths = True
+    else:
+        s = max((4*point_scale)**2*.51, 8)  # size of approx 4 x units, but cannot be smaller than 8 points**2
+        plot_lengths = False
+    linewidths = (s/.51)**.5*.4
+    if plot_lengths:
+        scatter_pts = ax.scatter([], [], c=[], cmap=palettable.colorbrewer.diverging.RdYlGn_4.mpl_colormap, marker=0,
+                                 s=[], linewidths=linewidths)
+    else:
+        scatter_pts = ax.scatter([], [], c=[], cmap=palettable.colorbrewer.diverging.RdYlGn_4.mpl_colormap, marker=0,
+                                 s=s, linewidths=linewidths)
+
+    if speed_limit is None:
         maxspeed = 0
         minspeed = math.inf
         for i in followerchain.keys():
-            curmax = max(meas[i][:,3])
-            curmin = min(meas[i][:,3])
+            curmax = max(meas[i][:, 3])
+            curmin = min(meas[i][:, 3])
             if curmin < minspeed:
                 minspeed = curmin
             if curmax > maxspeed:
                 maxspeed = curmax
-        norm = plt.Normalize(minspeed,maxspeed)
+        norm = plt.Normalize(minspeed, maxspeed)
     else:
         norm = plt.Normalize(speed_limit[0], speed_limit[1])
-
-    fig.colorbar(scatter_pts, cmap=cm.get_cmap('RdYlBu'), norm=norm, shrink=0.7)
+    cbar = fig.colorbar(scatter_pts, cmap=cm.get_cmap('RdYlBu'), norm=norm, fraction=.05)
+    cbar.set_label('speed (m/s)')
+    scatter_pts.set(norm=norm)
     current_annotation_dict = {}
 
     def aniFunc(frame):
         artists = [scatter_pts]
         # ax = plt.gca()
         curdata = platoontraj[usetime[frame]]
-        X, Y, speeds, ids = curdata[:, 0], curdata[:, 1], curdata[:, 2], curdata[:, 3]
+        X, Y, speeds, ids, lens = curdata[:, 0], curdata[:, 1], curdata[:, 2], curdata[:, 3], curdata[:, 4]
         existing_vids = set(current_annotation_dict.keys())
 
         # Go through ids list
@@ -1046,6 +1079,9 @@ def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [],
         data = np.stack([X, Y], axis=1)
         scatter_pts.set_offsets(data)
         scatter_pts.set_array(speeds)
+        if plot_lengths:
+            lens = (lens*point_scale)**2*.51
+            scatter_pts.set_sizes(lens)
         return artists
 
     def init():
@@ -1056,19 +1092,20 @@ def animatetraj(meas, followerchain, platoon=[], usetime=None, speed_limit = [],
                 annotation.remove()
                 del current_annotation_dict[vehid]
         curdata = platoontraj[usetime[0]]
-        X, Y, speeds, ids = curdata[:, 0], curdata[:, 1], curdata[:, 2], curdata[:, 3]
+        X, Y, speeds, ids, lens = curdata[:, 0], curdata[:, 1], curdata[:, 2], curdata[:, 3], curdata[:, 4]
         for i in range(len(ids)):
             current_annotation_dict[ids[i]] = ax.annotate(str(int(ids[i])), (X[i], Y[i]), fontsize=7)
             artists.append(current_annotation_dict[ids[i]])
-        c = speeds
-        pts = [[X[i], Y[i]] for i in range(len(X))]
-        data = np.vstack(pts)
-        scatter_pts.set(norm=norm)
+
+        data = np.stack([X, Y], axis=1)
         scatter_pts.set_offsets(data)
-        scatter_pts.set_array(c)
+        scatter_pts.set_array(speeds)
+        if plot_lengths:
+            lens = (lens * point_scale) ** 2 * .51
+            scatter_pts.set_sizes(lens)
         return artists
 
-    out = animation.FuncAnimation(fig, aniFunc, init_func=init, frames=len(usetime), interval=interval, blit = True)
+    out = animation.FuncAnimation(fig, aniFunc, init_func=init, frames=len(usetime), interval=interval, blit=True)
 
     return out
 

@@ -1315,13 +1315,13 @@ def arraytraj(meas, followerchain, mytime=None, timesteps=8):
         curtime = range(max(t_n, mytime[0]), min(T_n, mytime[-1])+1)
         curmeas = add_lane_interp_to_data(curmeas, curtime, timesteps=timesteps)
         for t in curtime:
-            platoontraj[t].append(curmeas[t-t_n, [2, 7, 3, 0]])
+            platoontraj[t].append(curmeas[t-t_n, [2, 7, 3, 0, 6]])
     for t in mytime:
         cur = platoontraj[t]
         if len(cur) > 0:
             platoontraj[t] = np.stack(cur, axis=0)
         else:
-            platoontraj[t] = np.empty((0, 4))
+            platoontraj[t] = np.empty((0, 5))
     return platoontraj, mytime
 
 

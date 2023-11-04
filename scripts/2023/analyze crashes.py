@@ -6,9 +6,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 timesteps_before = 100
-timesteps_after = 25
-include_leaders = True
-max_crash_plots = 5
+timesteps_after = 5
+min_crash_plots = 0
+max_crash_plots = 1
 dt = .2
 saved_sim = 'pickle files/e94_sim_0.pkl'
 
@@ -143,24 +143,24 @@ def prepare_speed_plot(my_veh, start, end):
 def do_speed_plot(args):
     t, hd, test_hd, spd, test_spd, acc, test_acc, crash_type = args
     fig = plt.figure(figsize=(12, 8))
-    fig.suptitle('gap, speed, and acceleration before and after '+str(crash_type))
-    ax1 = plt.subplot(3, 1, 1)
-    a1 = ax1.plot(t, spd, color='C0', alpha=.2)
+    fig.suptitle('gap, speed, and acceleration before '+str(crash_type))
+    ax1 = plt.subplot(3, 1, 2)
+    a1 = ax1.plot(t, spd, color='C0', alpha=.8)
     a2 = ax1.plot(t, test_spd, color='C0', linestyle='dashed')
     ax1.set_xlabel('time (s)')
     ax1.set_ylabel('speed (m/s)')
+    ax1.legend(handles=[a1[0], a2[0]], labels=['stochastic', 'deterministic'])
 
-    ax11 = ax1.twinx()
-    a3 = ax11.plot(t, hd, color='C1', alpha=.2)
-    a4 = ax11.plot(t, test_hd, color='C1', linestyle=(0, (5, 10)))
-
+    ax11 = plt.subplot(3, 1, 1)
+    a3 = ax11.plot(t, hd, color='C1', alpha=.8)
+    a4 = ax11.plot(t, test_hd, color='C1', linestyle='dashed')
+    ax11.set_xlabel('time (s)')
     ax11.set_ylabel('space gap (m)')
-    ax1.legend(handles=[a3[0], a1[0], a4[0], a2[0]], labels=['gap', 'speed', 'gap (deterministic)', 'speed (deterministic)'])
-    ax1.set_title('gap and speed before and after '+str(crash_type))
-    ax2 = plt.subplot(2, 1, 2)
-    a5 = ax2.plot(t[:-1], acc, color='C2', alpha=.2)
-    a6 = ax2.plot(t[:-1], test_acc, color='C2', linestyle=(0, (5, 10)))
-    ax2.set_title('acceleration before and after '+str(crash_type))
+    ax11.legend(handles=[a3[0], a4[0]], labels=['stochastic', 'deterministic'])
+
+    ax2 = plt.subplot(3, 1, 3)
+    a5 = ax2.plot(t[:-1], acc, color='C2', alpha=.8)
+    a6 = ax2.plot(t[:-1], test_acc, color='C2', linestyle='dashed')
     ax2.set_xlabel('time (s)')
     ax2.set_ylabel('acceleration (m/s/s)')
     ax2.legend(handles=[a5[0], a6[0]], labels=['acceleration', 'acceleration (deterministic)'])
@@ -182,10 +182,10 @@ for crash_time, crash in crashes.items():
         for mem in veh.leadmem[first_count:last_count+1]:
             if mem[0] is not None:
                 platoon.append(mem[0])
-                if include_leaders:
-                    for mem2 in mem[0].leadmem[count_leadmem(mem[0], t_start):count_leadmem(mem[0], t_end)+1]:
-                        if mem2[0] is not None:
-                            platoon.append(mem2[0])
+                # include leaders (optional)
+                for mem2 in mem[0].leadmem[count_leadmem(mem[0], t_start):count_leadmem(mem[0], t_end)+1]:
+                    if mem2[0] is not None:
+                        platoon.append(mem2[0])
     platoon = list(set(platoon))
     min_p, max_p = [], []
     for veh in platoon:
@@ -193,7 +193,7 @@ for crash_time, crash in crashes.items():
         max_p.append(veh.posmem[min(t_end - veh.start, len(veh.posmem)-1)])
     all_platoons.append([i.vehid for i in platoon])
     all_usetime.append((t_start, t_end))
-    all_spacelim.append((min(min_p)-10, max(max_p)+10))
+    all_spacelim.append((min(min_p)-5, max(max_p)+3))
 
     # plot of speed
     speed = []
@@ -205,9 +205,9 @@ for crash_time, crash in crashes.items():
 
 sim, siminfo = hp.plot_format(all_vehicles, laneinds)
 all_ani = []
-for count in range(min(len(all_platoons), max_crash_plots)):
+for count in range(min_crash_plots, min(len(all_platoons), max_crash_plots)):
     ani = hp.animatetraj(sim, siminfo, platoon=all_platoons[count], usetime=list(range(*all_usetime[count])),
-                         spacelim=all_spacelim[count], lanelim=(3, -1), show_id=True, interval=20)
+                         spacelim=all_spacelim[count], lanelim=(3, -1), show_id=True, show_axis=True)
     all_ani.append(ani)
     do_speed_plot(all_speed[count])
 plt.show()

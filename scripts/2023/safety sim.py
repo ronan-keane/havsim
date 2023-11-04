@@ -1,3 +1,4 @@
+"""Simulation of traffic and crashes on I94 in Ann Arbor."""
 from make_simulation import e94
 import havsim.plotting as hp
 import matplotlib.pyplot as plt

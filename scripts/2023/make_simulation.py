@@ -1,3 +1,4 @@
+"""Configure simulations."""
 import havsim.simulation as hs
 import numpy as np
 

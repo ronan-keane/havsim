@@ -1,3 +1,4 @@
+"""Simple example simulation."""
 from make_simulation import merge_bottleneck
 import havsim.plotting as hp
 import matplotlib.pyplot as plt

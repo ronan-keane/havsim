@@ -584,8 +584,7 @@ class Vehicle:
         # bounds on acceleration
         acc = max(self.minacc, acc)
         # bounds on speed
-        temp = acc*dt
-        nextspeed = self.speed + temp
+        nextspeed = self.speed + acc*dt
         if nextspeed < 0:
             nextspeed = 0
 

@@ -386,10 +386,11 @@ class Vehicle:
         self.update_lc_state(start)
 
         # set lane/route events - sets lane_events, route_events, cur_route attributes
-        self.cur_route = update_lane_routes.make_cur_route(
-            self.route_parameters, self.lane, self.route.pop(0))
-        update_lane_routes.set_lane_events(self)
-        update_lane_routes.set_route_events(self, start)
+        if len(self.route) > 0:
+            self.cur_route = update_lane_routes.make_cur_route(
+                self.route_parameters, self.lane, self.route.pop(0))
+            update_lane_routes.set_lane_events(self)
+            update_lane_routes.set_route_events(self, start)
 
     def cf_model(self, p, state):
         """Car following model.

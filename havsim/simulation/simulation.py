@@ -11,6 +11,7 @@ from havsim.simulation.road_networks import get_headway
 from havsim.simulation import update_lane_routes
 from havsim.simulation import vehicle_orders
 import copy
+import time
 
 
 def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, vehid, timeind, dt):
@@ -130,16 +131,14 @@ class Simulation:
         inflow lanes: list of all Lanes which have inflow to them (i.e. all lanes which have upstream
             boundary conditions, meaning they can add vehicles to the simulation)
         merge_lanes: list of all Lanes which have merge anchors
-        vehicles: set of all vehicles which are in the simulation at the first time index. This is kept
-            updated so that vehicles is always the set of all vehicles currently being simulated.
-        prev_vehicles: set of all vehicles which have been removed from simulation. So prev_vehicles and
-            vehicles are disjoint sets, and their union contains all vehicles which have been simulated.
+        vehicles: set of all vehicles currently being simulated.
+        prev_vehicles: list of all vehicles which have been removed from simulation.
         vehid: starting vehicle ID for the next vehicle to be added. Used for hashing vehicles.
         timeind: the current time index of the simulation (int). Updated as simulation progresses.
         dt: constant float. timestep for the simulation.
     """
 
-    def __init__(self, vehicles=None, prev_vehicles=None, vehid=1, timeind=0, dt=.25, roads=None):
+    def __init__(self, vehicles=None, prev_vehicles=None, vehid=1, timeind=0, dt=.2, roads=None, timesteps=1):
         """Inits simulation.
 
         Args:
@@ -147,8 +146,9 @@ class Simulation:
             prev_vehicles: list of all Vehicles which were previously removed from simulation.
             vehid: vehicle ID used for the next vehicle to be created.
             timeind: starting time index (int) for the simulation.
-            dt: float for how many time units pass for each timestep. Defaults to .25.
+            dt: float for how many time units pass for each timestep. Defaults to .2.
             roads: list of all the roads in the simulation
+            timesteps: int number of default timesteps
 
         Returns:
             None. Note that we keep references to all vehicles through vehicles and prev_vehicles,
@@ -174,6 +174,7 @@ class Simulation:
         self.init_vehid = vehid
         self.init_timeind = timeind
         self.dt = dt
+        self.timesteps = timesteps
 
         self.vehicles = None
         self.prev_vehicles = None
@@ -185,23 +186,36 @@ class Simulation:
         """Logic for doing a single step of simulation."""
         lc_actions = {}
         lc_followers = {}
+        timeind = self.timeind
 
         for veh in self.vehicles:
-            veh.set_cf(self.timeind)
+            veh.set_cf(timeind)
 
         for veh in self.vehicles:
-            lc_actions, lc_followers = veh.set_lc(lc_actions, lc_followers, self.timeind)
+            lc_actions, lc_followers = veh.set_lc(lc_actions, lc_followers, timeind)
 
         self.vehid, remove_vehicles = update_net(self.vehicles, lc_actions, lc_followers, self.inflow_lanes,
-                                                 self.merge_lanes, self.vehid, self.timeind, self.dt)
+                                                 self.merge_lanes, self.vehid, timeind, self.dt)
 
         self.timeind += 1
         self.prev_vehicles.extend(remove_vehicles)
 
-    def simulate(self, timesteps):
-        """Call step method timesteps number of times."""
+    def simulate(self, timesteps=None, verbose=True):
+        """Do simulation for requested number of timesteps and return all vehicles."""
+        timesteps = self.timesteps if timesteps is None else timesteps
+        elapsed_time = time.time()
         for i in range(timesteps):
             self.step()
+        elapsed_time = time.time() - elapsed_time
+
+        all_vehicles = self.prev_vehicles.copy()
+        all_vehicles.extend(self.vehicles)
+        if verbose:
+            total_timesteps = sum([self.timeind-max(veh.start, self.timeind-timesteps)+1 if veh.end is None
+                                   else veh.end-max(veh.start, self.timeind-timesteps)+1 for veh in all_vehicles])
+            print('simulation time is {:.1f} over {:.2e} timesteps ({:n} vehicles)'.format(
+                elapsed_time, total_timesteps, len(all_vehicles)))
+        return all_vehicles
 
     def reset(self):
         """Reset simulation to initial state."""
@@ -223,44 +237,114 @@ class Simulation:
 
 
 class CrashesSimulation(Simulation):
-    """Keeps track of crashes in a simulation. Vehicles must have update_after_crash method."""
+    """Keeps track of crashes in a simulation. Vehicles must have update_after_crash method.
+
+    Attributes:
+        near_misses: set of all vehicles which experience a near miss, but not a crash
+        crashes: list of crashes, each crash is a list of vehicles involved in the crash
+        maybe_sideswipes: dict with keys as vehicles, values are (time, lead, changer, previous lane), for keeping
+            track of a lane change which may cause a sideswipe if fully completed
+        near_miss_times: dict with keys as vehicles, values as list of times of near miss status
+    """
     def __init__(self, **kwargs):
-        self.near_miss_veh = set()
-        self.crashed_veh = set()
+        self.near_misses = None
         self.crashes = []
+        self.maybe_sideswipes = {}
+        self.near_miss_times = {}
         super().__init__(**kwargs)
 
     def reset(self):
         super().reset()
-        self.near_miss_veh = set()
-        self.crashed_veh = set()
+        self.near_misses = None
         self.crashes = []
+        self.maybe_sideswipes = {}
+        self.near_miss_times = {}
 
     def step(self):
+        """Modified step logic additionally checks for near misses, sideswipes and rear ends."""
         super().step()
+        timeind = self.timeind
 
+        # check for sideswipes
+        remove_veh = []
+        for veh in self.maybe_sideswipes:
+            lc_timeind, lead, changer, prev_lane = self.maybe_sideswipes[veh]
+            if veh.lead != lead:  # another lane change occurred
+                new_changer = veh if veh.lanemem[-1][1] > lc_timeind else lead
+                if new_changer == changer:
+                    if new_changer.lane.anchor == prev_lane.anchor:
+                        pass
+                    else:
+                        crashed = ('sideswipe', timeind)
+                        self._add_new_crash(veh, lead, crashed, timeind)
+                elif new_changer.lane.anchor != prev_lane.anchor:
+                    pass
+                else:
+                    crashed = ('sideswipe', timeind)
+                    self._add_new_crash(veh, lead, crashed, timeind)
+                remove_veh.append(veh)
+                continue
+
+            if timeind > lc_timeind + int(1.5/self.dt) + 1:  # lane change completes
+                crashed = ('sideswipe', timeind)
+                self._add_new_crash(veh, lead, crashed, timeind)
+                remove_veh.append(veh)
+            elif veh.hd > 0:
+                remove_veh.append(veh)
+        for veh in remove_veh:
+            del self.maybe_sideswipes[veh]
+
+        # check for near misses and rear ends
         for veh in self.vehicles:
             lead, hd = veh.lead, veh.hd
             if lead is not None:
-                if 0 < hd/(veh.speed - lead.speed + 1e-6) < 0.4 or hd < 0:  # check for possible near misses
-                    self.near_miss_veh.add(veh)
-                if hd < 0:  # check for crashes
+                if hd < 0:  # check for rear ends
                     if veh.crashed and lead.crashed:
                         continue
-                    most_recent_lc_time = max(veh.lanemem[-1][1], lead.lanemem[-1][1])
-                    if self.timeind - most_recent_lc_time < 8:  # LC is not 'completed', so no crash has occured yet
-                        continue
-                    if not veh.crashed and not lead.crashed:  # normal case of new crash
-                        veh.update_after_crash(self.timeind)
-                        lead.update_after_crash(self.timeind)
-                        self.crashed_veh.add(veh)
-                        self.crashed_veh.add(lead)
-                        self.crashes.append([veh, lead])
-                    else:  # another vehicle is added to the previous crash
-                        (crashed_veh, new_veh) = (veh, lead) if veh.crashed else (lead, veh)
-                        new_veh.update_after_crash(self.timeind)
-                        self.crashed_veh.add(new_veh)
-                        for crash in self.crashes[-1::-1]:
-                            if crashed_veh in crash:
-                                crash.append(new_veh)
-                                break
+                    if veh in self.maybe_sideswipes:
+                        pass
+                    elif timeind == lead.lanemem[-1][1]:
+                        self.maybe_sideswipes[veh] = (timeind, lead, lead, lead.lanemem[-2][0])
+                    elif timeind == veh.lanemem[-1][1]:
+                        self.maybe_sideswipes[veh] = (timeind, lead, veh, veh.lanemem[-2][0])
+                    else:
+                        crashed = ('rear end', timeind)
+                        self._add_new_crash(veh, lead, crashed, timeind)
+
+                if 0 < hd/(veh.speed - lead.speed + 1e-6) < 0.5 or hd < 0:  # check for possible near misses
+                    if veh in self.near_miss_times:
+                        self.near_miss_times[veh].append(timeind)
+                    elif not veh.crashed:
+                        self.near_miss_times[veh] = [timeind]
+
+    def simulate(self, timesteps=None, verbose=True):
+        all_vehicles = super().simulate(timesteps=timesteps, verbose=verbose)
+        self._process_near_miss_times()
+
+        if verbose:
+            n_misses = sum([len(veh.near_misses) for veh in self.near_misses])
+            print('number of near misses: {:n} ({:n} vehicles)'.format(n_misses, len(self.near_misses)))
+            n_crashed_veh = sum([len(crash) for crash in self.crashes])
+            print('number of crashes: {:n} ({:n} vehicles)'.format(len(self.crashes), n_crashed_veh))
+        return all_vehicles
+
+    def _add_new_crash(self, veh, lead, crashed, timeind):
+        if not veh.crashed and not lead.crashed:
+            veh.update_after_crash(timeind, crashed)
+            lead.update_after_crash(timeind, crashed)
+            self.crashes.append([veh, lead])
+            return
+        elif veh.crashed:
+            crashed_veh, new_veh = veh, lead
+        else:
+            crashed_veh, new_veh = lead, veh
+        for crash in self.crashes[-1::-1]:
+            if crashed_veh in crash:
+                crash.append(new_veh)
+                crashed[1] = crash[0].crash_time
+                new_veh.update_after_crash(timeind, crashed)
+
+    def _process_near_miss_times(self):
+        """Convert near miss times into near miss intervals (CrashesVehicles have reference to their near misses)."""
+        for veh in self.near_miss_times:
+            pass

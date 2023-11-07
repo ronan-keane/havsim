@@ -918,8 +918,9 @@ class StochasticVehicle(Vehicle):
         return xi
 
 
-def update_after_crash(veh, timeind):
-    veh.crashed = True
+def update_after_crash(veh, timeind, crashed):
+    """Called after a crash to implement the crash behavior."""
+    veh.crashed = crashed
     veh.crash_time = timeind
 
     # turn off lane changing
@@ -932,58 +933,61 @@ def update_after_crash(veh, timeind):
     veh.route_events = []
 
 
-def set_cf_crashed(veh, timeind, hold_timesteps):
+def set_cf_crashed(veh, timeind):
+    """After crash, set constant deceleration at -3. Remove vehicle after 20 timesteps at 0 speed."""
     if veh.lead is not None:
         if veh.hd < 0:
             veh.acc = -100
         else:
-            veh.acc = veh.crash_decel
+            test_acc = veh.cf_model(veh.cf_parameters, [veh.hd, veh.speed, veh.lead.speed])
+            veh.acc = min(-3, test_acc)
     else:
-        veh.acc = veh.crash_decel
+        veh.acc = -3
+
     if veh.speed == 0.:
-        if timeind >= veh.crash_time + hold_timesteps:
-            if veh.speedmem[-hold_timesteps] == 0.:
+        if timeind >= veh.crash_time + 20:
+            if veh.speedmem[-20] == 0.:
                 # remove vehicle by creating lane event
                 veh.lane_events = [{'pos': -1e6, 'event': 'exit'}]
 
 
 class CrashesVehicle(Vehicle):
-    def __init__(self, *args, decel=-3, hold_timesteps=20, **kwargs):
-        # decel: after crash, decelerate at this rate
-        # hold_timesteps: remove the vehicle after hold_timesteps at 0 speed
+    """Keeps memory of crashes/near misses and changes behavior if crash occurs.
+
+    Attributes:
+        crashed: if False, the vehicle has not been in a crash. Otherwise, is a tuple of (crash_type, crash_time)
+            where crash_type is a str and crash_time is the earliest crash time (int) of any vehicle in the crash
+        crash_time: if not None, the time (int) that the vehicle crashed
+        near_misses: if not [], list of tuples of (start_time, end_time) of near miss status, in time index
+    """
+    def __init__(self, *args, **kwargs):
         self.crashed = False
         self.crash_time = None
-        self.crash_decel = decel
-        self.hold_timesteps = hold_timesteps
+        self.near_misses = []
         super().__init__(*args, **kwargs)
 
-    def update_after_crash(self, timeind):
-        """Called after a crash to implement the crash behavior."""
-        update_after_crash(self, timeind)
+    def update_after_crash(self, timeind, crashed):
+        update_after_crash(self, timeind, crashed)
 
     def set_cf(self, timeind):
         if self.crashed:
-            set_cf_crashed(self, timeind, self.hold_timesteps)
+            set_cf_crashed(self, timeind)
         else:
             super().set_cf(timeind)
 
 
 class CrashesStochasticVehicle(StochasticVehicle):
-    def __init__(self, *args, decel=-3, hold_timesteps=20, **kwargs):
-        # decel: after crash, decelerate at this rate
-        # hold_timesteps: remove the vehicle after hold_timesteps at 0 speed
+    def __init__(self, *args, **kwargs):
         self.crashed = False
         self.crash_time = None
-        self.crash_decel = decel
-        self.hold_timesteps = hold_timesteps
+        self.near_misses = []
         super().__init__(*args, **kwargs)
 
-    def update_after_crash(self, timeind):
-        """Called after a crash to implement the crash behavior."""
-        update_after_crash(self, timeind)
+    def update_after_crash(self, timeind, crashed):
+        update_after_crash(self, timeind, crashed)
 
     def set_cf(self, timeind):
         if self.crashed:
-            set_cf_crashed(self, timeind, self.hold_timesteps)
+            set_cf_crashed(self, timeind)
         else:
             super().set_cf(timeind)

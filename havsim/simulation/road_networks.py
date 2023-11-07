@@ -677,7 +677,7 @@ class AnchorVehicle:
         self.cf_parameters = None
         self.lane = curlane
         self.road = curlane.road.name
-        self.vehid = str(self.road)+str(self.lane.laneind)+'-anchor'
+        self.vehid = str(self.road)+'-'+str(self.lane.laneind)+'-anchor'
 
         self.init_lead = lead
         self.init_rlead = rlead
@@ -728,6 +728,9 @@ class AnchorVehicle:
 
     def __eq__(self, other):
         return self.vehid == other.vehid
+
+    def __ne__(self, other):
+        return not self.vehid == other.vehid
 
     def __hash__(self):
         return hash(self.vehid)
@@ -945,7 +948,7 @@ class Lane:
 
     def __repr__(self):
         """Representation in ipython console."""
-        return self.roadname+' ('+str(self.laneind)+')'
+        return self.roadname+'-'+str(self.laneind)
 
     def __str__(self):
         """Convert Lane to a string."""

@@ -4,14 +4,16 @@ import havsim.plotting as hp
 import matplotlib.pyplot as plt
 import time
 import pickle
+import multiprocessing
 
-simulation, laneinds = e94()
-timesteps = 3600*5
+n_processes = 10
 replications = 1
 make_plots = False
 save_output = True
-save_name = 'pickle files/e94_sim_6'
+save_crashes_only = True
+save_name = 'pickle files/e94_sim_1'
 
+simulation, laneinds = e94()
 near_miss = 0
 rear_end = 0
 sideswipe = 0
@@ -26,7 +28,7 @@ for i in range(replications):
     print('simulation time is '+str(end-start)+' over '+str(sum([timesteps - veh.start+1 if veh.end is None else veh.end - veh.start+1
                                                                  for veh in all_vehicles]))+' timesteps')
     print('there were {:n} crashes involving {:n} vehicles'.format(len(simulation.crashes), len(simulation.crashed_veh)))
-    print('there were roughly {:n} near misses'.format(len(simulation.near_miss_veh)-len(simulation.crashes)))
+    print('there were roughly {:n} near misses'.format(len(simulation.near_misses) - len(simulation.crashes)))
     for crash in simulation.crashes:  # determine whether it's due to sideswipe or rear end
         # check the first two vehicles only
         crash_time = crash[0].crash_time
@@ -41,9 +43,9 @@ for i in range(replications):
         else:
             rear_end += 1
     for veh in simulation.crashed_veh:  # count near misses
-        if veh in simulation.near_miss_veh:
-            simulation.near_miss_veh.remove(veh)
-    near_miss += len(simulation.near_miss_veh)
+        if veh in simulation.near_misses:
+            simulation.near_misses.remove(veh)
+    near_miss += len(simulation.near_misses)
     for veh in all_vehicles:  # vmt
         vmt += veh.posmem[-1] - veh.posmem[0]
 

@@ -6,16 +6,17 @@ import time
 import pickle
 import scipy.interpolate as ssi
 
+timesteps = 3600*3
+make_plots = True
+save_output = False
+save_name = 'pickle files/bottleneck_sim_0'
+
 t = [3600*i for i in range(12)]
 # main = ssi.interp1d(t, [100/3600, 3200/3600/2, 3600/3600/2, 3600/3600/2, 3600/3600/2, 3400/3600/2, 3000/3600/2, 3000/3600/2, 3000/3600/2, 3000/3600/2, 3000/3600/2, 3000/3600/2])
 # onramp = ssi.interp1d(t, [0/3600, 200/3600, 600/3600, 600/3600, 600/3600, 600/3600, 600/3600, 200/3600, 200/3600, 1200/3600, 1200/3600, 1200/3600])
 main = lambda timeind: 3200/3600/2
 onramp = lambda timeind: 1150/3600
 simulation, laneinds = merge_bottleneck(main_inflow=main, onramp_inflow=onramp)
-timesteps = 3600*3
-make_plots = True
-save_output = False
-save_name = 'pickle files/bottleneck_sim_0'
 
 start = time.time()
 simulation.simulate(timesteps)

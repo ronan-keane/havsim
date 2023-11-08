@@ -213,7 +213,7 @@ class Simulation:
         if verbose:
             total_timesteps = sum([self.timeind-max(veh.start, self.timeind-timesteps)+1 if veh.end is None
                                    else veh.end-max(veh.start, self.timeind-timesteps)+1 for veh in all_vehicles])
-            print('simulation time is {:.1f} over {:.2e} timesteps ({:n} vehicles)'.format(
+            print('simulation time is {:.1f} seconds over {:.2e} timesteps ({:n} vehicles)'.format(
                 elapsed_time, total_timesteps, len(all_vehicles)))
         return all_vehicles
 

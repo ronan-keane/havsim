@@ -1019,10 +1019,10 @@ def animatetraj(meas, followerchain, platoon=None, usetime=None, speed_limit=Non
             s = (show_lengths*point_scale)**2*.51
             plot_lengths = False
         else:
-            s = max((4 * point_scale) ** 2 * .51, 8)
+            s = max((4 * point_scale) ** 2 * .51, 64)
             plot_lengths = True
     else:
-        s = max((4*point_scale)**2*.51, 8)  # size of approx 4 x units, but cannot be smaller than 8 points**2
+        s = max((4*point_scale)**2*.51, 64)  # size of approx 4 x units, but cannot be smaller than 8 points**2
         plot_lengths = False
     linewidths = (s/.51)**.5*.4
     if plot_lengths:

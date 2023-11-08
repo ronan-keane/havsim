@@ -13,17 +13,24 @@ dt = .2
 saved_sim = 'pickle files/e94_sim_0.pkl'
 
 with open(saved_sim, 'rb') as f:
-    all_vehicles, laneinds = pickle.load(f)
-all_vehicles = hs.vehicles.reload(all_vehicles)
-crashes = {}
-for veh in all_vehicles:
-    if veh.crashed:
-        if veh.crash_time in crashes:
-            crashes[veh.crash_time].append(veh)
-        else:
-            crashes[veh.crash_time] = [veh]
-if len(crashes) == 0:
-    print('no crashes in data')
+    all_vehicles_list, laneinds = pickle.load(f)
+if len(all_vehicles_list) == 0:
+    print('no crashes or near misses (empty vehicles)')
+elif type(all_vehicles_list[0]) != list:
+    all_vehicles_list = [all_vehicles_list]
+
+crashes = []
+for all_vehicles in all_vehicles_list:
+    all_vehicles = hs.vehicles.reload(all_vehicles)
+    cur_crashes = {}
+    for veh in all_vehicles:
+        if veh.crashed:
+            if veh.crash_time in crashes:
+                crashes[veh.crash_time].append(veh)
+            else:
+                crashes[veh.crash_time] = [veh]
+    if len(crashes) == 0:
+        print('no crashes in data')
 
 
 def count_leadmem(my_veh, timeind):

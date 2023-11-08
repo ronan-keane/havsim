@@ -122,14 +122,15 @@ def e94():
                          new_vehicle=onramp5_newveh)
 
     simulation = hs.simulation.CrashesSimulation(
-        roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=.2)
+        roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=.2,
+        timesteps=3600*6)
     laneinds = {main_road[0]: 0, main_road[1]: 1, onramp1[0]: 2, onramp2[0]: 2, onramp3[0]: 2, onramp4[0]: 2,
                 onramp5[0]: 2, offramp1[0]: 2, offramp2[0]: 2, offramp3[0]: 2}
 
     return simulation, laneinds
 
 
-def merge_bottleneck(main_inflow=None, onramp_inflow=None):
+def merge_bottleneck(main_inflow=None, onramp_inflow=None, timesteps=10000):
     """Test simulation of merge bottleneck."""
     main_road = hs.Road(num_lanes=2, length=2000, name='main road')
     main_road.connect('exit', is_exit=True)
@@ -163,7 +164,7 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None):
                            new_vehicle=mainroad_newveh)
     onramp.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp_inflow},
                         new_vehicle=onramp_newveh)
-    simulation = hs.Simulation(roads=[main_road, onramp], dt=.2)
+    simulation = hs.Simulation(roads=[main_road, onramp], dt=.2, timesteps=timesteps)
     laneinds = {main_road[0]: 0, main_road[1]: 1, onramp[0]: 2}
 
     return simulation, laneinds

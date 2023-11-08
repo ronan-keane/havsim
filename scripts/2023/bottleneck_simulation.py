@@ -2,11 +2,9 @@
 from make_simulation import merge_bottleneck
 import havsim.plotting as hp
 import matplotlib.pyplot as plt
-import time
 import pickle
 import scipy.interpolate as ssi
 
-timesteps = 3600*3
 make_plots = True
 save_output = False
 save_name = 'pickle files/bottleneck_sim_0'
@@ -16,17 +14,10 @@ t = [3600*i for i in range(12)]
 # onramp = ssi.interp1d(t, [0/3600, 200/3600, 600/3600, 600/3600, 600/3600, 600/3600, 600/3600, 200/3600, 200/3600, 1200/3600, 1200/3600, 1200/3600])
 main = lambda timeind: 3200/3600/2
 onramp = lambda timeind: 1150/3600
-simulation, laneinds = merge_bottleneck(main_inflow=main, onramp_inflow=onramp)
+timesteps = 5000
+simulation, laneinds = merge_bottleneck(main_inflow=main, onramp_inflow=onramp, timesteps=timesteps)
 
-start = time.time()
-simulation.simulate(timesteps)
-end = time.time()
-
-all_vehicles = simulation.prev_vehicles
-all_vehicles.extend(simulation.vehicles)
-print('simulation time is ' + str(end - start) + ' over ' + str(
-    sum([timesteps - veh.start + 1 if veh.end is None else veh.end - veh.start + 1
-         for veh in all_vehicles])) + ' timesteps')
+all_vehicles = simulation.simulate(verbose=True)
 
 if save_output:
     with open(save_name + '.pkl', 'wb') as f:

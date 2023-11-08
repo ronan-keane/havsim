@@ -346,5 +346,51 @@ class CrashesSimulation(Simulation):
 
     def _process_near_miss_times(self):
         """Convert near miss times into near miss intervals (CrashesVehicles have reference to their near misses)."""
-        for veh in self.near_miss_times:
-            pass
+        # convert all near miss times into intervals
+        near_misses = {}
+        for veh, times in self.near_miss_times.items():
+            cur_near_miss = []
+            if times[-1] == times[0] + len(times) - 1:
+                cur_near_miss.append((times[0], times[-1]))
+            else:
+                start_ind, prev_time, cur_len = 0, times[0], len(times)
+                while start_ind < cur_len:
+                    for ind in range(start_ind+1, cur_len):
+                        if times[ind] > prev_time + 20:
+                            cur_near_miss.append((times[start_ind], prev_time))
+                            start_ind, prev_time = ind, times[ind]
+                            break
+                        else:
+                            prev_time = times[ind]
+                    else:
+                        cur_near_miss.append((times[start_ind], times[-1]))
+                        break
+                    if times[-1] == times[start_ind] + cur_len - 1 - start_ind:
+                        cur_near_miss.append((times[start_ind], times[-1]))
+                        break
+            near_misses[veh] = cur_near_miss
+
+        # remove near miss intervals that are due to crashes
+        for crash in self.crashes:
+            if crash[0] in near_misses:
+                self._maybe_fix_near_miss(crash[0], near_misses[crash[0]])
+            for veh in crash[2:]:
+                if veh in near_misses:
+                    self._maybe_fix_near_miss(veh, near_misses[veh])
+
+        # save results to near_misses attributes in simulation/vehicles
+        self.near_misses = set()
+        for veh, times in near_misses.items():
+            if len(times) > 0:
+                veh.near_misses = times
+                self.near_misses.add(veh)
+
+    @staticmethod
+    def _maybe_fix_near_miss(veh, cur_near_miss):
+        crash_time = veh.crash_time
+        for count, interval in enumerate(cur_near_miss):
+            if interval[1] >= crash_time >= interval[0]:
+                break
+        else:
+            return
+        cur_near_miss.pop(count)

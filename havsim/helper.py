@@ -1304,3 +1304,29 @@ def r_constant(currinfo, frames, T_n, rp, adj=True, h=.1):
         relaxadj = relax
 
     return relax, relaxadj
+
+
+def count_leadmem(veh, timeind):
+    if timeind < veh.start:
+        return 0
+    for count, leadmem in enumerate(veh.leadmem[:-1]):
+        if leadmem[1] <= timeind < veh.leadmem[count + 1][1]:
+            break
+    else:
+        count = len(veh.leadmem) - 1
+    return count
+
+
+def add_leaders(veh_list, start, end):
+    platoon = []
+    for veh in veh_list:
+        platoon.append(veh)
+        for mem in veh.leadmem[count_leadmem(veh, start):count_leadmem(veh, end)+1]:
+            if mem[0] is not None:
+                platoon.append(mem[0])
+                for mem2 in mem[0].leadmem[count_leadmem(mem[0], start):count_leadmem(mem[0], end)+1]:
+                    if mem2[0] is not None:
+                        platoon.append(mem2[0])
+    return list(set(platoon))
+
+

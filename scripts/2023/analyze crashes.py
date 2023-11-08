@@ -1,6 +1,6 @@
 """Plot crashes and near misses from saved data."""
 import pickle
-import havsim.simulation as hs
+import havsim
 import havsim.plotting as hp
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,51 +14,12 @@ saved_sim = 'pickle files/e94_sim_0.pkl'
 
 with open(saved_sim, 'rb') as f:
     all_vehicles_list, laneinds = pickle.load(f)
-if len(all_vehicles_list) == 0:
-    print('no crashes or near misses (empty vehicles)')
-elif type(all_vehicles_list[0]) != list:
+if type(all_vehicles_list[0]) != list:
     all_vehicles_list = [all_vehicles_list]
-
-crashes = []
-for all_vehicles in all_vehicles_list:
-    all_vehicles = hs.vehicles.reload(all_vehicles)
-    cur_crashes = {}
-    for veh in all_vehicles:
-        if veh.crashed:
-            if veh.crash_time in crashes:
-                crashes[veh.crash_time].append(veh)
-            else:
-                crashes[veh.crash_time] = [veh]
-    if len(crashes) == 0:
-        print('no crashes in data')
-
-
-def count_leadmem(my_veh, timeind):
-    if timeind < my_veh.start:
-        return 0
-    for count, leadmem in enumerate(my_veh.leadmem[:-1]):
-        if leadmem[1] <= timeind < my_veh.leadmem[count + 1][1]:
-            break
-    else:
-        count = len(my_veh.leadmem) - 1
-    return count
 
 
 def prepare_speed_plot(my_veh, start, end):
-    out = {}
-    # find type of crash
-    lead = my_veh.leadmem[count_leadmem(my_veh, my_veh.crash_time)][0]
-    if len(my_veh.lanemem) > 1:
-        lc_times = [lc[1] for lc in my_veh.lanemem[1:]]
-    else:
-        lc_times = []
-    if len(lead.lanemem) > 1:
-        lc_times.extend([lc[1] for lc in lead.lanemem[1:]])
-    if my_veh.crash_time - 8 in lc_times:
-        crash_type = 'sideswipe'
-    else:
-        crash_type = 'rear end'
-
+    crash_type = my_veh.crashed[0] if my_veh.crashed else 'near miss'
     # get stochastic behavior - get state, relax, acc, lc_acc at every timestep
     start = max(start, my_veh.start)
     end = min(end, my_veh.end) if my_veh.end is not None else min(end, my_veh.start + len(my_veh.posmem)-1)
@@ -68,7 +29,7 @@ def prepare_speed_plot(my_veh, start, end):
     lead_pos = []
     lead_speed = []
     lead_len = []
-    veh_leadmem = my_veh.leadmem[count_leadmem(my_veh, start):count_leadmem(my_veh, end)+1]
+    veh_leadmem = my_veh.leadmem[havsim.helper.count_leadmem(my_veh, start):havsim.helper.count_leadmem(my_veh, end)+1]
     for i, leadmem in enumerate(veh_leadmem):
         cur_end = end if i == len(veh_leadmem) - 1 else veh_leadmem[i+1][1]-1
         cur_start = start if i == 0 else leadmem[1]
@@ -95,7 +56,7 @@ def prepare_speed_plot(my_veh, start, end):
 
     # make deterministic behavior
     params = {'cf_parameters': my_veh.cf_parameters, 'relax_parameters': my_veh.relax_parameters}
-    test_veh = hs.Vehicle('test', None, **params)
+    test_veh = havsim.simulation.Vehicle('test', None, **params)
 
     test_pos, test_speed = veh_pos[0], veh_speed[0]
     test_posmem = [test_pos]
@@ -144,13 +105,13 @@ def prepare_speed_plot(my_veh, start, end):
     hd = lead_pos - lead_len - np.array(veh_pos)
     test_hd = lead_pos - lead_len - np.array(test_posmem)
     return t, hd, test_hd, np.array(veh_speed), np.array(test_speedmem), np.array(acc), np.array(test_accmem), \
-        crash_type
+        crash_type, my_veh.vehid
 
 
 def do_speed_plot(args):
-    t, hd, test_hd, spd, test_spd, acc, test_acc, crash_type = args
+    t, hd, test_hd, spd, test_spd, acc, test_acc, crash_type, vehid = args
     fig = plt.figure(figsize=(12, 8))
-    fig.suptitle('gap, speed, and acceleration before '+str(crash_type))
+    fig.suptitle('gap, speed, and acceleration before '+str(crash_type)+' (vehicle '+str(vehid)+')')
     ax1 = plt.subplot(3, 1, 2)
     a1 = ax1.plot(t, spd, color='C0', alpha=.8)
     a2 = ax1.plot(t, test_spd, color='C0', linestyle='dashed')
@@ -174,48 +135,60 @@ def do_speed_plot(args):
     fig.tight_layout()
 
 
-all_platoons = []
-all_usetime = []
-all_spacelim = []
-all_speed = []
-for crash_time, crash in crashes.items():
-    # animation
-    t_start, t_end = crash_time-timesteps_before, crash_time+timesteps_after
-    platoon = []
-    for veh in crash:
-        platoon.append(veh)
-        last_count = count_leadmem(veh, t_end)
-        first_count = count_leadmem(veh, t_start)
-        for mem in veh.leadmem[first_count:last_count+1]:
-            if mem[0] is not None:
-                platoon.append(mem[0])
-                # include leaders (optional)
-                for mem2 in mem[0].leadmem[count_leadmem(mem[0], t_start):count_leadmem(mem[0], t_end)+1]:
-                    if mem2[0] is not None:
-                        platoon.append(mem2[0])
-    platoon = list(set(platoon))
-    min_p, max_p = [], []
-    for veh in platoon:
-        min_p.append(veh.posmem[max(t_start-veh.start, 0)])
-        max_p.append(veh.posmem[min(t_end - veh.start, len(veh.posmem)-1)])
-    all_platoons.append([i.vehid for i in platoon])
-    all_usetime.append((t_start, t_end))
-    all_spacelim.append((min(min_p)-5, max(max_p)+3))
+if __name__ == '__main__':
+    crashes = []
+    n_crashed_veh = 0
+    for count, all_vehicles in enumerate(all_vehicles_list):
+        all_vehicles = havsim.simulation.vehicles.reload(all_vehicles)
+        crashes_only = {}
+        for veh in all_vehicles:
+            if veh.crashed:
+                if veh.crashed[1] in crashes_only:
+                    crashes_only[veh.crashed[1]].append(veh)
+                else:
+                    crashes_only[veh.crashed[1]] = [veh]
+        for crash_veh_list in crashes_only.values():
+            n_crashed_veh += len(crash_veh_list)
+            crash_times = [veh.crash_time for veh in crash_veh_list]
+            t_start, t_end = min(crash_times) - timesteps_before, max(crash_times) + timesteps_after
+            platoon = havsim.helper.add_leaders(crash_veh_list, t_start, t_end)
+            need_speed_plots = []
+            for veh in crash_veh_list:
+                mem = veh.leadmem[havsim.helper.count_leadmem(veh, veh.crash_time)]
+                if mem[0] in crash_veh_list:
+                    need_speed_plots.append(veh)
+            crashes.append(((t_start, t_end), platoon, need_speed_plots, count))
+    print('number of crashes: {:n} ({:n} vehicles)'.format(len(crashes), n_crashed_veh))
+    n_near_misses = 0
+    n_near_miss_veh = 0
+    for count, all_vehicles in enumerate(all_vehicles_list):
+        for veh in all_vehicles:
+            if len(veh.near_misses) == 0:
+                continue
+            n_near_misses += len(veh.near_misses)
+            n_near_miss_veh += 1
+            for times in veh.near_misses:
+                t_start, t_end = times[0] - timesteps_before, times[1] + timesteps_after
+                crashes.append(((t_start, t_end), havsim.helper.add_leaders([veh], t_start, t_end), [veh], count))
+    print('number of near misses: {:n} ({:n} vehicles)'.format(n_near_misses, n_near_miss_veh))
 
-    # plot of speed
-    speed = []
-    for veh in crash:
-        mem = veh.leadmem[count_leadmem(veh, crash_time)]
-        if mem[0] in crash or len(crash) == 1:
-            all_speed.append(prepare_speed_plot(veh, t_start, t_end))
+    all_sim = []
+    for all_vehicles in all_vehicles_list:
+        sim, siminfo = hp.plot_format(all_vehicles,  laneinds)
+        all_sim.append((sim, siminfo))
 
-
-sim, siminfo = hp.plot_format(all_vehicles, laneinds)
-all_ani = []
-for count in range(min_crash_plots, min(len(all_platoons), max_crash_plots)):
-    ani = hp.animatetraj(sim, siminfo, platoon=all_platoons[count], usetime=list(range(*all_usetime[count])),
-                         spacelim=all_spacelim[count], lanelim=(3, -1), show_id=True, show_axis=True)
-    all_ani.append(ani)
-    do_speed_plot(all_speed[count])
-plt.show()
-
+    all_ani = []
+    for crash_count in range(min_crash_plots, min(len(crashes), max_crash_plots)):
+        times, platoon, need_speed_plots, count = crashes[crash_count]
+        t_start, t_end = times
+        min_p, max_p = [], []
+        for veh in platoon:
+            min_p.append(veh.posmem[max(t_start - veh.start, 0)])
+            max_p.append(veh.posmem[min(t_end - veh.start, len(veh.posmem) - 1)])
+        sim, siminfo = all_sim[count]
+        ani = hp.animatetraj(sim, siminfo, platoon=platoon, usetime=list(range(t_start, t_end+1)),
+                             spacelim=(min(min_p)-5, max(max_p)+3), lanelim=(3, -1), show_id=True, show_axis=True)
+        all_ani.append(ani)
+        for veh in need_speed_plots:
+            do_speed_plot(prepare_speed_plot(veh, t_start, t_end))
+    plt.show()

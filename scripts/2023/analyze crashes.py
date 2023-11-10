@@ -1,4 +1,4 @@
-"""Plot crashes and near misses from saved data."""
+"""Plot crashes and near misses from saved data from script safety sim."""
 import pickle
 import havsim
 import havsim.plotting as hp
@@ -10,7 +10,7 @@ timesteps_after = 5
 min_crash_plots = 0
 max_crash_plots = 1
 dt = .2
-saved_sim = 'pickle files/e94_sim_0.pkl'
+saved_sim = 'pickle files/e94_crashes_0.pkl'
 
 with open(saved_sim, 'rb') as f:
     all_vehicles_list, laneinds = pickle.load(f)

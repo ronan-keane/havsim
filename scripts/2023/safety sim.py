@@ -7,7 +7,7 @@ import pickle
 import multiprocessing
 
 n_processes = 1
-replications = 1
+replications = 5
 make_plots = False
 save_output = True
 save_crashes_only = True
@@ -19,7 +19,7 @@ def do_simulation(verbose=False):
     my_rear_end, my_sideswipe, my_near_miss, my_vmt = 0, 0, 0, 0
     my_vehicle_lists = []
     for i in range(replications):
-        all_vehicles = simulation.simulate(verbose=verbose, timesteps=100)
+        all_vehicles = simulation.simulate(verbose=verbose)
 
         for crash in simulation.crashes:
             if crash[0].crashed == 'rear end':
@@ -46,20 +46,22 @@ def do_simulation(verbose=False):
 
 
 if __name__ == '__main__':
-    args = [False for i in range(n_processes)]
-    args[0] = True
-    pool = multiprocessing.Pool(n_processes)
-    out = pool.map(do_simulation, args)
+    # args = [False for i in range(n_processes)]
+    # args[0] = True
+    # pool = multiprocessing.Pool(n_processes)
+    # out = pool.map(do_simulation, args)
+    out = [do_simulation(verbose=True)]
     all_rear_end, all_sideswipe, all_near_miss, all_vmt = 0, 0, 0, 0
     all_lists = []
     for output in out:
         rear_end, sideswipe, near_miss, vmt, all_vehicle_lists, laneinds = output
+        print(all_vehicle_lists)
         all_rear_end += rear_end
         all_sideswipe += sideswipe
         all_near_miss += near_miss
         all_vmt += vmt
         all_lists.extend(all_vehicle_lists)
-    pool.close()
+    # pool.close()
 
     print('\n-----------SUMMARY-----------')
     print('near misses: {:n}'.format(all_near_miss/replications))

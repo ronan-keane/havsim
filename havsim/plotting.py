@@ -1,8 +1,4 @@
-"""
-where all the plotting functions go
-
-@author: rlk268@cornell.edu
-"""
+"""Plotting functions."""
 # TODO fix code style, add documentation and examples
 import numpy as np
 import math
@@ -1081,16 +1077,16 @@ def animatetraj(meas, followerchain, platoon=None, usetime=None, speed_limit=Non
 
     def init():
         artists = [scatter_pts]
+        curdata = platoontraj[usetime[0]]
+        X, Y, speeds, ids, lens = curdata[:, 0], curdata[:, 1], curdata[:, 2], curdata[:, 3], curdata[:, 4]
         # ax = plt.gca()
         if show_id:
             for vehid, annotation in list(current_annotation_dict.items()).copy():
                 annotation.remove()
                 del current_annotation_dict[vehid]
-        curdata = platoontraj[usetime[0]]
-        X, Y, speeds, ids, lens = curdata[:, 0], curdata[:, 1], curdata[:, 2], curdata[:, 3], curdata[:, 4]
-        for i in range(len(ids)):
-            current_annotation_dict[ids[i]] = ax.annotate(str(int(ids[i])), (X[i], Y[i]), fontsize=7)
-            artists.append(current_annotation_dict[ids[i]])
+            for i in range(len(ids)):
+                current_annotation_dict[ids[i]] = ax.annotate(str(int(ids[i])), (X[i], Y[i]), fontsize=7)
+                artists.append(current_annotation_dict[ids[i]])
 
         data = np.stack([X, Y], axis=1)
         scatter_pts.set_offsets(data)

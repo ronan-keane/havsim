@@ -1,10 +1,6 @@
 """Helper functions and utilities for loading/manipulating data."""
 import numpy as np
-import heapq
 import math
-from collections import defaultdict
-
-
 # TODO - fix code style and documentation
 
 
@@ -1330,3 +1326,11 @@ def add_leaders(veh_list, start, end):
     return list(set(platoon))
 
 
+def indtodata(indjumps, data, dataind=2):
+    out = []
+    for i in range(len(indjumps)-1):
+        startpos  = data[indjumps[i],dataind]
+        endpos = data[indjumps[i+1]-1,dataind]
+        temp = (startpos, endpos)
+        out.append(temp)
+    return out

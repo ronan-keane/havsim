@@ -145,7 +145,7 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None, timesteps=10000):
             s1 = min(max(np.random.normal()*1.5 + 1, -4), 3)
             s2 = np.random.rand() * .12 - .03
             s3 = np.random.rand()*.3-.2
-            kwargs = {'cf_parameters': [34, 1.2, 3, 1.4, 1.6],
+            kwargs = {'cf_parameters': [34+s1, 1.2+s2, 3, 1.4+s3, 1.6],
                       'lc_parameters': [-8, -8, .4, .05, .1, 0, .2, 10, 30], 'lc2_parameters': [-2, 2, 1, -1.5, 1, .2],
                       'relax_parameters': [9., 4.5, .6, 2.], 'route_parameters': [300, 500], 'accbounds': [-10, None],
                       'route': route.copy()}

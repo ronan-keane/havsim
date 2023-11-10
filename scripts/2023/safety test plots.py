@@ -1,3 +1,4 @@
+"""Prototyping of StochasticVehicle with example plot, functions for sampling random variables."""
 import matplotlib.pyplot as plt
 import numpy as np
 

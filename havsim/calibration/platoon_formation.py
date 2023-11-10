@@ -1234,40 +1234,20 @@ def overlaphelp(meas1, meas2, meas1_isdata = True, meas2_isdata = True, return_d
     if meas1_isdata:
         ind1 = helper.sequential(meas1)
         if get_pos:
-            times1 = helper.indtopos(ind1, meas1)
+            times1 = helper.indtodata(ind1, meas1)
         else:
-            times1 = helper.indtotimes(ind1,meas1)
+            times1 = helper.indtodata(ind1, meas1, dataind=1)
     else:
         times1 = meas1
 
     if meas2_isdata:
         ind2 = helper.sequential(meas2)
         if get_pos:
-            times2 = helper.indtopos(ind2, meas2)
+            times2 = helper.indtodata(ind2, meas2)
         else:
-            times2 = helper.indtotimes(ind2, meas2)
+            times2 = helper.indtodata(ind2, meas2, dataind=1)
     else:
         times2 = meas2
-
-    # if return_pos:
-    #     if not return_times:
-    #         print('setting return_times to True')
-    #         return_times = True #must be in this format for return_pos
-    #         #possible to give an option to
-    #     if input_pos: #True True True
-    #         times1 = meas1
-    #         times2 = meas2
-    #     else: #True True
-    #         ind1 = helper.sequential(meas1)
-    #         ind2 = helper.sequential(meas2)
-    #         times1 = helper.indtopos(ind1, meas1)
-    #         times2 = helper.indtopos(ind2, meas2)
-    # else: #____ False False
-    #     #change the indices into times
-    #     ind1 = helper.sequential(meas1)
-    #     ind2 = helper.sequential(meas2)
-    #     times1 = helper.indtotimes(ind1,meas1) #call these times but really they are the times for slices, i.e. second time has 1 extra
-    #     times2 = helper.indtotimes(ind2,meas2)
     #output
     outtimes = []
     outind1 = []

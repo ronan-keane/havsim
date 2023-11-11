@@ -1318,7 +1318,7 @@ def add_leaders(veh_list, start, end):
     for veh in veh_list:
         platoon.append(veh)
         for mem in veh.leadmem[count_leadmem(veh, start):count_leadmem(veh, end)+1]:
-            if mem[0] is not None:
+            if hasattr(mem[0], 'vehid'):
                 platoon.append(mem[0])
                 for mem2 in mem[0].leadmem[count_leadmem(mem[0], start):count_leadmem(mem[0], end)+1]:
                     if mem2[0] is not None:

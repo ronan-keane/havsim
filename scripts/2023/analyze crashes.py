@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 timesteps_before = 100
 timesteps_after = 5
 min_crash_plots = 0
-max_crash_plots = 1
+max_crash_plots = 5
 dt = .2
 saved_sim = 'pickle files/e94_crashes_0.pkl'
 
@@ -155,6 +155,8 @@ if __name__ == '__main__':
             need_speed_plots = []
             for veh in crash_veh_list:
                 mem = veh.leadmem[havsim.helper.count_leadmem(veh, veh.crash_time)]
+                if mem[0] is None:
+                    continue
                 if mem[0] in crash_veh_list:
                     need_speed_plots.append(veh)
             crashes.append(((t_start, t_end), platoon, need_speed_plots, count))
@@ -186,7 +188,7 @@ if __name__ == '__main__':
             min_p.append(veh.posmem[max(t_start - veh.start, 0)])
             max_p.append(veh.posmem[min(t_end - veh.start, len(veh.posmem) - 1)])
         sim, siminfo = all_sim[count]
-        ani = hp.animatetraj(sim, siminfo, platoon=platoon, usetime=list(range(t_start, t_end+1)),
+        ani = hp.animatetraj(sim, siminfo, platoon=[i.vehid for i in platoon], usetime=list(range(t_start, t_end+1)),
                              spacelim=(min(min_p)-5, max(max_p)+3), lanelim=(3, -1), show_id=True, show_axis=True)
         all_ani.append(ani)
         for veh in need_speed_plots:

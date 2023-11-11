@@ -87,10 +87,12 @@ def plot_format(all_vehicles, laneinds):
             else:
                 time2 = veh.leadmem[count + 1][1]
 
-            if leadmem[0] is None:
+            if hasattr(leadmem[0], 'vehid'):
+                useind = leadmem[0].vehid
+            elif leadmem[0] is None:
                 useind = 0
             else:
-                useind = leadmem[0].vehid
+                useind = leadmem[0]
             curmeas[time1 - starttime:time2 - starttime, 4] = useind
 
         # times for platooninfo
@@ -146,16 +148,16 @@ def clip_distance(all_vehicles, sim, clip):
             time1 = min(end_time, max(time1, start_time))
             time2 = min(end_time, max(time2, start_time))
             lead = curmem[0]
-            if lead is None:
-                sim2[vehid][time1-start_time:time2-start_time+1, 4] = 0
-            elif lead.vehid not in sim2:
-                sim2[vehid][time1 - start_time:time2 - start_time + 1, 4] = 0
-            else:
+            if hasattr(lead, 'vehid'):
                 lead_start, lead_end = int(sim2[lead.vehid][0, 1]), int(sim2[lead.vehid][-1, 1])
                 t1 = min(lead_end, max(time1, lead_start))
                 t2 = min(lead_end, max(time2, lead_start))
                 sim2[vehid][time1 - start_time:time2 - start_time + 1, 4] = 0
                 sim2[vehid][t1 - start_time:t2 - start_time + 1, 4] = lead.vehid
+            elif lead is None:
+                sim2[vehid][time1-start_time:time2-start_time+1, 4] = 0
+            else:
+                sim2[vehid][time1 - start_time:time2 - start_time + 1, 4] = lead
 
         # from new leaders information, make the platooninfo
         lanedata = sim2[vehid][:, [1, 4]]

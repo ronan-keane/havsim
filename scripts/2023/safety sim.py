@@ -8,7 +8,7 @@ n_processes = 1
 replications = 10
 save_output = True
 save_crashes_only = True
-save_name = 'pickle files/e94_crashes_1'
+save_name = 'pickle files/e94_crashes_3'
 
 
 def do_simulation(verbose=False):
@@ -52,7 +52,6 @@ if __name__ == '__main__':
     all_lists = []
     for output in out:
         rear_end, sideswipe, near_miss, vmt, all_vehicle_lists, laneinds = output
-        print(all_vehicle_lists)
         all_rear_end += rear_end
         all_sideswipe += sideswipe
         all_near_miss += near_miss

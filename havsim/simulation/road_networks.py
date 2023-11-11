@@ -711,7 +711,7 @@ class AnchorVehicle:
         pass
 
     def reset(self):
-        self.lfol = None  # anchor vehicles just need the lead/llead/rlead attributes. no need for (l/r)fol
+        self.lfol = None
         self.rfol = None
         self.lead = None if self.init_lead is None else copy.deepcopy(self.init_lead)
         self.rlead = [] if self.init_rlead is None else copy.deepcopy(self.init_rlead)
@@ -735,6 +735,17 @@ class AnchorVehicle:
     def __hash__(self):
         return hash(self.vehid)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['lead'] = veh_to_id(state['lead'])
+        rlead, llead, leadmem = [], [], []
+        for veh in state['rlead']:
+            rlead.append(veh_to_id(veh))
+        for veh in state['llead']:
+            llead.append(veh_to_id(veh))
+        state['leadmem'], state['rlead'], state['llead'] = leadmem, rlead, llead
+        return state
+
 
 def get_headway(veh, lead):
     """Calculates distance from Vehicle veh to the back of Vehicle lead."""
@@ -750,6 +761,13 @@ def get_dist(veh, lead):
     if veh.road != lead.road:
         dist += veh.lane.roadlen[lead.road]  # lead.road is hashable because its a string
     return dist
+
+
+def veh_to_id(veh):
+    if veh is None:
+        return None
+    else:
+        return veh.vehid
 
 
 class Lane:
@@ -781,8 +799,8 @@ class Lane:
         connections: for making routes - refer to update_lane_routes.make_cur_route
         anchor: AnchorVehicle for lane
         roadlen: defines distance between Lane's road and other roads.
-        merge_anchors: any merge anchors for the lane (see update_merge_anchors). List of list, where each list
-            is a pair of [merge_anchor, position].
+        merge_anchors: any merge anchors for the lane (see update_lane_routes.update_merge_anchors).
+            List of list, where each inner list is a pair of [merge_anchor, position].
         events: lane events (see update_lane_events)
         dt: timestep length
     """
@@ -961,6 +979,7 @@ class Lane:
         my_dict.pop('new_vehicle', None)
         my_dict.pop('get_inflow', None)
         my_dict.pop('call_downstream', None)
+        my_dict.pop('newveh', None)
         return my_dict
 
 

@@ -1,7 +1,4 @@
-
-"""
-Base Vehicle class and its helper functions.
-"""
+"""Vehicle class for calling model, storing/saving data."""
 import scipy.optimize as sc
 import numpy as np
 
@@ -624,25 +621,38 @@ class Vehicle:
         """Serialize (pickle) the Vehicle."""
         state = self.__dict__.copy()
         del state['npr']
-        state['lead'] = veh_to_id(state['lead'])  # remove references to other vehicles
-        state['fol'] = veh_to_id_maybe_anchor(state['fol'])
-        state['lfol'] = veh_to_id_maybe_anchor(state['lfol'])
-        state['rfol'] = veh_to_id_maybe_anchor(state['rfol'])
-        rlead, llead = state['rlead'].copy(), state['llead'].copy()
-        for count, veh in enumerate(rlead):
-            rlead[count] = veh_to_id(veh)
-        for count, veh in enumerate(llead):
-            llead[count] = veh_to_id(veh)
-        leadmem = state['leadmem'].copy()
-        for count, curmem in enumerate(leadmem):
-            leadmem[count] = (veh_to_id(curmem[0]), curmem[1])
+        # remove references to other vehicles/anchors
+        state['lead'] = veh_to_id(state['lead'])
+        state['fol'] = veh_to_id(state['fol'])
+        state['lfol'] = veh_to_id(state['lfol'])
+        state['rfol'] = veh_to_id(state['rfol'])
+        rlead, llead, leadmem = [], [], []
+        for veh in state['rlead']:
+            rlead.append(veh_to_id(veh))
+        for veh in state['llead']:
+            llead.append(veh_to_id(veh))
+        for curmem in state['leadmem']:
+            leadmem.append((veh_to_id(curmem[0]), curmem[1]))
         state['leadmem'], state['rlead'], state['llead'] = leadmem, rlead, llead
+        # simplify memory
+        if 'rvmem' in state:
+            state['rvmem'] = []
+        if len(state['speedmem']) > 1:
+            dt = (state['posmem'][1] - state['posmem'][0])/state['speedmem'][0]
+            state['posmem'] = (state['posmem'][0], dt)
         return state
 
     def __setstate__(self, state):
         """Load Vehicle from pickle. To get references to other vehicles, must also call vehicles.reload."""
         self.__dict__ = state
         self.npr = np.random.default_rng()
+        if len(self.speedmem) > 1:
+            pos, dt = self.posmem
+            posmem = [pos]
+            for spd in self.speedmem[:-1]:
+                pos = pos + dt * spd
+                posmem.append(pos)
+            self.posmem = posmem
 
     def _leadfol(self):
         """Summarize the leader/follower relationships of the Vehicle."""
@@ -804,56 +814,43 @@ class Vehicle:
         return res
 
 
-def veh_to_id(veh):  # convert Vehicle to vehid
+def veh_to_id(veh):
     if veh is None:
         return None
     else:
         return veh.vehid
 
 
-def veh_to_id_maybe_anchor(veh):
-    if veh is None:
-        return None
-    elif type(veh.vehid) is str:
-        if veh.vehid[-7:] == '-anchor':
-            return veh
-    return veh.vehid
-
-
-def id_to_veh(a, veh_dict):  # convert id to Vehicle, given dict of (vehid: veh) pairs
+def id_to_veh_maybe(a, veh_dict):
     if a is None:
         return None
-    else:
+    elif a in veh_dict:
         return veh_dict[a]
+    else:
+        return a
 
 
-def id_to_veh_maybe_anchor(a, veh_dict):
-    if a is None:
-        return None
-    elif hasattr(a, 'vehid'):
-        if type(a.vehid) is str:
-            if a.vehid[-7:] == '-anchor':
-                return a
-    return veh_dict[a]
-
-
-def reload(all_vehicles):
+def reload(all_vehicles, laneinds=None):
     """Given list of all vehicles, convert int memory back to Vehicle references."""
     veh_dict = {}
+    if laneinds is not None:
+        for lane in laneinds.keys():
+            if lane.anchor.vehid not in veh_dict:
+                veh_dict[lane.anchor.vehid] = lane.anchor
     for veh in all_vehicles:
         veh_dict[veh.vehid] = veh
     for veh in all_vehicles:
-        veh.lead = id_to_veh(veh.lead, veh_dict)
-        veh.fol = id_to_veh_maybe_anchor(veh.fol, veh_dict)
-        veh.lfol = id_to_veh_maybe_anchor(veh.lfol, veh_dict)
-        veh.rfol = id_to_veh_maybe_anchor(veh.rfol, veh_dict)
+        veh.lead = id_to_veh_maybe(veh.lead, veh_dict)
+        veh.fol = id_to_veh_maybe(veh.fol, veh_dict)
+        veh.lfol = id_to_veh_maybe(veh.lfol, veh_dict)
+        veh.rfol = id_to_veh_maybe(veh.rfol, veh_dict)
         llead, rlead, leadmem = veh.llead, veh.rlead, veh.leadmem
         for count, a in enumerate(rlead):
-            rlead[count] = id_to_veh(a, veh_dict)
+            rlead[count] = id_to_veh_maybe(a, veh_dict)
         for count, a in enumerate(llead):
-            llead[count] = id_to_veh(a, veh_dict)
+            llead[count] = id_to_veh_maybe(a, veh_dict)
         for count, curmem in enumerate(leadmem):
-            leadmem[count] = (id_to_veh(curmem[0], veh_dict), curmem[1])
+            leadmem[count] = (id_to_veh_maybe(curmem[0], veh_dict), curmem[1])
     return all_vehicles
 
 

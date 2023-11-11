@@ -1,17 +1,14 @@
 """Simulation of traffic and crashes on I94 in Ann Arbor."""
 from make_simulation import e94
 import havsim
-import havsim.plotting as hp
-import matplotlib.pyplot as plt
 import pickle
 import multiprocessing
 
 n_processes = 1
-replications = 5
-make_plots = False
+replications = 10
 save_output = True
 save_crashes_only = True
-save_name = 'pickle files/e94_crashes_0'
+save_name = 'pickle files/e94_crashes_1'
 
 
 def do_simulation(verbose=False):
@@ -64,9 +61,9 @@ if __name__ == '__main__':
     # pool.close()
 
     print('\n-----------SUMMARY-----------')
-    print('near misses: {:n}'.format(all_near_miss/replications))
-    print('rear end crashes: {:n}'.format(all_rear_end/replications))
-    print('sideswipe crashes: {:n}'.format(all_sideswipe/replications))
+    print('near misses: {:n}'.format(all_near_miss))
+    print('rear end crashes: {:n}'.format(all_rear_end))
+    print('sideswipe crashes: {:n}'.format(all_sideswipe))
     print('vmt (miles): {:.0f}'.format(all_vmt/1609.34))
 
     if save_output:
@@ -76,17 +73,4 @@ if __name__ == '__main__':
         else:
             with open(save_name+'.pkl', 'wb') as f:
                 pickle.dump([all_lists, laneinds], f)
-    if make_plots:
-        sim, siminfo = hp.plot_format(all_lists[-1], laneinds)
-        sim2, siminfo2 = hp.clip_distance(all_lists[-1], sim, (8000, 10000))
-
-        hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[6000, 10000])
-        # hp.platoonplot(sim2, None, siminfo2, lane=2, opacity=0)
-
-        hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 35))
-
-        hp.plotflows(sim, [[7000, 7100], [9230, 9330], [11000, 11100]], [0, 18000], 300, h=.2)
-
-        ani = hp.animatetraj(sim2, siminfo2, usetime=list(range(2000, 4000)), spacelim=(8000, 10000), lanelim=(3, -1))
-        plt.show()
 

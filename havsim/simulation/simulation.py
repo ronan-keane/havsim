@@ -341,7 +341,7 @@ class CrashesSimulation(Simulation):
         for crash in self.crashes[-1::-1]:
             if crashed_veh in crash:
                 crash.append(new_veh)
-                crashed[1] = crash[0].crash_time
+                crashed = (crashed[0], crash[0].crash_time)
                 new_veh.update_after_crash(timeind, crashed)
 
     def _process_near_miss_times(self):

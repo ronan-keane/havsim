@@ -388,9 +388,9 @@ class CrashesSimulation(Simulation):
     @staticmethod
     def _maybe_fix_near_miss(veh, cur_near_miss):
         crash_time = veh.crash_time
+        remove_inds = []
         for count, interval in enumerate(cur_near_miss):
-            if interval[1] >= crash_time >= interval[0]:
-                break
-        else:
-            return
-        cur_near_miss.pop(count)
+            if interval[1] >= crash_time:
+                remove_inds.append(count)
+        for count in remove_inds:
+            cur_near_miss.pop(count)

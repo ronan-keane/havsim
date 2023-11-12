@@ -8,7 +8,7 @@ n_processes = 1
 replications = 10
 save_output = True
 save_crashes_only = True
-save_name = 'pickle files/e94_crashes_3'
+save_name = 'pickle files/e94_crashes_8'
 
 
 def do_simulation(verbose=False):

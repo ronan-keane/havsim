@@ -138,6 +138,7 @@ def do_speed_plot(args):
 if __name__ == '__main__':
     crashes = []
     n_crashed_veh = 0
+    n_rear_ends = 0
     for count, all_vehicles in enumerate(all_vehicles_list):
         all_vehicles = havsim.simulation.vehicles.reload(all_vehicles)
         crashes_only = {}
@@ -193,4 +194,5 @@ if __name__ == '__main__':
         all_ani.append(ani)
         for veh in need_speed_plots:
             do_speed_plot(prepare_speed_plot(veh, t_start, t_end))
+            print(str(veh.gamma_parameters)+' '+str(veh.xi_parameters))
     plt.show()

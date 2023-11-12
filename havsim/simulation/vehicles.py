@@ -637,7 +637,7 @@ class Vehicle:
         # simplify memory
         if 'rvmem' in state:
             state['rvmem'] = []
-        if len(state['speedmem']) > 1:
+        if len(state['speedmem']) > 1 and state['speedmem'][0] != 0:
             dt = (state['posmem'][1] - state['posmem'][0])/state['speedmem'][0]
             state['posmem'] = (state['posmem'][0], dt)
         return state
@@ -646,7 +646,7 @@ class Vehicle:
         """Load Vehicle from pickle. To get references to other vehicles, must also call vehicles.reload."""
         self.__dict__ = state
         self.npr = np.random.default_rng()
-        if len(self.speedmem) > 1:
+        if len(self.speedmem) > 1 and self.speedmem[0] != 0:
             pos, dt = self.posmem
             posmem = [pos]
             for spd in self.speedmem[:-1]:
@@ -857,8 +857,8 @@ def reload(all_vehicles, laneinds=None):
 class StochasticVehicle(Vehicle):
     def __init__(self, vehid, curlane, gamma_parameters=None, xi_parameters=None, dt=.2, **kwargs):
         super().__init__(vehid, curlane, **kwargs)
-        self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.6, .8, 4., 1]
-        self.xi_parameters = xi_parameters if xi_parameters is not None else [.01, 10]
+        self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.8, .6, 2., 4]
+        self.xi_parameters = xi_parameters if xi_parameters is not None else [.02, 6]
         self.rvmem = []
         self.lc_accmem = []
         self.dt = dt

@@ -4,11 +4,11 @@ import havsim
 import pickle
 import multiprocessing
 
-n_processes = 1
-replications = 10
+n_processes = 2
+replications = 2
 save_output = True
 save_crashes_only = True
-save_name = 'pickle files/e94_crashes_8'
+save_name = 'pickle files/e94_crashes_0'
 
 
 def do_simulation(verbose=False):
@@ -16,7 +16,7 @@ def do_simulation(verbose=False):
     my_rear_end, my_sideswipe, my_near_miss, my_vmt = 0, 0, 0, 0
     my_vehicle_lists = []
     for i in range(replications):
-        all_vehicles = simulation.simulate(verbose=verbose)
+        all_vehicles = simulation.simulate(verbose=verbose, timesteps=1000)
 
         for crash in simulation.crashes:
             if crash[0].crashed == 'rear end':
@@ -43,11 +43,10 @@ def do_simulation(verbose=False):
 
 
 if __name__ == '__main__':
-    # args = [False for i in range(n_processes)]
-    # args[0] = True
-    # pool = multiprocessing.Pool(n_processes)
-    # out = pool.map(do_simulation, args)
-    out = [do_simulation(verbose=True)]
+    args = [False for i in range(n_processes)]
+    args[0] = True
+    pool = multiprocessing.Pool(n_processes)
+    out = pool.map(do_simulation, args)
     all_rear_end, all_sideswipe, all_near_miss, all_vmt = 0, 0, 0, 0
     all_lists = []
     for output in out:

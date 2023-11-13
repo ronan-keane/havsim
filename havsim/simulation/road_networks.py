@@ -764,10 +764,10 @@ def get_dist(veh, lead):
 
 
 def veh_to_id(veh):
-    if veh is None:
-        return None
-    else:
+    if hasattr(veh, 'vehid'):
         return veh.vehid
+    else:
+        return veh
 
 
 class Lane:

@@ -815,16 +815,14 @@ class Vehicle:
 
 
 def veh_to_id(veh):
-    if veh is None:
-        return None
-    else:
+    if hasattr(veh, 'vehid'):
         return veh.vehid
+    else:
+        return veh
 
 
 def id_to_veh_maybe(a, veh_dict):
-    if a is None:
-        return None
-    elif a in veh_dict:
+    if a in veh_dict:
         return veh_dict[a]
     else:
         return a

@@ -297,14 +297,14 @@ def try_find_new_coop(new_lcfol, veh, new_lcfol_a, veh_safety, timeind, coop_cor
         maybe_add_new_coop(new_lcfol, veh, new_lcfol, new_lcfol_a, timeind, coop_correction)
         return
     lead, lead_a = new_lcfol, new_lcfol_a
-    test_veh = lead.fol
-    unused, test_veh_a = test_veh.get_cf(veh, timeind)
-    while test_veh_a < veh_safety:  # find first safe vehicle
-        lead, lead_a = test_veh, test_veh_a
+    for i in range(5):
         test_veh = lead.fol
         unused, test_veh_a = test_veh.get_cf(veh, timeind)
-    if lead.speed > veh.speed:
-        maybe_add_new_coop(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_correction)
+        if test_veh_a > veh_safety:
+            if lead.speed > veh.speed:
+                maybe_add_new_coop(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_correction)
+            break
+        lead, lead_a = test_veh, test_veh_a
 
 
 def maybe_add_new_coop(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_correction):

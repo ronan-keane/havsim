@@ -344,6 +344,7 @@ class CrashesSimulation(Simulation):
                 crash.append(new_veh)
                 crashed = (crashed[0], crash[0].crash_time)
                 new_veh.update_after_crash(timeind, crashed)
+                break
 
     def _process_near_miss_times(self):
         """Convert near miss times into near miss intervals (CrashesVehicles have reference to their near misses)."""

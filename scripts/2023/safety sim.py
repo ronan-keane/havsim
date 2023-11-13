@@ -4,8 +4,8 @@ import havsim
 import pickle
 import multiprocessing
 
-n_processes = 2
-replications = 2
+n_processes = 12
+replications = 5
 save_output = True
 save_crashes_only = True
 save_name = 'pickle files/e94_crashes_0'
@@ -16,10 +16,11 @@ def do_simulation(verbose=False):
     my_rear_end, my_sideswipe, my_near_miss, my_vmt = 0, 0, 0, 0
     my_vehicle_lists = []
     for i in range(replications):
-        all_vehicles = simulation.simulate(verbose=verbose, timesteps=1000)
+        all_vehicles = simulation.simulate(verbose=verbose)
 
+        # count statistics
         for crash in simulation.crashes:
-            if crash[0].crashed == 'rear end':
+            if crash[0].crashed[0] == 'rear end':
                 my_rear_end += 1
             else:
                 my_sideswipe += 1
@@ -27,6 +28,7 @@ def do_simulation(verbose=False):
             my_near_miss += len(veh.near_misses)
             my_vmt += veh.posmem[-1] - veh.posmem[0]
 
+        # save vehicles
         if save_crashes_only:
             cur = []
             for crash in simulation.crashes:
@@ -34,9 +36,16 @@ def do_simulation(verbose=False):
                 t_start, t_end = min(crash_times) - 100, max(crash_times) + 5
                 cur.extend(havsim.helper.add_leaders(crash, t_start, t_end))
             cur = list(set(cur))
+            for veh in all_vehicles:
+                if len(veh.near_misses) > 0:
+                    for times in veh.near_misses:
+                        t_start, t_end = times[0] - 100, times[1] + 5
+                        cur.extend(havsim.helper.add_leaders([veh], t_start, t_end))
+            cur = list(set(cur))
             my_vehicle_lists.append(cur)
         else:
             my_vehicle_lists.append(all_vehicles)
+
         if i < replications - 1:
             simulation.reset()
     return my_rear_end, my_sideswipe, my_near_miss, my_vmt, my_vehicle_lists, my_laneinds
@@ -56,7 +65,7 @@ if __name__ == '__main__':
         all_near_miss += near_miss
         all_vmt += vmt
         all_lists.extend(all_vehicle_lists)
-    # pool.close()
+    pool.close()
 
     print('\n-----------SUMMARY-----------')
     print('near misses: {:n}'.format(all_near_miss))

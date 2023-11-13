@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 
 timesteps_before = 100
 timesteps_after = 5
-min_crash_plots = 1
+min_crash_plots = 0
 max_crash_plots = 4
 dt = .2
-saved_sim = 'pickle files/e94_crashes_4.pkl'
+saved_sim = 'pickle files/e94_crashes_0.pkl'
 
 with open(saved_sim, 'rb') as f:
     all_vehicles_list, laneinds = pickle.load(f)

@@ -285,7 +285,7 @@ class CrashesSimulation(Simulation):
                 remove_veh.append(veh)
                 continue
 
-            if timeind > lc_timeind + int(1.5/self.dt) + 1:  # lane change completes
+            if timeind > lc_timeind + int(1.8/self.dt) + 1:  # lane change completes
                 crashed = ('sideswipe', timeind)
                 self._add_new_crash(veh, lead, crashed, timeind)
                 remove_veh.append(veh)
@@ -303,10 +303,11 @@ class CrashesSimulation(Simulation):
                         continue
                     if veh in self.maybe_sideswipes:
                         pass
-                    elif timeind == lead.lanemem[-1][1]:
-                        self.maybe_sideswipes[veh] = (timeind, lead, lead, lead.lanemem[-2][0])
-                    elif timeind == veh.lanemem[-1][1]:
-                        self.maybe_sideswipes[veh] = (timeind, lead, veh, veh.lanemem[-2][0])
+                    elif timeind < max(veh.lanemem[-1][1], lead.lanemem[-1][1]) + int(1.8/self.dt) + 2:
+                        if veh.lanemem[-1][1] > lead.lanemem[-1][1]:
+                            self.maybe_sideswipes[veh] = (timeind, lead, veh, veh.lanemem[-2][0])
+                        else:
+                            self.maybe_sideswipes[veh] = (timeind, lead, lead, lead.lanemem[-2][0])
                     else:
                         crashed = ('rear end', timeind)
                         self._add_new_crash(veh, lead, crashed, timeind)

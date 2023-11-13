@@ -973,7 +973,7 @@ def compute_line_data(headway, i, lentail, dataset, veh_id, time):
 
 
 def animatetraj(meas, followerchain, platoon=None, usetime=None, speed_limit=None, show_id=False, interval=10,
-                spacelim=None, lanelim=None, timesteps=8, show_lengths=True, show_axis=False):
+                spacelim=None, lanelim=None, timesteps=10, show_lengths=True, show_axis=False):
     # platoon: if given as a platoon, only plots those vehicles in the platoon (e.g. [1,2,3])
     # usetime: if given as a list, only plots those times in the list (e.g. list(range(1,100)) )
     # speed_limit: speed_limit[0], speed_limit[1] are the speed bounds for coloring (if None, get automatically)

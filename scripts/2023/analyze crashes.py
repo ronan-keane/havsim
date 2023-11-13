@@ -139,7 +139,13 @@ if __name__ == '__main__':
     rear_end, sideswipes, near_misses = [], [], []
     n_crashed_veh, n_near_miss_veh = 0, 0
 
+    params = None
     for count, all_vehicles in enumerate(all_vehicles_list):
+        if not params:
+            if len(all_vehicles) > 0:
+                if hasattr(all_vehicles[0], 'gamma_parameters'):
+                    params = (all_vehicles[0].gamma_parameters, all_vehicles[0].xi_parameters,
+                              type(all_vehicles[0]).__name__)
         all_vehicles = havsim.simulation.vehicles.reload(all_vehicles)
         crashes_only = {}
         for veh in all_vehicles:
@@ -167,6 +173,8 @@ if __name__ == '__main__':
                     else:
                         sideswipes.append(((t_start, t_end), platoon, need_speed_plots, count, None))
                     break
+    if params:
+        print('Stochastic parameters (gamma, xi): '+str(params[0])+', '+str(params[1])+',  ('+str(params[2])+')')
     print('number of crashes: {:n} ({:n} rear ends) ({:n} vehicles)'.format(len(rear_end)+len(sideswipes),
                                                                             len(rear_end), n_crashed_veh))
     for count, all_vehicles in enumerate(all_vehicles_list):
@@ -178,8 +186,6 @@ if __name__ == '__main__':
                 t_start, t_end = times[0] - timesteps_before, times[1] + timesteps_after
                 near_misses.append(((t_start, t_end), havsim.helper.add_leaders([veh], t_start, t_end),
                                     [veh], count, 'near miss'))
-            print(veh.near_misses)
-            print(veh.crashed)
     print('number of near misses: {:n} ({:n} vehicles)'.format(len(near_misses), n_near_miss_veh))
 
     all_sim = []
@@ -187,11 +193,13 @@ if __name__ == '__main__':
         sim, siminfo = hp.plot_format(all_vehicles,  laneinds)
         all_sim.append((sim, siminfo))
 
-    all_ani = []
-    plot_crashes = []
+    all_ani, plot_crashes = [], []
     plot_crashes.extend(rear_end[min_crash_plots:max_crash_plots])
     plot_crashes.extend(sideswipes[min_crash_plots:max_crash_plots])
     plot_crashes.extend(near_misses[min_crash_plots:max_crash_plots])
+    print('plotting {:n} rear ends, {:n} sideswipes, {:n} near misses'.format(
+        len(rear_end[min_crash_plots:max_crash_plots]), len(sideswipes[min_crash_plots:max_crash_plots]),
+        len(near_misses[min_crash_plots:max_crash_plots])))
     for cur in plot_crashes:
         times, platoon, need_speed_plots, count, crash_type = cur
         t_start, t_end = times
@@ -205,5 +213,4 @@ if __name__ == '__main__':
         all_ani.append(ani)
         for veh in need_speed_plots:
             do_speed_plot(prepare_speed_plot(veh, t_start, t_end, crash_type=crash_type))
-            print(str(veh.gamma_parameters)+' '+str(veh.xi_parameters))
     plt.show()

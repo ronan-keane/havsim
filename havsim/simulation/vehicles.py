@@ -853,13 +853,12 @@ def reload(all_vehicles, laneinds=None):
 
 
 class StochasticVehicle(Vehicle):
-    def __init__(self, vehid, curlane, gamma_parameters=None, xi_parameters=None, dt=.2, **kwargs):
+    def __init__(self, vehid, curlane, gamma_parameters=None, xi_parameters=None, **kwargs):
         super().__init__(vehid, curlane, **kwargs)
-        self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.8, .6, 2., 4]
-        self.xi_parameters = xi_parameters if xi_parameters is not None else [.1, 4]
+        self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.1, .35, .5, 2.]
+        self.xi_parameters = xi_parameters if xi_parameters is not None else [.15, 4]
         self.rvmem = []
         self.lc_accmem = []
-        self.dt = dt
 
         self.prev_acc = 0
         self.beta = 0
@@ -893,8 +892,8 @@ class StochasticVehicle(Vehicle):
                     no_r_acc = self.cf_model(self.cf_parameters, [self.hd, self.speed, self.lead.speed])
                     acc = max(acc, abs(no_r_acc))
             gamma = self.sample_gamma(acc, timeind)
-            bar_gamma = (gamma / self.dt) // 1.
-            self.beta = gamma / self.dt - bar_gamma
+            bar_gamma = (gamma / dt) // 1.
+            self.beta = gamma / dt - bar_gamma
             self.next_t_ind = timeind + int(bar_gamma) + 1
         self.lc_accmem.append(self.lc_acc)
 

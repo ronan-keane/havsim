@@ -5,7 +5,7 @@ import havsim.plotting as hp
 import numpy as np
 import matplotlib.pyplot as plt
 
-saved_sim = 'pickle files/e94_crashes_1.pkl'
+saved_sim = 'pickle files/e94_crashes_2.pkl'
 min_crash_plots = 0
 max_crash_plots = 2
 plot_all_together = True
@@ -169,7 +169,7 @@ if __name__ == '__main__':
                 if mem[0] is None:
                     continue
                 if mem[0] in crash_veh_list:
-                    need_speed_plots.append(mem[0])
+                    need_speed_plots.append(veh)
             if len(need_speed_plots) == 0:
                 need_speed_plots.extend(crash_veh_list[:2])
             need_speed_plots.extend(crash_veh_list[2:])

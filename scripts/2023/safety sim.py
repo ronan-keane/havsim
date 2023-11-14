@@ -8,13 +8,13 @@ n_processes = 16
 replications = 5
 save_output = True
 save_crashes_only = True
-save_name = 'pickle files/e94_crashes_1'
+save_name = 'pickle files/e94_crashes_2'
 
 
 def do_simulation(verbose=False):
     simulation, my_laneinds = e94()
     my_rear_end, my_sideswipe, my_near_miss, my_vmt = 0, 0, 0, 0
-    my_vehicle_lists = []
+    my_out_lists = []
     for i in range(replications):
         all_vehicles = simulation.simulate(verbose=verbose)
 
@@ -42,13 +42,14 @@ def do_simulation(verbose=False):
                         t_start, t_end = times[0] - 100, times[1] + 5
                         cur.extend(havsim.helper.add_leaders([veh], t_start, t_end))
             cur = list(set(cur))
-            my_vehicle_lists.append(cur)
+            my_out_lists.append(pickle.dumps(cur))
         else:
-            my_vehicle_lists.append(all_vehicles)
+            my_out_lists.append(pickle.dumps(all_vehicles))
 
         if i < replications - 1:
             simulation.reset()
-    return my_rear_end, my_sideswipe, my_near_miss, my_vmt, my_vehicle_lists, my_laneinds
+            del all_vehicles
+    return my_rear_end, my_sideswipe, my_near_miss, my_vmt, my_out_lists, my_laneinds
 
 
 if __name__ == '__main__':
@@ -59,12 +60,12 @@ if __name__ == '__main__':
     all_rear_end, all_sideswipe, all_near_miss, all_vmt = 0, 0, 0, 0
     all_lists = []
     for output in out:
-        rear_end, sideswipe, near_miss, vmt, all_vehicle_lists, laneinds = output
+        rear_end, sideswipe, near_miss, vmt, all_out_lists, laneinds = output
         all_rear_end += rear_end
         all_sideswipe += sideswipe
         all_near_miss += near_miss
         all_vmt += vmt
-        all_lists.extend(all_vehicle_lists)
+        all_lists.extend([pickle.loads(out) for out in all_out_lists])
     pool.close()
 
     print('\n-----------SUMMARY-----------')

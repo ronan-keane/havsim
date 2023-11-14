@@ -11,7 +11,6 @@ max_crash_plots = 2
 plot_all_together = True
 timesteps_before = 100
 timesteps_after = 5
-
 dt = .2
 
 
@@ -141,7 +140,7 @@ def do_speed_plot(args):
 
 
 if __name__ == '__main__':
-    rear_end, sideswipes, near_misses = [], [], []
+    rear_end, sideswipes, near_misses, severity = [], [], [], []
     n_crashed_veh, n_near_miss_veh = 0, 0
 
     params = None
@@ -181,6 +180,17 @@ if __name__ == '__main__':
                     else:
                         sideswipes.append(((t_start, t_end), platoon, need_speed_plots, count, None))
                     break
+            veh1, veh2 = crash_veh_list[0], crash_veh_list[1]
+            severity.append(abs(veh1.speedmem[veh1.crash_time-veh1.start]-veh2.speedmem[veh2.crash_time-veh2.start]))
+            for veh in crash_veh_list[2:]:
+                other = veh.leadmem[havsim.helper.count_leadmem(veh, veh.crash_time)]
+                if veh.crashed[0] == 'sideswipe':
+                    if other is not None:
+                        if other in crash_veh_list[:2]:
+                            pass
+                    else:
+                        other = crash_veh_list[0]
+                severity.append(abs(other.speedmem[veh.crash_time-other.start]-veh.speedmem[veh.crash_time-veh.start]))
     if params:
         print('\nStochastic parameters (gamma, xi): '+str(params[0])+', '+str(params[1])+',  ('+str(params[2])+')')
     print('number of crashes: {:n} ({:n} rear ends) ({:n} vehicles)'.format(len(rear_end)+len(sideswipes),
@@ -208,6 +218,9 @@ if __name__ == '__main__':
     print('\nplotting {:n} rear ends, {:n} sideswipes, {:n} near misses'.format(
         len(rear_end[min_crash_plots:max_crash_plots]), len(sideswipes[min_crash_plots:max_crash_plots]),
         len(near_misses[min_crash_plots:max_crash_plots])))
+    plt.hist(severity, bins=[0+i*.5 for i in range(20)])
+    plt.xlabel('speed difference at crash (m/s)')
+    plt.ylabel('frequency')
     for cur in plot_crashes:
         times, platoon, need_speed_plots, count, my_crash_type = cur
         t_start, t_end = times

@@ -5,12 +5,15 @@ import havsim.plotting as hp
 import numpy as np
 import matplotlib.pyplot as plt
 
+saved_sim = 'pickle files/e94_crashes_1.pkl'
+min_crash_plots = 0
+max_crash_plots = 2
+plot_all_together = True
 timesteps_before = 100
 timesteps_after = 5
-min_crash_plots = 0
-max_crash_plots = 4
+
 dt = .2
-saved_sim = 'pickle files/e94_crashes_0.pkl'
+
 
 with open(saved_sim, 'rb') as f:
     all_vehicles_list, laneinds = pickle.load(f)
@@ -99,8 +102,10 @@ def prepare_speed_plot(my_veh, start, end, crash_type=None):
         test_posmem.append(test_pos)
         test_speedmem.append(test_speed)
         test_accmem.append(test_acc)
-
-    t = (np.array(list(range(start, end+1))) - my_veh.crash_time)*dt
+    if crash_type == 'near miss':
+        t = (np.array(list(range(start, end+1))) - end-5)*dt
+    else:
+        t = (np.array(list(range(start, end+1))) - my_veh.crash_time)*dt
     lead_pos, lead_len = np.array(lead_pos), np.array(lead_len)
     hd = lead_pos - lead_len - np.array(veh_pos)
     test_hd = lead_pos - lead_len - np.array(test_posmem)
@@ -160,21 +165,24 @@ if __name__ == '__main__':
             t_start, t_end = min(crash_times) - timesteps_before, max(crash_times) + timesteps_after
             platoon = havsim.helper.add_leaders(crash_veh_list, t_start, t_end)
             need_speed_plots = []
-            for veh in crash_veh_list:
+            for veh in crash_veh_list[:2]:
                 mem = veh.leadmem[havsim.helper.count_leadmem(veh, veh.crash_time)]
                 if mem[0] is None:
                     continue
                 if mem[0] in crash_veh_list:
-                    need_speed_plots.append(veh)
+                    need_speed_plots.append(mem[0])
+            if len(need_speed_plots) == 0:
+                need_speed_plots.extend(crash_veh_list[:2])
+            need_speed_plots.extend(crash_veh_list[2:])
             for veh in crash_veh_list:
                 if veh.crash_time == veh.crashed[1]:
-                    if veh.crashed[0] == 'rear_end':
+                    if veh.crashed[0] == 'rear end':
                         rear_end.append(((t_start, t_end), platoon, need_speed_plots, count, None))
                     else:
                         sideswipes.append(((t_start, t_end), platoon, need_speed_plots, count, None))
                     break
     if params:
-        print('Stochastic parameters (gamma, xi): '+str(params[0])+', '+str(params[1])+',  ('+str(params[2])+')')
+        print('\nStochastic parameters (gamma, xi): '+str(params[0])+', '+str(params[1])+',  ('+str(params[2])+')')
     print('number of crashes: {:n} ({:n} rear ends) ({:n} vehicles)'.format(len(rear_end)+len(sideswipes),
                                                                             len(rear_end), n_crashed_veh))
     for count, all_vehicles in enumerate(all_vehicles_list):
@@ -197,11 +205,11 @@ if __name__ == '__main__':
     plot_crashes.extend(rear_end[min_crash_plots:max_crash_plots])
     plot_crashes.extend(sideswipes[min_crash_plots:max_crash_plots])
     plot_crashes.extend(near_misses[min_crash_plots:max_crash_plots])
-    print('plotting {:n} rear ends, {:n} sideswipes, {:n} near misses'.format(
+    print('\nplotting {:n} rear ends, {:n} sideswipes, {:n} near misses'.format(
         len(rear_end[min_crash_plots:max_crash_plots]), len(sideswipes[min_crash_plots:max_crash_plots]),
         len(near_misses[min_crash_plots:max_crash_plots])))
     for cur in plot_crashes:
-        times, platoon, need_speed_plots, count, crash_type = cur
+        times, platoon, need_speed_plots, count, my_crash_type = cur
         t_start, t_end = times
         min_p, max_p = [], []
         for veh in platoon:
@@ -212,5 +220,8 @@ if __name__ == '__main__':
                              spacelim=(min(min_p)-5, max(max_p)+3), lanelim=(3, -1), show_id=True, show_axis=True)
         all_ani.append(ani)
         for veh in need_speed_plots:
-            do_speed_plot(prepare_speed_plot(veh, t_start, t_end, crash_type=crash_type))
-    plt.show()
+            do_speed_plot(prepare_speed_plot(veh, t_start, t_end, crash_type=my_crash_type))
+        if not plot_all_together:
+            plt.show()
+    if plot_all_together:
+        plt.show()

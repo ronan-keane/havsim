@@ -4,11 +4,11 @@ import havsim
 import pickle
 import multiprocessing
 
-n_processes = 16
-replications = 5
+n_processes = 40
+replications = 4
 save_output = True
 save_crashes_only = True
-save_name = 'pickle files/e94_crashes_2'
+save_name = 'pickle files/e94_crashes_3'
 
 
 def do_simulation(verbose=False):

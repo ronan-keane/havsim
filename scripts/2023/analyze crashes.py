@@ -5,10 +5,10 @@ import havsim.plotting as hp
 import numpy as np
 import matplotlib.pyplot as plt
 
-saved_sim = 'pickle files/e94_crashes_2.pkl'
-min_crash_plots = 0
-max_crash_plots = 2
-plot_all_together = True
+saved_sim = 'pickle files/e94_crashes_3.pkl'
+min_crash_plots = 7
+max_crash_plots = 11
+plot_all_together = False
 timesteps_before = 100
 timesteps_after = 5
 dt = .2

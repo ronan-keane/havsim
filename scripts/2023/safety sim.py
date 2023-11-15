@@ -49,6 +49,9 @@ def do_simulation(verbose=False):
         if i < replications - 1:
             simulation.reset()
             del all_vehicles
+            del veh
+            if save_crashes_only:
+                del cur
     return my_rear_end, my_sideswipe, my_near_miss, my_vmt, my_out_lists, my_laneinds
 
 

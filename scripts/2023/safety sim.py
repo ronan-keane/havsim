@@ -8,7 +8,7 @@ n_processes = 40
 replications = 5
 save_output = True
 save_crashes_only = True
-save_name = 'pickle files/e94_crashes_4'
+save_name = 'pickle files/e94_crashes_5'
 
 
 def do_simulation(verbose=False):
@@ -47,6 +47,8 @@ def do_simulation(verbose=False):
             my_out_lists.append(pickle.dumps(all_vehicles))
 
         if i < replications - 1:
+            if len(simulation.crashes) > 0:
+                del crash
             simulation.reset()
             del all_vehicles
             del veh

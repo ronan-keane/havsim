@@ -5,9 +5,9 @@ import havsim.plotting as hp
 import numpy as np
 import matplotlib.pyplot as plt
 
-saved_sim = 'pickle files/e94_crashes_3.pkl'
-min_crash_plots = 7
-max_crash_plots = 11
+saved_sim = 'pickle files/e94_crashes_5.pkl'
+min_crash_plots = 4
+max_crash_plots = 8
 plot_all_together = False
 timesteps_before = 100
 timesteps_after = 5
@@ -31,6 +31,7 @@ def prepare_speed_plot(my_veh, start, end, crash_type=None):
     lead_pos = []
     lead_speed = []
     lead_len = []
+    lead_durations = []
     veh_leadmem = my_veh.leadmem[havsim.helper.count_leadmem(my_veh, start):havsim.helper.count_leadmem(my_veh, end)+1]
     for i, leadmem in enumerate(veh_leadmem):
         cur_end = end if i == len(veh_leadmem) - 1 else veh_leadmem[i+1][1]-1
@@ -43,6 +44,7 @@ def prepare_speed_plot(my_veh, start, end, crash_type=None):
             lead_pos.extend(my_veh.posmem[cur_start-my_veh.start:cur_end-my_veh.start+1])
             lead_speed.extend([0] * (cur_end-cur_start+1))
             lead_len.extend([0] * (cur_end-cur_start+1))
+        lead_durations.append(cur_end-cur_start+1)
 
     acc = []
     for i in range(len(veh_speed)-1):
@@ -108,12 +110,12 @@ def prepare_speed_plot(my_veh, start, end, crash_type=None):
     lead_pos, lead_len = np.array(lead_pos), np.array(lead_len)
     hd = lead_pos - lead_len - np.array(veh_pos)
     test_hd = lead_pos - lead_len - np.array(test_posmem)
-    return t, hd, test_hd, np.array(veh_speed), np.array(test_speedmem), np.array(acc), np.array(test_accmem), \
-        crash_type, my_veh.vehid
+    return t, hd, test_hd, np.array(veh_speed), np.array(test_speedmem), lead_durations, \
+        np.array(acc), np.array(test_accmem), crash_type, my_veh.vehid
 
 
 def do_speed_plot(args):
-    t, hd, test_hd, spd, test_spd, acc, test_acc, crash_type, vehid = args
+    t, hd, test_hd, spd, test_spd, lead_durations, acc, test_acc, crash_type, vehid = args
     fig = plt.figure(figsize=(12, 8))
     fig.suptitle('gap, speed, and acceleration before '+str(crash_type)+' (vehicle '+str(vehid)+')')
     ax1 = plt.subplot(3, 1, 2)
@@ -124,8 +126,11 @@ def do_speed_plot(args):
     ax1.legend(handles=[a1[0], a2[0]], labels=['stochastic', 'deterministic'])
 
     ax11 = plt.subplot(3, 1, 1)
-    a3 = ax11.plot(t, hd, color='C1', alpha=.8)
-    a4 = ax11.plot(t, test_hd, color='C1', linestyle='dashed')
+    prev = 0
+    for dur in lead_durations:
+        a3 = ax11.plot(t[prev:prev+dur], hd[prev:prev+dur], color='C1', alpha=.8)
+        a4 = ax11.plot(t[prev:prev+dur], test_hd[prev:prev+dur], color='C1', linestyle='dashed')
+        prev = prev+dur
     ax11.set_xlabel('time (s)')
     ax11.set_ylabel('space gap (m)')
     ax11.legend(handles=[a3[0], a4[0]], labels=['stochastic', 'deterministic'])

@@ -890,8 +890,8 @@ class StochasticVehicle(Vehicle):
         else:
             t_left = self.next_t_ind + self.beta - 1 - timeind
             new_gamma = t_left/self.gamma_parameters[-1]
-            bar_gamma = (new_gamma / dt) // 1.
-            self.beta = new_gamma / dt - bar_gamma
+            bar_gamma = new_gamma // 1.
+            self.beta = new_gamma - bar_gamma
             self.next_t_ind = timeind + int(bar_gamma) + 1
         models.new_relaxation(self, timeind, dt)
 

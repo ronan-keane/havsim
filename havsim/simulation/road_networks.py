@@ -759,7 +759,12 @@ def get_dist(veh, lead):
     """Calculates distance from veh to the front of lead."""
     dist = lead.pos-veh.pos
     if veh.road != lead.road:
-        dist += veh.lane.roadlen[lead.road]  # lead.road is hashable because its a string
+        try:
+            dist += veh.lane.roadlen[lead.road]  # lead.road is hashable because its a string
+        except:
+            print(veh.lane)
+            print(lead.lane)
+            print(veh.lane.roadlen)
     return dist
 
 

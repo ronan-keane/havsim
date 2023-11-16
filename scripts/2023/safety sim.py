@@ -5,10 +5,10 @@ import pickle
 import multiprocessing
 
 n_processes = 40
-replications = 4
+replications = 5
 save_output = True
 save_crashes_only = True
-save_name = 'pickle files/e94_crashes_3'
+save_name = 'pickle files/e94_crashes_4'
 
 
 def do_simulation(verbose=False):

@@ -855,7 +855,7 @@ def reload(all_vehicles, laneinds=None):
 class StochasticVehicle(Vehicle):
     def __init__(self, vehid, curlane, gamma_parameters=None, xi_parameters=None, **kwargs):
         super().__init__(vehid, curlane, **kwargs)
-        self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.1, .35, .5, 2.]
+        self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.1, .35, .5, 2., 2.]
         self.xi_parameters = xi_parameters if xi_parameters is not None else [.15, 3]
         self.rvmem = []
         self.lc_accmem = []
@@ -883,6 +883,17 @@ class StochasticVehicle(Vehicle):
 
     def set_lc(self, lc_actions, lc_followers, timeind):
         return models.stochastic_lc_havsim(self, lc_actions, lc_followers, timeind)
+
+    def set_relax(self, timeind, dt):
+        if timeind == self.next_t_ind:
+            pass
+        else:
+            t_left = self.next_t_ind + self.beta - 1 - timeind
+            new_gamma = t_left/self.gamma_parameters[-1]
+            bar_gamma = new_gamma // 1.
+            self.beta = new_gamma - bar_gamma
+            self.next_t_ind = timeind + int(bar_gamma) + 1
+        models.new_relaxation(self, timeind, dt)
 
     def update(self, timeind, dt):
         if timeind == self.next_t_ind:

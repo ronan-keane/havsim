@@ -78,27 +78,28 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
         7 - after meeting discretionary change incentive, number of timesteps that the probability of checking LC
             will be 100%
         8 - number of timesteps after a discretionary change when another discretionary change is not
-            possible (not in original model)
+            possible
 
     lc2 parameters:
-        0 - comfortable deceleration for lane changes
+        0 - speed adjustment time (need 2.3*p[0] seconds to adjust to 90% of the speed difference)
         1 - comfortable acceleration for lane changes
-        2 - comfortable speed gap for mandatory lane change. Only decelerate if more than p[2] speed than new leader.
-            If parameters 1 is zero and parameter 2 is large, the tactical model has no effect.
+        2 - comfortable speed gap. Decelerate if more than p[2] speed gap with new leader for lane changing
         3 - comfortable deceleration for cooperation during lane change
         4 - comfortable speed gap for cooperation during lane change. The cooperation vehicle will slow down until
-            within p[3] speed of the changing vehicle. Note that if parameters 3 and 4 are both set to very large
-            values, then cooperating will have no effect.
-        5 - default probability to cooperate. During mandatory changes, the probability is increased. If set to very
-            negative value, then cooperation will never be applied.
+            within p[4] speed of the changing vehicle.
+        5 - default probability to cooperate. During mandatory changes, the probability is increased.
+
+        If parameter 1 is zero, parameter 2 is large, then tactical model will have no effect. If parameters 3 and 4
+        are large, then cooperation will have no effect. If parameter 5 is very negative, cooperation won't be applied.
 
     relax_parameters:
         0 - relaxation time length, time needed to adjust after a lane change. Used for positive relaxation (vehicle
             can accept shorter gaps after changing).
-            If both parameters 0 and 1 are zero (or less than dt) then there is no relaxation.
         1 - relaxation time length for negative relaxation (vehicle is sluggish to adjust to new faster lane)
         2 - minimum time headway used for relaxation safeguard
         3 - minimum time to collision used for relaxation safeguard
+
+        If both parameters 0 and 1 are zero (or less than dt) then there is no relaxation.
 
     route_parameters: (see also simulation.update_lane_routes.make_cur_route)
         0 - reach 100% forced cooperation of follower when this distance from end of merge. If set to very negative,
@@ -243,11 +244,13 @@ def complete_change(lc_actions, lc_followers, veh, new_lcfol):
 
 def apply_coop(veh, ego_veh, lc_acc, p2):
     # veh = cooperating, ego_veh = trying to change, p2 = parameters for veh
-    if veh.speed > ego_veh.speed + p2[4]:  # speed too fast -> always decelerate
+    min_speed = ego_veh.speed + p2[4]
+    if veh.speed > min_speed:  # speed too fast -> always decelerate
+        decel = max((min_speed - veh.speed)/p2[0], p2[3])
         if veh.acc > 0:
-            veh.lc_acc = -veh.acc + p2[3]
+            veh.lc_acc = -veh.acc + decel
         else:
-            veh.lc_acc = p2[3]
+            veh.lc_acc = decel
     elif lc_acc > p2[3]:  # safe to follow ego -> use min of leader, ego
         if veh.acc > lc_acc:
             veh.lc_acc = -veh.acc + lc_acc
@@ -272,6 +275,45 @@ def check_coop_and_apply(veh, ego_veh, veh_p, ego_safety, timeind):
 
 
 def apply_tactical(veh, new_lcfol, veh_safe, fol_safe, p2):
+    if not veh_safe:
+        lead = new_lcfol.lead
+        if lead is not None:
+            min_speed = lead.speed + p2[2]
+            if veh.speed > min_speed:  # forced deceleration to match leader speed if necessary
+                if veh.acc > 0:
+                    veh.lc_acc = -veh.acc + (min_speed - veh.speed)/p2[0]
+                else:
+                    veh.lc_acc = (min_speed - veh.speed)/p2[0]
+    elif not fol_safe:  # accelerate if possible
+        veh.lc_acc = p2[1]
+
+
+def apply_coop_old(veh, ego_veh, lc_acc, p2):
+    """Alternative tactical/cooperation model that always uses constant deceleration.
+
+    parameters:
+        0 - comfortable deceleration for lane changes
+        1 - comfortable acceleration for lane changes
+        2 - comfortable speed gap for mandatory lane change. Only decelerate if more than p[2] speed than new leader.
+            If parameters 1 is zero and parameter 2 is large, the tactical model has no effect.
+        3 - comfortable deceleration for cooperation during lane change
+        4 - comfortable speed gap for cooperation during lane change. The cooperation vehicle will slow down until
+            within p[3] speed of the changing vehicle. Note that if parameters 3 and 4 are both set to very large
+            values, then cooperating will have no effect.
+        5 - default probability to cooperate. During mandatory changes, the probability is increased. If set to very
+            negative value, then cooperation will never be applied.
+    """
+    if veh.speed > ego_veh.speed + p2[4]:  # speed too fast -> always decelerate
+        if veh.acc > 0:
+            veh.lc_acc = -veh.acc + p2[3]
+        else:
+            veh.lc_acc = p2[3]
+    elif lc_acc > p2[3]:  # safe to follow ego -> use min of leader, ego
+        if veh.acc > lc_acc:
+            veh.lc_acc = -veh.acc + lc_acc
+
+
+def apply_tactical_old(veh, new_lcfol, veh_safe, fol_safe, p2):
     if not veh_safe:
         lead = new_lcfol.lead
         if lead is not None:

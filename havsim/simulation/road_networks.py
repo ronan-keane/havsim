@@ -358,7 +358,7 @@ def eql_inflow_free(curlane, inflow, timeind, **kwargs):
     return curlane.start, spd, hd
 
 
-def eql_speed(curlane, inflow, timeind, c=.8, minspeed=0, eql_speed=True, **kwargs):
+def eql_speed(curlane, inflow, timeind, c=.8, minspeed=0, use_eql=True, **kwargs):
     """Add a vehicle with a speed determined from the vehicle's equilibrium solution.
 
     This is similar to the eql_inflow but uses microscopic quantities instead of flow. First, calculate the
@@ -377,7 +377,7 @@ def eql_speed(curlane, inflow, timeind, c=.8, minspeed=0, eql_speed=True, **kwar
         c: Constant. If less than 1, then vehicles can be added wtih deceleration in congested conditions.
             If greater than or equal to one, vehicles must have 0 or positive acceleration when being added.
         minspeed: if eql_speed is True, Vehicles must have at least minspeed when being added
-        eql_speed: If False, vehicles are added with the speed of their leader. If True, we take the max
+        use_eql: If False, vehicles are added with the speed of their leader. If True, we take the max
             of the lead.speed and equilibrium speed corresponding to the lead gap.
 
     """
@@ -386,7 +386,7 @@ def eql_speed(curlane, inflow, timeind, c=.8, minspeed=0, eql_speed=True, **kwar
     spd = lead.speed
 
     # use both lead.speed and equilibrium speed corresponding to the gap to lead
-    if eql_speed:
+    if use_eql:
         eqlspd = curlane.newveh.get_eql(hd, input_type='s')
         spd = max(minspeed, max(spd, eqlspd))  # Try to add with largest speed possible
 
@@ -397,14 +397,14 @@ def eql_speed(curlane, inflow, timeind, c=.8, minspeed=0, eql_speed=True, **kwar
         return None
 
 
-def eql_speed2(curlane, inflow, timeind, c=.8, minspeed=0, eql_speed=True, transition=20, **kwargs):
+def eql_speed2(curlane, inflow, timeind, c=.8, minspeed=0, use_eql=True, transition=20, **kwargs):
     """Allow transition back to uncongested state corresponding to inflow with speed transition."""
     lead = curlane.anchor.lead
     hd = get_headway(curlane.anchor, lead)
     spd = lead.speed
 
     # use both lead.speed and equilibrium speed corresponding to the gap to lead
-    if eql_speed:
+    if use_eql:
         eqlspd = curlane.newveh.get_eql(hd, input_type='s')
         spd = max(minspeed, max(spd, eqlspd))  # Try to add with largest speed possible
 

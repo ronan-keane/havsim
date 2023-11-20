@@ -97,7 +97,7 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
             return flow[timeind // interval]
         return inflow
 
-    main_inflow = make_inflow(np.array(upstream_flows)/2)
+    main_inflow = make_inflow(list(np.array(upstream_flows)/2))
     onramp1_inflow = make_inflow(onramp1_flows)
     onramp2_inflow = make_inflow(onramp2_flows)
     onramp3_inflow = make_inflow(onramp3_flows)
@@ -249,40 +249,26 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
 
         return newveh
 
+    main_newveh = make_newveh(select_route(main_routes, main_od))
+    onramp1_newveh = make_newveh(select_route(onramp1_routes, onramp1_od))
+    onramp2_newveh = make_newveh(select_route(onramp2_routes, None))
+    onramp3_newveh = make_newveh(select_route(onramp2_routes, None))
+    onramp4_newveh = make_newveh(select_route(onramp2_routes, None))
+    onramp5_newveh = make_newveh(select_route(onramp2_routes, None))
 
-    # main_probabilities = [.2170, .2054, .0682, .5095]
-    main_probabilities = [.172, .176, .0638, .589]
-    main_newveh = make_newveh(select_route(main_routes, main_probabilities))
-    onramp1_probabilities = [.213, .077, .71]
-    onramp1_newveh = make_newveh(select_route(onramp1_routes, onramp1_probabilities))
-    onramp2_routes = [['E94', 'state off ramp', 'offramp 3'], ['E94', 'exit']]
-    onramp2_probabilities = [.098, .9025]
-    onramp2_newveh = make_newveh(select_route(onramp2_routes, onramp2_probabilities))
-    onramp3_routes = [['E94', 'state off ramp', 'offramp 3'], ['E94', 'exit']]
-    onramp3_probabilities = [.098, .9025]
-    onramp3_newveh = make_newveh(select_route(onramp3_routes, onramp3_probabilities))
-    onramp4_newveh = make_newveh(lambda: ['E94', 'exit'])
-    onramp5_newveh = make_newveh(lambda: ['E94', 'exit'])
     # define set_upstream method
-    main_road.set_upstream(increment_inflow={'method': 'seql', 'kwargs': {'c': .8}},
-                           get_inflow={'time_series': main_inflow, 'inflow_type': 'flow speed'},
+    increment_inflow = {'method': 'seql', 'kwargs': {'c': .9}}
+    main_road.set_upstream(increment_inflow=increment_inflow,  get_inflow={'time_series': main_inflow},
                            new_vehicle=main_newveh)
-    # increment_inflow = {'method': 'speed', 'kwargs': {'speed_series': lambda *args: 15., 'accel_bound': -1}}
-    increment_inflow = {'method': 'seql', 'kwargs': {'c': .9, 'eql_speed': True}}
-    onramp1.set_upstream(increment_inflow=increment_inflow,
-                         get_inflow={'time_series': onramp1_inflow, 'inflow_type': 'flow speed'},
+    onramp1.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp1_inflow},
                          new_vehicle=onramp1_newveh)
-    onramp2.set_upstream(increment_inflow=increment_inflow,
-                         get_inflow={'time_series': onramp2_inflow, 'inflow_type': 'flow speed'},
+    onramp2.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp2_inflow},
                          new_vehicle=onramp2_newveh)
-    onramp3.set_upstream(increment_inflow=increment_inflow,
-                         get_inflow={'time_series': onramp3_inflow, 'inflow_type': 'flow speed'},
+    onramp3.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp3_inflow},
                          new_vehicle=onramp3_newveh)
-    onramp4.set_upstream(increment_inflow=increment_inflow,
-                         get_inflow={'time_series': onramp4_inflow, 'inflow_type': 'flow speed'},
+    onramp4.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp4_inflow},
                          new_vehicle=onramp4_newveh)
-    onramp5.set_upstream(increment_inflow=increment_inflow,
-                         get_inflow={'time_series': onramp5_inflow, 'inflow_type': 'flow speed'},
+    onramp5.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp5_inflow},
                          new_vehicle=onramp5_newveh)
 
     simulation = hs.simulation.CrashesSimulation(

@@ -51,9 +51,9 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
 
     # upstream boundary conditions
     dt = .2
-    t = [int(.25*i*3600/dt) for i in range(24*4+1)]
-    timeind = int(times[0]*3600/dt)
+    init_timeind = int(times[0]*3600/dt)
     timesteps = int((times[1]-times[0])*3600/dt)
+    interval = int(3600/dt*.25)
     # inflow amounts
     upstream_flows = \
         [142, 122, 126, 114, 120, 128, 156, 132, 106, 130, 130, 130, 133, 193, 121, 177, 308, 296, 292, 308, 576, 704,
@@ -93,11 +93,11 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
          44, 24, 28]
 
     def make_inflow(flow):
-        def inflow(my_timeind):
-            return flow[(my_timeind + timeind) // 4500]
+        def inflow(timeind):
+            return flow[timeind // interval]
         return inflow
 
-    main_inflow = make_inflow(upstream_flows)
+    main_inflow = make_inflow(np.array(upstream_flows)/2)
     onramp1_inflow = make_inflow(onramp1_flows)
     onramp2_inflow = make_inflow(onramp2_flows)
     onramp3_inflow = make_inflow(onramp3_flows)
@@ -109,6 +109,10 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
                    ['state off ramp', 'offramp 3'], ['exit']]
     onramp1_routes = [['E94', 'ann arbor saline off ramp', 'offramp 2'], ['E94', 'state off ramp', 'offramp 3'],
                       ['E94', 'exit']]
+    onramp2_routes = [['E94', 'exit']]
+    onramp3_routes = [['E94', 'exit']]
+    onramp4_routes = [['E94', 'exit']]
+    onramp5_routes = [['E94', 'exit']]
     main_od = \
         np.stack([
             [0.450704225352113, 0.295081967213115, 0.0952380952380952, 0.245614035087719, 0.0666666666666667, 0.21875,
@@ -217,23 +221,29 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
     onramp1_od = np.concatenate([onramp1_od, last_column], axis=1)
 
     # define the routes of vehicles
-    def select_route(routes, probabilities):
-        p = np.cumsum(probabilities)
-        rng = np.random.default_rng()
+    def select_route(routes, od):
+        if len(routes) > 1:
+            p = np.cumsum(od, axis=1)
+            rng = np.random.default_rng()
 
-        def make_route():
-            rand = rng.random()
-            ind = (rand < p).nonzero()[0][0]
-            return routes[ind].copy()
+            def make_route(timeind):
+                probs = p[timeind // interval]
+                rand = rng.random()
+                ind = (rand < probs).nonzero()[0][0]
+                return routes[ind].copy()
 
-        return make_route
+            return make_route
+        else:
+            def make_route(timeind):
+                return routes[0].copy()
+            return make_route
 
     def make_newveh(route_picker):
         # MyVeh = hs.vehicles.CrashesVehicle
         MyVeh = hs.vehicles.CrashesStochasticVehicle
 
         def newveh(self, vehid, timeind):
-            route = route_picker()
+            route = route_picker(timeind)
             kwargs = veh_parameters()
             self.newveh = MyVeh(vehid, self, route=route, **kwargs)
 
@@ -277,7 +287,7 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
 
     simulation = hs.simulation.CrashesSimulation(
         roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=dt,
-        timeind=timeind, timesteps=timesteps)
+        timeind=init_timeind, timesteps=timesteps)
     laneinds = {main_road[0]: 0, main_road[1]: 1, onramp1[0]: 2, onramp2[0]: 2, onramp3[0]: 2, onramp4[0]: 2,
                 onramp5[0]: 2, offramp1[0]: 2, offramp2[0]: 2, offramp3[0]: 2}
 

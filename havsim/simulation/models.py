@@ -487,7 +487,7 @@ def default_parameters(truck_prob=0., stochasticity=True):
     is_car = True if truck_prob == 0. else npr.random() > truck_prob
     if is_car:
         cf_parameters = [34, 1.25, 3, 1.5, 1.6]
-        lc_parameters = [-8, -8, .5, .05, 0, 0, .2, 12, 80]
+        lc_parameters = [-8, -8, .5, .1, 0, 0, .2, 12, 80]
         lc2_parameters = [1.5, 2, 1, -1.5, 0, .2]
         relax_parameters = [9., 4.5, .6, 2.]
         route_parameters = [300, 500]
@@ -495,7 +495,7 @@ def default_parameters(truck_prob=0., stochasticity=True):
         accbounds = [-10, None]
     else:
         cf_parameters = [32, 1.5, 6, 1.1, 1.6]
-        lc_parameters = [-7, -7, 1.5, .05, 0, 0, .2, 12, 80]
+        lc_parameters = [-7, -7, 1.5, .1, 0, 0, .2, 12, 80]
         lc2_parameters = [2, 2, 1, -1.5, 0, .2]
         relax_parameters = [9., 4.5, .6, 2.]
         route_parameters = [500, 1000]
@@ -507,7 +507,7 @@ def default_parameters(truck_prob=0., stochasticity=True):
         cf_parameters[0] += s1
         cf_parameters[1] += npr.random()*.1
         cf_parameters[3] = cf_parameters[3] * (.9 + npr.random()*.3)
-        length = length * (.8 + npr.random()*.4)
+        length = length * (.8 + npr.random()*.4) if is_car else length * (.85 + npr.random()*.2)
         accbounds[0] += npr.random()/2
 
     return {'cf_parameters': cf_parameters, 'lc_parameters': lc_parameters, 'lc2_parameters': lc2_parameters,

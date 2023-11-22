@@ -8,11 +8,15 @@ n_processes = 40
 replications = 5
 save_output = True
 save_crashes_only = True
-save_name = 'pickle files/e94_crashes_5'
+save_name = 'pickle files/e94_pm_crashes_0'
+
+use_times = [16., 18]
+gamma_parameters = [-.1, .35, .5, 2., 2.]
+xi_parameters = [.15, 3]
 
 
 def do_simulation(verbose=False):
-    simulation, my_laneinds = e94()
+    simulation, my_laneinds = e94(use_times, gamma_parameters, xi_parameters)
     my_rear_end, my_sideswipe, my_near_miss, my_vmt = 0, 0, 0, 0
     my_out_lists = []
     for i in range(replications):

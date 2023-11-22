@@ -14,7 +14,7 @@ t = [3600*i for i in range(12)]
 # onramp = ssi.interp1d(t, [0/3600, 200/3600, 600/3600, 600/3600, 600/3600, 600/3600, 600/3600, 200/3600, 200/3600, 1200/3600, 1200/3600, 1200/3600])
 main = lambda timeind: 3200/3600/2
 onramp = lambda timeind: 1150/3600
-timesteps = 5000
+timesteps = 15000
 simulation, laneinds = merge_bottleneck(main_inflow=main, onramp_inflow=onramp, timesteps=timesteps)
 
 all_vehicles = simulation.simulate(verbose=True)

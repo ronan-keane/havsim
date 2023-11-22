@@ -264,7 +264,7 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None, timesteps=10000):
     def veh_parameters(route):
         def newveh(self, vehid, timeind):
             kwargs = hs.models.default_parameters()
-            self.newveh = hs.Vehicle(vehid, self, **kwargs)
+            self.newveh = hs.Vehicle(vehid, self, **kwargs, route=route.copy())
         return newveh
 
     mainroad_newveh = veh_parameters(['exit'])

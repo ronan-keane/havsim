@@ -5,15 +5,14 @@ import numpy as np
 
 def e94(times=None, gamma_parameters=None, xi_parameters=None):
     """Simulation of 12km length of E94 in Ann Arbor area"""
-    # specify vehicle parameters
-    def veh_parameters():
-        s1 = min(max(np.random.normal() * 2, -1), 4)
-        s2 = np.random.rand() * .12 - .03
-        s3 = np.random.rand() * .4 - .1
-        kwargs = {'cf_parameters': [34 + s1, 1.3 + s2, 4, 1.3 + s3, 1.6],
-                  'lc_parameters': [-8, -8, .4, .05, .1, 0, .2, 10, 30], 'lc2_parameters': [-2, 2, 1, -1, 1, .2],
-                  'relax_parameters': [9., 4.5, .6, 2.], 'route_parameters': [300, 500], 'accbounds': [-10, None]}
-        return kwargs
+    # veh parameters
+    def make_parameters(truck_prob=0.):
+        def p_f(timeind):
+            kwargs = hs.models.default_parameters(truck_prob=truck_prob)
+            kwargs['gamma_parameters'] = gamma_parameters
+            kwargs['xi_parameters'] = xi_parameters
+            return kwargs
+        return p_f
 
     # road network
     main_road = hs.Road(num_lanes=2, length=12000, name='E94')
@@ -220,41 +219,13 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
     last_column = 1 - np.sum(onramp1_od, axis=1, keepdims=True)
     onramp1_od = np.concatenate([onramp1_od, last_column], axis=1)
 
-    # define the routes of vehicles
-    def select_route(routes, od):
-        if len(routes) > 1:
-            p = np.cumsum(od, axis=1)
-            rng = np.random.default_rng()
-
-            def make_route(timeind):
-                probs = p[timeind // interval]
-                rand = rng.random()
-                ind = (rand < probs).nonzero()[0][0]
-                return routes[ind].copy()
-
-            return make_route
-        else:
-            def make_route(timeind):
-                return routes[0].copy()
-            return make_route
-
-    def make_newveh(route_picker):
-        # MyVeh = hs.vehicles.CrashesVehicle
-        MyVeh = hs.vehicles.CrashesStochasticVehicle
-
-        def newveh(self, vehid, timeind):
-            route = route_picker(timeind)
-            kwargs = veh_parameters()
-            self.newveh = MyVeh(vehid, self, route=route, **kwargs)
-
-        return newveh
-
-    main_newveh = make_newveh(select_route(main_routes, main_od))
-    onramp1_newveh = make_newveh(select_route(onramp1_routes, onramp1_od))
-    onramp2_newveh = make_newveh(select_route(onramp2_routes, None))
-    onramp3_newveh = make_newveh(select_route(onramp2_routes, None))
-    onramp4_newveh = make_newveh(select_route(onramp2_routes, None))
-    onramp5_newveh = make_newveh(select_route(onramp2_routes, None))
+    vehicle = hs.vehicles.CrashesStochasticVehicle
+    main_newveh = hs.road_networks.make_newveh(make_parameters(.1), vehicle, main_routes, main_od, interval)
+    onramp1_newveh = hs.road_networks.make_newveh(make_parameters(), vehicle, onramp1_routes, onramp1_od, interval)
+    onramp2_newveh = hs.road_networks.make_newveh(make_parameters(), vehicle, onramp2_routes, None, interval)
+    onramp3_newveh = hs.road_networks.make_newveh(make_parameters(), vehicle, onramp3_routes, None, interval)
+    onramp4_newveh = hs.road_networks.make_newveh(make_parameters(), vehicle, onramp4_routes, None, interval)
+    onramp5_newveh = hs.road_networks.make_newveh(make_parameters(), vehicle, onramp5_routes, None, interval)
 
     # define set_upstream method
     increment_inflow = {'method': 'seql', 'kwargs': {'c': .9}}
@@ -292,13 +263,7 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None, timesteps=10000):
 
     def veh_parameters(route):
         def newveh(self, vehid, timeind):
-            s1 = min(max(np.random.normal()*1.5 + 1, -4), 3)
-            s2 = np.random.rand() * .12 - .03
-            s3 = np.random.rand()*.3-.2
-            kwargs = {'cf_parameters': [34+s1, 1.2+s2, 3, 1.4+s3, 1.6],
-                      'lc_parameters': [-8, -8, .4, .05, .1, 0, .2, 10, 30], 'lc2_parameters': [-2, 2, 1, -1.5, 1, .2],
-                      'relax_parameters': [9., 4.5, .6, 2.], 'route_parameters': [300, 500], 'accbounds': [-10, None],
-                      'route': route.copy()}
+            kwargs = hs.models.default_parameters()
             self.newveh = hs.Vehicle(vehid, self, **kwargs)
         return newveh
 

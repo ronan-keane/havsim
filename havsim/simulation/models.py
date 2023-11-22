@@ -1,6 +1,6 @@
 """Houses all the different models for simulation."""
 
-import math
+import numpy as np
 from havsim.simulation.road_networks import get_headway
 
 
@@ -47,17 +47,17 @@ def OVM(p, state):
     Returns:
         acceleration
     """
-    return p[3]*(p[0]*(math.tanh(p[1]*state[0]-p[2]-p[4])-math.tanh(-p[2]))-state[1])
+    return p[3]*(p[0]*(np.tanh(p[1]*state[0]-p[2]-p[4])-np.tanh(-p[2]))-state[1])
 
 
 def OVM_free(p, v):
     """Free flow model for OVM."""
-    return p[3]*(p[0]*(1-math.tanh(-p[2])) - v)
+    return p[3]*(p[0]*(1-np.tanh(-p[2])) - v)
 
 
 def OVM_eql(p, s):
     """Equilibrium Solution for OVM, s = headway, p = parameters. Note that eql_type = 's'."""
-    return p[0]*(math.tanh(p[1]*s-p[2]-p[4])-math.tanh(-p[2]))
+    return p[0]*(np.tanh(p[1]*s-p[2]-p[4])-np.tanh(-p[2]))
 
 
 def lc_havsim(veh, lc_actions, lc_followers, timeind):
@@ -431,7 +431,7 @@ def relax_helper_vhd(pos_r, neg_r, max_s, relaxamount_s, relaxamount_v, veh, tim
     """
     # rp = parameter, relaxamount_s = headway relaxation, _v = velocity relaxation
     rp = neg_r if relaxamount_v < 0 else pos_r
-    relaxlen = math.ceil(rp/dt) - 1
+    relaxlen = int(np.ceil(rp/dt)) - 1
     if relaxlen <= 0:
         return
 
@@ -481,15 +481,38 @@ def apply_normal_relaxation(veh, rp, relaxamount_s, relaxamount_v, timeind, dt, 
     veh.relax_end = timeind + relaxlen
 
 
-def default_parameters():
+def default_parameters(truck_prob=0., stochasticity=True):
     """Suggested parameters for the IDM and havsim lane changing model."""
-    cf_parameters = [35, 1.3, 2, 1.1, 1.5]
-    lc_parameters = [-4, -8, .3, .15, 0, 0, .2, 10, 42]
-    lc2_parameters = [-2, 2, 2, -2, 2, .2]
-    relax_parameters = [8.7, 3, .6, 1.5]
-    route_parameters = [300, 500]
+    npr = np.random.default_rng()
+    is_car = True if truck_prob == 0. else npr.random() > truck_prob
+    if is_car:
+        cf_parameters = [34, 1.2, 3, 1.5, 1.6]
+        lc_parameters = [-6.5, -8, .5, .1, 0, 0, .2, 6, 80]
+        lc2_parameters = [2, 2, 1, -1.2, 1, .2]
+        relax_parameters = [9., 4.5, .6, 2.]
+        route_parameters = [300, 500]
+        length = 4
+        accbounds = [-10, None]
+    else:
+        cf_parameters = [32, 1.5, 6, 1.1, 1.6]
+        lc_parameters = [-6, -7, 1.5, .1, 0, 0, .2, 6, 80]
+        lc2_parameters = [2, 2, 1, -1.2, 1, .2]
+        relax_parameters = [9., 4.5, .6, 2.]
+        route_parameters = [500, 1000]
+        length = 22
+        accbounds = [-9.5, None]
+    if stochasticity:
+        s1 = npr.normal()
+        s1 = s1 if s1 > 0 else s1/2
+        cf_parameters[0] += s1
+        cf_parameters[1] += npr.random()*.2
+        cf_parameters[3] = cf_parameters[3] * (.9 + npr.random()*.3)
+        length = length * (.8 + npr.random()*.4)
+        accbounds[0] += npr.random()/2
+
     return {'cf_parameters': cf_parameters, 'lc_parameters': lc_parameters, 'lc2_parameters': lc2_parameters,
-            'relax_parameters': relax_parameters, 'route_parameters': route_parameters}
+            'relax_parameters': relax_parameters, 'route_parameters': route_parameters, 'accbounds': accbounds,
+            'length': length}
 
 
 def stochastic_lc_havsim(veh, lc_actions, lc_followers, timeind):

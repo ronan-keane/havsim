@@ -239,7 +239,7 @@ class Vehicle:
 
     def __init__(self, vehid, curlane, cf_parameters=None, lc_parameters=None, lc2_parameters=None,
                  relax_parameters=None, route_parameters=None, route=None, lead=None, fol=None,
-                 lfol=None, rfol=None, llead=None, rlead=None, length=3,
+                 lfol=None, rfol=None, llead=None, rlead=None, length=4,
                  eql_type='v', accbounds=None, maxspeed=None, hdbounds=None, seed=None):
         """Inits Vehicle. Cannot be used for simulation until initialize is also called.
 
@@ -282,15 +282,15 @@ class Vehicle:
         self.npr = np.random.default_rng(seed=seed)
 
         # parameters
-        self.cf_parameters = cf_parameters if cf_parameters is not None else [35, 1.3, 2, 1.1, 1.5]
-        self.lc_parameters = lc_parameters if lc_parameters is not None else [-4, -8, .3, .15, 0, 0, .2, 10, 42]
-        self.lc2_parameters = lc2_parameters if lc2_parameters is not None else [-2, 2, 2, -2, 2, .2]
-        self.relax_parameters = relax_parameters if relax_parameters is not None else [8.7, 3, .1, 1.5]
+        self.cf_parameters = cf_parameters if cf_parameters is not None else [34, 1.2, 3, 1.5, 1.6]
+        self.lc_parameters = lc_parameters if lc_parameters is not None else [-6.5, -8, .5, .1, 0, 0, .2, 6, 80]
+        self.lc2_parameters = lc2_parameters if lc2_parameters is not None else [2, 2, 1, -1.2, 1, .2]
+        self.relax_parameters = relax_parameters if relax_parameters is not None else [9, 4.5, .6, 2.]
         self.route_parameters = route_parameters if route_parameters is not None else [300, 500]
 
         # bounds
         if accbounds is None:
-            self.minacc, self.maxacc = -12, 5
+            self.minacc, self.maxacc = -12, None
         else:
             self.minacc, self.maxacc = accbounds[0], accbounds[1]
         self.maxspeed = self.cf_parameters[0] - .2 if maxspeed is None else maxspeed

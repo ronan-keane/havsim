@@ -992,3 +992,44 @@ def connect_helper(connect, pos):
             out = connect[i][1]
             break
     return out
+
+
+def select_route(routes, od, interval):
+    if len(routes) > 1:
+        p = np.cumsum(od, axis=1)
+        rng = np.random.default_rng()
+
+        def make_route(timeind):
+            probs = p[timeind // interval]
+            rand = rng.random()
+            ind = (rand < probs).nonzero()[0][0]
+            return routes[ind].copy()
+        return make_route
+
+    else:
+        def make_route(timeind):
+            return routes[0].copy()
+        return make_route
+
+
+def make_newveh(veh_parameters_fn, vehicle, routes, od, interval):
+    """Defines newveh function for Lanes.
+
+    Args:
+        veh_parameters_fn: callable that accepts time index, returns dictionary of kwargs
+        vehicle: subclass of havsim.simulation.Vehicle to instantiate
+        routes: list of routes, where each route is a list of str road names
+        od: np.array of shape(n_time, n_routes), where the (i, j) index gives the probabilities of each route for time
+            index i
+        interval: int number of timesteps per interval of od. The time interval is (timeind // interval)
+    Returns:
+        newveh: function to bind to Lane as new_vehicle method
+    """
+    route_picker = select_route(routes, od, interval)
+
+    def newveh(self, vehid, timeind):
+        route = route_picker(timeind)
+        kwargs = veh_parameters_fn(timeind)
+        self.newveh = vehicle(vehid, self, route=route, **kwargs)
+
+    return newveh

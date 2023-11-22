@@ -855,7 +855,7 @@ def reload(all_vehicles, laneinds=None):
 class StochasticVehicle(Vehicle):
     def __init__(self, vehid, curlane, gamma_parameters=None, xi_parameters=None, **kwargs):
         super().__init__(vehid, curlane, **kwargs)
-        self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.1, .35, .5, 2., 2.]
+        self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.1, .3, .5, 2., 2.]
         self.xi_parameters = xi_parameters if xi_parameters is not None else [.15, 3]
         self.rvmem = []
         self.lc_accmem = []

@@ -4,17 +4,20 @@ import havsim
 import havsim.plotting as hp
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import animation
 
-saved_sim = 'pickle files/e94_crashes_5.pkl'
-min_crash_plots = 4
-max_crash_plots = 8
-plot_all_together = False
+saved_sim = 'e94_test_crash_2.pkl'
+min_crash_plots = 0
+max_crash_plots = 5
+plot_all_together = True
+save_plots = True
+
 timesteps_before = 100
 timesteps_after = 5
 dt = .2
 
 
-with open(saved_sim, 'rb') as f:
+with open('pickle files/'+saved_sim, 'rb') as f:
     all_vehicles_list, laneinds = pickle.load(f)
 if type(all_vehicles_list[0]) != list:
     all_vehicles_list = [all_vehicles_list]
@@ -142,6 +145,7 @@ def do_speed_plot(args):
     ax2.set_ylabel('acceleration (m/s/s)')
     ax2.legend(handles=[a5[0], a6[0]], labels=['acceleration', 'acceleration (deterministic)'])
     fig.tight_layout()
+    return fig
 
 
 if __name__ == '__main__':
@@ -188,7 +192,7 @@ if __name__ == '__main__':
             veh1, veh2 = crash_veh_list[0], crash_veh_list[1]
             severity.append(abs(veh1.speedmem[veh1.crash_time-veh1.start]-veh2.speedmem[veh2.crash_time-veh2.start]))
             for veh in crash_veh_list[2:]:
-                other = veh.leadmem[havsim.helper.count_leadmem(veh, veh.crash_time)]
+                other = veh.leadmem[havsim.helper.count_leadmem(veh, veh.crash_time)][0]
                 if veh.crashed[0] == 'sideswipe':
                     if other is not None:
                         if other in crash_veh_list[:2]:
@@ -220,13 +224,19 @@ if __name__ == '__main__':
     plot_crashes.extend(rear_end[min_crash_plots:max_crash_plots])
     plot_crashes.extend(sideswipes[min_crash_plots:max_crash_plots])
     plot_crashes.extend(near_misses[min_crash_plots:max_crash_plots])
+    inds = list(range(min_crash_plots, min_crash_plots + len(rear_end[min_crash_plots:max_crash_plots])))
+    inds.extend(list(range(min_crash_plots, min_crash_plots + len(sideswipes[min_crash_plots:max_crash_plots]))))
+    inds.extend(list(range(min_crash_plots, min_crash_plots + len(near_misses[min_crash_plots:max_crash_plots]))))
+    my_crash_types = ['rear end']*len(rear_end[min_crash_plots:max_crash_plots])
+    my_crash_types.extend(['sideswipe']*len(sideswipes[min_crash_plots:max_crash_plots]))
+    my_crash_types.extend(['near miss'] * len(near_misses[min_crash_plots:max_crash_plots]))
     print('\nplotting {:n} rear ends, {:n} sideswipes, {:n} near misses'.format(
         len(rear_end[min_crash_plots:max_crash_plots]), len(sideswipes[min_crash_plots:max_crash_plots]),
         len(near_misses[min_crash_plots:max_crash_plots])))
     plt.hist(severity, bins=[0+i*.5 for i in range(20)])
     plt.xlabel('speed difference at crash (m/s)')
     plt.ylabel('frequency')
-    for cur in plot_crashes:
+    for ind_count, cur in enumerate(plot_crashes):
         times, platoon, need_speed_plots, count, my_crash_type = cur
         t_start, t_end = times
         min_p, max_p = [], []
@@ -237,8 +247,15 @@ if __name__ == '__main__':
         ani = hp.animatetraj(sim, siminfo, platoon=[i.vehid for i in platoon], usetime=list(range(t_start, t_end+1)),
                              spacelim=(min(min_p)-5, max(max_p)+3), lanelim=(3, -1), show_id=True, show_axis=True)
         all_ani.append(ani)
-        for veh in need_speed_plots:
-            do_speed_plot(prepare_speed_plot(veh, t_start, t_end, crash_type=my_crash_type))
+        if save_plots:
+            writergif = animation.PillowWriter(fps=30)
+            crash_str = my_crash_types[ind_count]
+            filename = 'pickle files/animations/'+saved_sim+' - '+crash_str+' '+str(inds[ind_count])
+            ani.save(filename+'.gif', writer=writergif)
+        for counter2, veh in enumerate(need_speed_plots):
+            fig = do_speed_plot(prepare_speed_plot(veh, t_start, t_end, crash_type=my_crash_type))
+            if save_plots:
+                fig.savefig(filename+' - '+str(counter2)+'.png', dpi=200)
         if not plot_all_together:
             plt.show()
     if plot_all_together:

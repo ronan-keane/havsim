@@ -5,15 +5,15 @@ import pickle
 import multiprocessing
 from datetime import datetime
 
-n_processes = 1
-replications = 1
+n_processes = 50
+replications = 4
 save_output = True
-save_crashes_only = False
-save_name = 'pickle files/e94_pm2'
+save_crashes_only = True
+save_name = 'pickle files/e94_test_crash_4'
 
-use_times = [15.75, 17.75]
-gamma_parameters = [-.1, .35, .5, 2., 2.]
-xi_parameters = [.15, 3]
+use_times = [7, 8]
+gamma_parameters = [-.1, .28, .3, .7, 1.8]
+xi_parameters = [.2, 4]
 
 
 def do_simulation(verbose=False):
@@ -64,7 +64,7 @@ def do_simulation(verbose=False):
 
 if __name__ == '__main__':
     now = datetime.now()
-    print('Starting  at '+now.strftime("%H:%M:%S")+', simulating times '+str(use_times)+' for '+str(replications) +
+    print('Starting at '+now.strftime("%H:%M:%S")+', simulating times '+str(use_times)+' for '+str(replications) +
           ' replications ('+str(n_processes)+' workers)')
     args = [False for i in range(n_processes)]
     args[0] = True
@@ -94,4 +94,5 @@ if __name__ == '__main__':
         else:
             with open(save_name+'.pkl', 'wb') as f:
                 pickle.dump([all_lists, laneinds], f)
-
+    now = datetime.now()
+    print('\nFinished  at ' + now.strftime("%H:%M:%S"))

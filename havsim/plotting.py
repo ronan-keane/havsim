@@ -128,6 +128,8 @@ def clip_distance(all_vehicles, sim, clip):
         end_ind = end_ind[0] if len(end_ind) > 0 else len(posmem)
         if start_ind is None:
             continue
+        if start_ind == end_ind:
+            continue
         sim2[vehid] = sim[vehid][start_ind:end_ind, :].copy()
 
     for veh in all_vehicles:

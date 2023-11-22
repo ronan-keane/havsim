@@ -4,13 +4,13 @@ import havsim
 import pickle
 import multiprocessing
 
-n_processes = 40
-replications = 5
+n_processes = 1
+replications = 1
 save_output = True
-save_crashes_only = True
-save_name = 'pickle files/e94_pm_crashes_0'
+save_crashes_only = False
+save_name = 'pickle files/e94_day_3'
 
-use_times = [16., 18]
+use_times = [18, 24]
 gamma_parameters = [-.1, .35, .5, 2., 2.]
 xi_parameters = [.15, 3]
 

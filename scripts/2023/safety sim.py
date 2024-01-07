@@ -5,14 +5,14 @@ import pickle
 import multiprocessing
 from datetime import datetime
 
-n_processes = 50
-replications = 4
+n_processes = 40
+replications = 5
 save_output = True
 save_crashes_only = True
-save_name = 'pickle files/e94_test_crash_4'
+save_name = 'pickle files/e94_test_crash_5'
 
 use_times = [7, 8]
-gamma_parameters = [-.1, .28, .3, .7, 1.8]
+gamma_parameters = [-.1, .28, .5, 2., 2.]
 xi_parameters = [.2, 4]
 
 

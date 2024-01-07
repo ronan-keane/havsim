@@ -888,7 +888,7 @@ class StochasticVehicle(Vehicle):
         if timeind == self.next_t_ind:
             pass
         else:
-            t_left = self.next_t_ind + self.beta - 1 - timeind
+            t_left = self.next_t_ind + self.beta - timeind
             new_gamma = t_left/self.gamma_parameters[-1]
             bar_gamma = new_gamma // 1.
             self.beta = new_gamma - bar_gamma

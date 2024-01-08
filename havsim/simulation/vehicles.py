@@ -885,14 +885,17 @@ class StochasticVehicle(Vehicle):
         return models.stochastic_lc_havsim(self, lc_actions, lc_followers, timeind)
 
     def set_relax(self, timeind, dt):
-        if timeind == self.next_t_ind:
-            pass
+        # modify gamma when lane change occurs, according to gamma_parameters[-1]
+        t_left = self.next_t_ind + self.beta - timeind
+        new_gamma = t_left/self.gamma_parameters[-1]
+        bar_gamma = new_gamma // 1.
+        if bar_gamma == 0. and timeind < self.next_t_ind:
+            self.beta = 0
+            self.next_t_ind = timeind + 1
         else:
-            t_left = self.next_t_ind + self.beta - timeind
-            new_gamma = t_left/self.gamma_parameters[-1]
-            bar_gamma = new_gamma // 1.
             self.beta = new_gamma - bar_gamma
-            self.next_t_ind = timeind + int(bar_gamma) + 1
+            self.next_t_ind = timeind + int(bar_gamma)
+
         models.new_relaxation(self, timeind, dt)
 
     def update(self, timeind, dt):

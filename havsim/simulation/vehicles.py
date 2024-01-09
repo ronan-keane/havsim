@@ -861,6 +861,7 @@ class StochasticVehicle(Vehicle):
         self.lc_accmem = []
 
         self.prev_acc = 0
+        self.prev_lc_acc = 0
         self.beta = 0
         self.next_t_ind = None
 
@@ -909,6 +910,9 @@ class StochasticVehicle(Vehicle):
             bar_gamma = (gamma / dt) // 1.
             self.beta = gamma / dt - bar_gamma
             self.next_t_ind = timeind + int(bar_gamma) + 1
+            self.prev_lc_acc = self.lc_acc
+        else:
+            self.lc_acc = self.prev_lc_acc
         self.lc_accmem.append(self.lc_acc)
 
         super().update(timeind, dt)

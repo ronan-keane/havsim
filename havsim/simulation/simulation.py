@@ -7,7 +7,7 @@ vehicles enter/leave the simulation. The inflow conditions additionally control 
 vehicles enter the simulation. Vehicles are implemented in the Vehicle class and a road network
 is made up of instances of the Lane class.
 """
-from havsim.simulation.road_networks import get_headway
+from havsim.simulation.road import get_headway
 from havsim.simulation import update_lane_routes
 from havsim.simulation import vehicle_orders
 import copy
@@ -219,6 +219,10 @@ class Simulation:
 
     def reset(self):
         """Reset simulation to initial state."""
+        del self.vehicles
+        del self.prev_vehicles
+
+
         self.vehicles = set() if self.init_vehicles is None else copy.deepcopy(self.init_vehicles)
         self.prev_vehicles = [] if self.init_prev_vehicles is None else copy.deepcopy(self.init_prev_vehicles)
         self.vehid = self.init_vehid

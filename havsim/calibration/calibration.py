@@ -8,7 +8,7 @@ Either single vehicles, or strings (platoons) of vehicles can be simulated.
 
 import numpy as np
 import havsim.simulation as hs
-from havsim.simulation.road_networks import get_headway
+from havsim.simulation.road import get_headway
 from havsim import helper
 import math
 

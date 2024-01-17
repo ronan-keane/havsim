@@ -2,7 +2,7 @@
 import scipy.optimize as sc
 import numpy as np
 
-from havsim.simulation.road_networks import get_dist, get_headway
+from havsim.simulation.road import get_dist, get_headway
 from havsim.simulation import models
 from havsim.simulation import update_lane_routes
 
@@ -860,9 +860,9 @@ class StochasticVehicle(Vehicle):
         self.rvmem = []
         self.lc_accmem = []
 
-        self.prev_acc = 0
-        self.prev_lc_acc = 0
-        self.beta = 0
+        self.prev_acc = 0  # old cf acc
+        self.prev_lc_acc = 0  # old lc acc
+        self.beta = 0  # next attention at time next_t_ind + beta
         self.next_t_ind = None
 
     def initialize(self, pos, spd, hd, start):

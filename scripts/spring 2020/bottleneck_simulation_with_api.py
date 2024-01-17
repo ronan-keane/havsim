@@ -3,7 +3,7 @@
 Bottleneck simulation
 """
 import havsim.simulation as hs
-from havsim.simulation.road_networks import downstream_wrapper, AnchorVehicle, get_inflow_wrapper, Lane, increment_inflow_wrapper
+from havsim.simulation.road import downstream_wrapper, AnchorVehicle, get_inflow_wrapper, Lane, increment_inflow_wrapper
 from havsim.simulation.road import Road, compute_route
 from havsim.helper import boundaryspeeds, getentryflows, calculateflows
 from havsim.plotting import plot_format, platoonplot, plotvhd

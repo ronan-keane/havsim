@@ -3,7 +3,7 @@
 Functions for setting/updating lane events, route events, and code for changing lanes.
 """
 from havsim.simulation import vehicle_orders
-from havsim.simulation.road_networks import get_headway
+from havsim.simulation.road import get_headway
 
 
 def update_veh_after_lc(lc_actions, veh, timeind):

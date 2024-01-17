@@ -7,7 +7,7 @@ from datetime import datetime
 
 n_processes = 35
 replications = 4
-save_output = True
+replications_batch_size = 4
 save_crashes_only = True
 save_name = 'pickle files/e94_test_crash_6'
 
@@ -47,9 +47,11 @@ def do_simulation(verbose=False):
                         t_start, t_end = times[0] - 100, times[1] + 5
                         cur.extend(havsim.helper.add_leaders([veh], t_start, t_end))
             cur = list(set(cur))
-            my_out_lists.append(pickle.dumps(cur))
+            [veh.__remove_veh_references() for veh in cur]
+            my_out_lists.append(cur)
         else:
-            my_out_lists.append(pickle.dumps(all_vehicles))
+            [veh.__remove_veh_references() for veh in all_vehicles]
+            my_out_lists.append(all_vehicles)
 
         if i < replications - 1:
             if len(simulation.crashes) > 0:
@@ -78,7 +80,7 @@ if __name__ == '__main__':
         all_sideswipe += sideswipe
         all_near_miss += near_miss
         all_vmt += vmt
-        all_lists.extend([pickle.loads(out) for out in all_out_lists])
+        all_lists.extend(all_out_lists)
     pool.close()
 
     print('\n-----------SUMMARY-----------')

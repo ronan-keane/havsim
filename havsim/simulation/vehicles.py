@@ -594,6 +594,17 @@ class Vehicle:
         self.posmem.append(self.pos)
         self.speedmem.append(self.speed)
 
+    def __remove_veh_references(self):
+        """Replace reference to other vehicles with vehid (python garbage collection purposes)."""
+        self.lead = veh_to_id(self.lead)
+        self.fol = veh_to_id(self.fol)
+        self.lfol = veh_to_id(self.lfol)
+        self.rfol = veh_to_id(self.rfol)
+        rlead = [veh_to_id(veh) for veh in self.rlead]
+        llead = [veh_to_id(veh) for veh in self.llead]
+        leadmem = [(veh_to_id(curmem[0]), curmem[1]) for curmem in self.leadmem]
+        self.leadmem, self.rlead, self.llead = leadmem, rlead, llead
+
     def __hash__(self):
         """Vehicles need to be hashable. We hash them with a unique vehicle ID."""
         return hash(self.vehid)
@@ -626,13 +637,9 @@ class Vehicle:
         state['fol'] = veh_to_id(state['fol'])
         state['lfol'] = veh_to_id(state['lfol'])
         state['rfol'] = veh_to_id(state['rfol'])
-        rlead, llead, leadmem = [], [], []
-        for veh in state['rlead']:
-            rlead.append(veh_to_id(veh))
-        for veh in state['llead']:
-            llead.append(veh_to_id(veh))
-        for curmem in state['leadmem']:
-            leadmem.append((veh_to_id(curmem[0]), curmem[1]))
+        rlead = [veh_to_id(veh) for veh in state['rlead']]
+        llead = [veh_to_id(veh) for veh in state['llead']]
+        leadmem = [(veh_to_id(curmem[0]), curmem[1]) for curmem in state['leadmem']]
         state['leadmem'], state['rlead'], state['llead'] = leadmem, rlead, llead
         # simplify memory
         if 'rvmem' in state:
@@ -829,7 +836,12 @@ def id_to_veh_maybe(a, veh_dict):
 
 
 def reload(all_vehicles, laneinds=None):
-    """Given list of all vehicles, convert int memory back to Vehicle references."""
+    """Given list of all vehicles, convert int memory back to Vehicle references.
+
+    Args:
+        all_vehicles: list of Vehicles which will have their references added back
+        laneinds: dictionary of Lane objects as keys, values are int index which represents the lane index (for plots)
+    """
     veh_dict = {}
     if laneinds is not None:
         for lane in laneinds.keys():

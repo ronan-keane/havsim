@@ -200,7 +200,7 @@ class Simulation:
         self.timeind += 1
         self.prev_vehicles.extend(remove_vehicles)
 
-    def simulate(self, timesteps=None, verbose=True):
+    def simulate(self, timesteps=None, verbose=True, return_times=False):
         """Do simulation for requested number of timesteps and return all vehicles."""
         timesteps = self.timesteps if timesteps is None else timesteps
         elapsed_time = time.time()
@@ -210,11 +210,14 @@ class Simulation:
 
         all_vehicles = self.prev_vehicles.copy()
         all_vehicles.extend(self.vehicles)
-        if verbose:
+        if verbose or return_times:
             total_timesteps = sum([self.timeind-max(veh.start, self.timeind-timesteps)+1 if veh.end is None
                                    else veh.end-max(veh.start, self.timeind-timesteps)+1 for veh in all_vehicles])
+        if verbose:
             print('simulation time is {:.1f} seconds over {:.2e} timesteps ({:n} vehicles)'.format(
                 elapsed_time, total_timesteps, len(all_vehicles)))
+        if return_times:
+            return all_vehicles, elapsed_time, total_timesteps
         return all_vehicles
 
     def reset(self):
@@ -260,6 +263,9 @@ class CrashesSimulation(Simulation):
     def reset(self):
         super().reset()
         self.near_misses = None
+        del self.crashes
+        del self.maybe_sideswipes
+        del self.near_miss_times
         self.crashes = []
         self.maybe_sideswipes = {}
         self.near_miss_times = {}
@@ -323,8 +329,8 @@ class CrashesSimulation(Simulation):
                     elif not veh.crashed:
                         self.near_miss_times[veh] = [timeind]
 
-    def simulate(self, timesteps=None, verbose=True):
-        all_vehicles = super().simulate(timesteps=timesteps, verbose=verbose)
+    def simulate(self, timesteps=None, verbose=True, return_times=False):
+        out = super().simulate(timesteps=timesteps, verbose=verbose, return_times=return_times)
         self._process_near_miss_times()
 
         if verbose:
@@ -332,7 +338,7 @@ class CrashesSimulation(Simulation):
             print('number of near misses: {:n} ({:n} vehicles)'.format(n_misses, len(self.near_misses)))
             n_crashed_veh = sum([len(crash) for crash in self.crashes])
             print('number of crashes: {:n} ({:n} vehicles)'.format(len(self.crashes), n_crashed_veh))
-        return all_vehicles
+        return out
 
     def _add_new_crash(self, veh, lead, crashed, timeind):
         if not veh.crashed and not lead.crashed:

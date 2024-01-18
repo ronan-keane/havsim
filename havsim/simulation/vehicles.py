@@ -835,16 +835,16 @@ def id_to_veh_maybe(a, veh_dict):
         return a
 
 
-def reload(all_vehicles, laneinds=None):
+def reload(all_vehicles, lanes=None):
     """Given list of all vehicles, convert int memory back to Vehicle references.
 
     Args:
         all_vehicles: list of Vehicles which will have their references added back
-        laneinds: dictionary of Lane objects as keys, values are int index which represents the lane index (for plots)
+        lanes: dictionary of Lane objects as keys, values are int index which represents the lane index (for plots)
     """
     veh_dict = {}
-    if laneinds is not None:
-        for lane in laneinds.keys():
+    if lanes is not None:
+        for lane in lanes.keys():
             if lane.anchor.vehid not in veh_dict:
                 veh_dict[lane.anchor.vehid] = lane.anchor
     for veh in all_vehicles:

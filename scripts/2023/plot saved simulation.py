@@ -6,12 +6,12 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 
 with open('pickle files/e94_pm.pkl', 'rb') as f:
-    all_vehicles, laneinds = pickle.load(f)
+    all_vehicles, lanes = pickle.load(f)
 # with open('C:\\Users\\tawit\\Documents\\GitHub\\havsim\\scripts\\2023\\bottleneck_sim_0.pkl', 'rb') as f:
 #     all_vehicles, laneinds = pickle.load(f)
 
-all_vehicles = hs.vehicles.reload(all_vehicles)
-sim, siminfo = hp.plot_format(all_vehicles, laneinds)
+all_vehicles = hs.vehicles.reload(all_vehicles[0], )
+sim, siminfo = hp.plot_format(all_vehicles, lanes)
 # sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (800, 1350))
 sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (7300, 9300))
 

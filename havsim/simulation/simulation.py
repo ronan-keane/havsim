@@ -225,7 +225,6 @@ class Simulation:
         del self.vehicles
         del self.prev_vehicles
 
-
         self.vehicles = set() if self.init_vehicles is None else copy.deepcopy(self.init_vehicles)
         self.prev_vehicles = [] if self.init_prev_vehicles is None else copy.deepcopy(self.init_prev_vehicles)
         self.vehid = self.init_vehid

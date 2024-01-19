@@ -1314,9 +1314,17 @@ def count_leadmem(veh, timeind):
 
 
 def add_leaders(veh_list, start, end):
-    platoon = []
+    """For a list of vehicles, add all leaders and leaders of leaders within times [start, end].
+
+    Args:
+        veh_list: list of Vehicles
+        start: int time index
+        end: int time index
+    Returns:
+        platoon: list containing all Vehicles in veh_list, and all leaders in times [start, end].
+    """
+    platoon = veh_list.copy()
     for veh in veh_list:
-        platoon.append(veh)
         for mem in veh.leadmem[count_leadmem(veh, start):count_leadmem(veh, end)+1]:
             if hasattr(mem[0], 'vehid'):
                 platoon.append(mem[0])

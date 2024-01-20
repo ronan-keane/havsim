@@ -8,8 +8,8 @@ import os
 from datetime import datetime
 from time import sleep
 
-n_processes = 35
-replications = 4
+n_processes = 40
+replications = 6
 replications_batch_size = 2
 save_crashes_only = True
 save_name = 'e94_test_crash_1'

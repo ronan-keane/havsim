@@ -1,17 +1,15 @@
 """Houses the main logic for updating simulations.
 
-A simulation is defined by a collection of lanes/roads (a road network) and an initial
-collection of vehicles. The road network defines both the network topology (i.e. how roads connect
-with each other) as well as the inflow/outflow boundary conditions, which determine how
-vehicles enter/leave the simulation. The inflow conditions additionally control what types of
-vehicles enter the simulation. Vehicles are implemented in the Vehicle class and a road network
-is made up of instances of the Lane class.
+The Simulation class is the main high-level API for setting up and running a simulation.
+Simulations consist of multiple Roads (which in turn house Lanes), and does the simulation using Vehicles.
+The Vehicle class defines the vehicle update model and stores the memory of the simulation.
+The Simulation is mainly set up by defining the Roads/Lanes, and setting up the upstream
+and downstream boundary conditions (see havsim.simulation.road.Road)
 """
-from havsim.simulation.road import get_headway
-from havsim.simulation import update_lane_routes
-from havsim.simulation import vehicle_orders
+import havsim.simulation as hs
 import copy
 import time
+import tqdm
 
 
 def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, vehid, timeind, dt):
@@ -73,14 +71,14 @@ def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, ve
         relaxvehs.append(veh.fol)
 
         # update leader follower relationships, lane/road
-        update_lane_routes.update_veh_after_lc(lc_actions, veh, timeind)
+        hs.update_lane_routes.update_veh_after_lc(lc_actions, veh, timeind)
 
         relaxvehs.append(veh)
         relaxvehs.append(veh.fol)
 
         # update a vehicle's lane events and route events for the new lane
-        update_lane_routes.set_lane_events(veh)
-        update_lane_routes.set_route_events(veh, timeind)
+        hs.update_lane_routes.set_lane_events(veh)
+        hs.update_lane_routes.set_route_events(veh, timeind)
 
     for veh in set(relaxvehs):  # apply relaxation
         veh.set_relax(timeind, dt)
@@ -90,21 +88,21 @@ def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, ve
         veh.update(timeind, dt)
     for veh in vehicles:
         if veh.lead is not None:
-            veh.hd = get_headway(veh, veh.lead)
+            veh.hd = hs.get_headway(veh, veh.lead)
 
     # update left and right followers
-    vehicle_orders.update_all_lrfol_multiple(vehicles)
+    hs.vehicle_orders.update_all_lrfol_multiple(vehicles)
 
     # update merge_anchors
     for curlane in merge_lanes:
-        update_lane_routes.update_merge_anchors(curlane, lc_actions)
+        hs.update_lane_routes.update_merge_anchors(curlane, lc_actions)
 
     # update roads (lane events) and routes
     remove_vehicles = []
     for veh in vehicles:
         # check vehicle's lane events and route events, acting if necessary
-        update_lane_routes.update_lane_events(veh, timeind, remove_vehicles)
-        update_lane_routes.update_route_events(veh, timeind)
+        hs.update_lane_routes.update_lane_events(veh, timeind, remove_vehicles)
+        hs.update_lane_routes.update_route_events(veh, timeind)
     # remove vehicles which leave
     for veh in remove_vehicles:
         vehicles.remove(veh)
@@ -123,8 +121,7 @@ def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, ve
 class Simulation:
     """Implements a traffic microsimulation.
 
-    Basically just a wrapper for update_net. For more information on traffic
-    microsimulation refer to the full documentation which has extra details and explanation.
+    Basically just a wrapper for update_net.
 
     Attributes:
         roads: list of all Roads
@@ -201,11 +198,25 @@ class Simulation:
         self.prev_vehicles.extend(remove_vehicles)
 
     def simulate(self, timesteps=None, verbose=True, return_times=False):
-        """Do simulation for requested number of timesteps and return all vehicles."""
+        """Do simulation for requested number of timesteps and return all vehicles.
+
+        Args:
+            timesteps: int number of timesteps to run simulation. If None, use default value.
+            verbose: bool, if True then do simulation with progress bar and print out when finished
+            return_times: bool, if True then additionally return the total simulation time and number of timesteps
+        Returns:
+            all_vehicles: list of Vehicles in the simulation
+            elapsed_time: float clock time taken to run simulation
+            total_timesteps: total number of timesteps, added over all vehicles
+        """
         timesteps = self.timesteps if timesteps is None else timesteps
         elapsed_time = time.time()
-        for i in range(timesteps):
-            self.step()
+        if verbose:
+            for i in tqdm.tqdm(range(timesteps)):
+                self.step()
+        else:
+            for i in range(timesteps):
+                self.step()
         elapsed_time = time.time() - elapsed_time
 
         all_vehicles = self.prev_vehicles.copy()

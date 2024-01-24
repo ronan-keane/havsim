@@ -5,7 +5,7 @@ import havsim.plotting as hp
 import matplotlib.pyplot as plt
 from matplotlib import animation
 
-with open('pickle files/e94_times_0_1.pkl', 'rb') as f:
+with open('pickle files/e94_times_16_17.pkl', 'rb') as f:
     all_vehicles, lanes = pickle.load(f)
 
 all_vehicles = hs.vehicles.reload(all_vehicles[0], )

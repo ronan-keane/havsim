@@ -9,8 +9,8 @@ from datetime import datetime
 from time import sleep
 
 # -------  SETTINGS  ------- #
-save_name = 'e94_times_16_17'
-n_simulations = 80
+save_name = 'e94_16_17'
+n_simulations = 240
 batch_size = 120
 n_workers = 40
 save_crashes_only = False if n_simulations == 1 else True
@@ -75,12 +75,13 @@ if __name__ == '__main__':
     batch_iters = batch_iters + 1 if leftover > 0 else batch_iters
     print('\nWorking on first simulation...')
     pbar = tqdm.tqdm(range(n_simulations), total=n_simulations)
+    cur_iter = 0
 
     # do parallel simulations in batches
     for i in range(batch_iters):
         all_veh_lists = []
-        pool = multiprocessing.Pool(n_workers)
         cur_sims = leftover if i == batch_iters-1 and leftover > 0 else batch_size
+        pool = multiprocessing.Pool(min(n_workers, cur_sims))
         args = [False for k in range(cur_sims)]
         args[0] = True if i == 0 else False
 
@@ -92,13 +93,13 @@ if __name__ == '__main__':
             cur_time_used, cur_timesteps = cur_time_used+time_used, cur_timesteps+timesteps
 
             # reporting
-            cur_iter = i*batch_size + count
+            cur_iter += 1
             vmt_miles = all_vmt/1609.34
             crash_stats = (vmt_miles/max(all_rear_end, .69), vmt_miles/max(all_sideswipe, .69),
                            vmt_miles/max(all_near_miss, .69))
-            sim_stats = (vmt_miles/(cur_iter+1), cur_timesteps/cur_time_used, cur_time_used/(count+1))
-            pbar.update(cur_iter+1)
-            pbar.set_description('Simulations finished'.format(cur_iter+1))
+            sim_stats = (vmt_miles/cur_iter, cur_timesteps/cur_time_used, cur_time_used/(count+1))
+            pbar.update()
+            pbar.set_description('Simulations finished')
             pbar.set_postfix_str('Miles/Event (Rear end/Sideswipe/Near miss): {:.1e}/{:.1e}/{:.1e}'.format(
                 *crash_stats) + ', Miles/Sim: {:.1e}, Steps/Sec: {:.1e}, Secs/Sim:{:.0f}'.format(*sim_stats))
 

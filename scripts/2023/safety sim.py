@@ -26,7 +26,7 @@ def do_simulation(show_pbar):
     simulation, my_lanes = e94(use_times, gamma_parameters, xi_parameters)
     all_vehicles, elapsed_time, total_timesteps = simulation.simulate(pbar=show_pbar, verbose=False, return_times=True)
     if show_pbar:
-        print('simulation time is {:.1f} seconds over {:.2e} timesteps ({:n} vehicles)'.format(
+        print('simulation time is {:.1f} seconds over {:.2e} timesteps ({:n} vehicles)\n'.format(
             elapsed_time, total_timesteps, len(all_vehicles)))
 
     # count statistics
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     leftover = n_simulations - batch_iters * batch_size
     batch_iters = batch_iters + 1 if leftover > 0 else batch_iters
     print('Working on first simulation...')
-    pbar = tqdm.tqdm(range(n_simulations))
+    pbar = tqdm.tqdm(range(n_simulations), total=n_simulations)
 
     # do parallel simulations in batches
     for i in range(batch_iters):

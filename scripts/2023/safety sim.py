@@ -8,22 +8,26 @@ import os
 from datetime import datetime
 from time import sleep
 
-# #######  SETTINGS  #########
-n_simulations = 300
-batch_size = 100
+# -------  SETTINGS  ------- #
+n_simulations = 360
+batch_size = 120
 n_workers = 40
 save_crashes_only = True
-save_name = 'e94_test_crash_1'
+save_name = 'e94_test_crash_2'
 
 use_times = [16, 17]
-gamma_parameters = [-.1, .28, .5, 2., 2.]
+gamma_parameters = [-.1, .3, .5, 2., 2.]
 xi_parameters = [.2, 4]
-# ######## # ## # ##########
+# -------------------------- #
 
-def do_simulation(crashes_only):
+
+def do_simulation(show_pbar):
     # make + run simulation
     simulation, my_lanes = e94(use_times, gamma_parameters, xi_parameters)
-    all_vehicles, elapsed_time, total_timesteps = simulation.simulate(verbose=False, return_times=True)
+    all_vehicles, elapsed_time, total_timesteps = simulation.simulate(pbar=show_pbar, verbose=False, return_times=True)
+    if show_pbar:
+        print('simulation time is {:.1f} seconds over {:.2e} timesteps ({:n} vehicles)'.format(
+            elapsed_time, total_timesteps, len(all_vehicles)))
 
     # count statistics
     my_rear_end, my_sideswipe, my_near_miss, my_vmt = 0, 0, 0, 0
@@ -37,7 +41,7 @@ def do_simulation(crashes_only):
         my_vmt += veh.posmem[-1] - veh.posmem[0]
 
     # save vehicles
-    if crashes_only:
+    if save_crashes_only:
         my_vehs = []
         for crash in simulation.crashes:
             crash_times = [veh.crash_time for veh in crash]
@@ -50,9 +54,9 @@ def do_simulation(crashes_only):
                     t_start, t_end = times[0] - 100, times[1] + 5
                     my_vehs.extend(havsim.helper.add_leaders([veh], t_start, t_end))
         my_vehs = list(set(my_vehs))
-        [veh.__remove_veh_references() for veh in my_vehs]  # makes pickling efficient
+        [veh._remove_veh_references() for veh in my_vehs]  # makes pickling efficient
     else:
-        [veh.__remove_veh_references() for veh in all_vehicles]
+        [veh._remove_veh_references() for veh in all_vehicles]
         my_vehs = all_vehicles
 
     return my_rear_end, my_sideswipe, my_near_miss, my_vmt, elapsed_time, total_timesteps, my_vehs, my_lanes
@@ -61,7 +65,7 @@ def do_simulation(crashes_only):
 if __name__ == '__main__':
     now = datetime.now()
     print('Starting at '+now.strftime("%H:%M:%S") +
-          ', simulating times '+str(use_times)+' for {:n} replications'.format(n_simulations))
+          ', simulating times '+str(use_times)+' for {:n} replications\n'.format(n_simulations))
 
     all_rear_end, all_sideswipe, all_near_miss, all_vmt = 0, 0, 0, 0
     initial_update_rate, cur_update_rate, cur_time_used, cur_timesteps = 0, 0, 0, 0
@@ -69,6 +73,7 @@ if __name__ == '__main__':
     batch_iters = int(n_simulations // batch_size)
     leftover = n_simulations - batch_iters * batch_size
     batch_iters = batch_iters + 1 if leftover > 0 else batch_iters
+    print('Working on first simulation...')
     pbar = tqdm.tqdm(range(n_simulations))
 
     # do parallel simulations in batches
@@ -76,7 +81,8 @@ if __name__ == '__main__':
         all_veh_lists = []
         pool = multiprocessing.Pool(n_workers)
         cur_sims = leftover if i == batch_iters-1 and leftover > 0 else batch_size
-        args = [save_crashes_only for i in range(cur_sims)]
+        args = [False for k in range(cur_sims)]
+        args[0] = True if i == 0 else False
 
         for count, out in enumerate(pool.imap_unordered(do_simulation, args)):
             rear_end, sideswipe, near_miss, vmt, time_used, timesteps, vehs, lanes = out
@@ -88,11 +94,13 @@ if __name__ == '__main__':
             # reporting
             cur_iter = i*batch_size + count
             vmt_miles = all_vmt/1609.34
-            crash_stats = (vmt_miles/all_rear_end, vmt_miles/all_sideswipe, vmt_miles/all_near_miss)
-            sim_stats = (vmt_miles/(cur_iter+1), cur_timesteps/cur_time_used, cur_time_used/(cur_iter+1))
-            pbar.set_description('Simulation {:n}'.format(cur_iter))
+            crash_stats = (vmt_miles/max(all_rear_end, .69), vmt_miles/max(all_sideswipe, .69),
+                           vmt_miles/max(all_near_miss, .69))
+            sim_stats = (vmt_miles/(cur_iter+1), cur_timesteps/cur_time_used, cur_time_used/(count+1))
+            pbar.update(cur_iter+1)
+            pbar.set_description('Simulations finished'.format(cur_iter+1))
             pbar.set_postfix_str('Miles/Event (Rear end/Sideswipe/Near miss): {:.1e}/{:.1e}/{:.1e}'.format(
-                *crash_stats) + ', Miles/Sim: {:.1e}, Steps/Sec: {:.1e}, Secs/Sim:{:n}'.format(*sim_stats))
+                *crash_stats) + ', Miles/Sim: {:.1e}, Steps/Sec: {:.1e}, Secs/Sim:{:.0f}'.format(*sim_stats))
 
         pool.close()
         pool.join()
@@ -105,7 +113,7 @@ if __name__ == '__main__':
         cur_update_rate, cur_time_used, cur_timesteps = cur_timesteps/cur_time_used, 0, 0
         if i == 0:
             initial_update_rate = cur_update_rate
-        if 1.15*cur_update_rate < initial_update_rate:
+        if 1.1*cur_update_rate < initial_update_rate:
             sleep(180)
     pbar.close()
 

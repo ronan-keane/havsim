@@ -197,11 +197,12 @@ class Simulation:
         self.timeind += 1
         self.prev_vehicles.extend(remove_vehicles)
 
-    def simulate(self, timesteps=None, verbose=True, return_times=False):
+    def simulate(self, timesteps=None, pbar=True, verbose=True, return_times=False):
         """Do simulation for requested number of timesteps and return all vehicles.
 
         Args:
             timesteps: int number of timesteps to run simulation. If None, use default value.
+            pbar: bool, if True then do simulation with progress bar
             verbose: bool, if True then do simulation with progress bar and print out when finished
             return_times: bool, if True then additionally return the total simulation time and number of timesteps
         Returns:
@@ -211,9 +212,12 @@ class Simulation:
         """
         timesteps = self.timesteps if timesteps is None else timesteps
         elapsed_time = time.time()
-        if verbose:
-            for i in tqdm.tqdm(range(timesteps)):
+        if pbar:
+            my_pbar = tqdm.tqdm(range(timesteps))
+            my_pbar.set_description('Simulation timesteps')
+            for i in my_pbar:
                 self.step()
+            my_pbar.close()
         else:
             for i in range(timesteps):
                 self.step()
@@ -339,8 +343,8 @@ class CrashesSimulation(Simulation):
                     elif not veh.crashed:
                         self.near_miss_times[veh] = [timeind]
 
-    def simulate(self, timesteps=None, verbose=True, return_times=False):
-        out = super().simulate(timesteps=timesteps, verbose=verbose, return_times=return_times)
+    def simulate(self, timesteps=None, pbar=True, verbose=True, return_times=False):
+        out = super().simulate(timesteps=timesteps, pbar=pbar, verbose=verbose, return_times=return_times)
         self._process_near_miss_times()
 
         if verbose:

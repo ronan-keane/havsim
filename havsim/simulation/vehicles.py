@@ -594,17 +594,6 @@ class Vehicle:
         self.posmem.append(self.pos)
         self.speedmem.append(self.speed)
 
-    def __remove_veh_references(self):
-        """Replace reference to other vehicles with vehid (python garbage collection purposes)."""
-        self.lead = veh_to_id(self.lead)
-        self.fol = veh_to_id(self.fol)
-        self.lfol = veh_to_id(self.lfol)
-        self.rfol = veh_to_id(self.rfol)
-        rlead = [veh_to_id(veh) for veh in self.rlead]
-        llead = [veh_to_id(veh) for veh in self.llead]
-        leadmem = [(veh_to_id(curmem[0]), curmem[1]) for curmem in self.leadmem]
-        self.leadmem, self.rlead, self.llead = leadmem, rlead, llead
-
     def __hash__(self):
         """Vehicles need to be hashable. We hash them with a unique vehicle ID."""
         return hash(self.vehid)
@@ -660,6 +649,17 @@ class Vehicle:
                 pos = pos + dt * spd
                 posmem.append(pos)
             self.posmem = posmem
+
+    def _remove_veh_references(self):
+        """Replace reference to other vehicles with vehid (python garbage collection purposes)."""
+        self.lead = veh_to_id(self.lead)
+        self.fol = veh_to_id(self.fol)
+        self.lfol = veh_to_id(self.lfol)
+        self.rfol = veh_to_id(self.rfol)
+        rlead = [veh_to_id(veh) for veh in self.rlead]
+        llead = [veh_to_id(veh) for veh in self.llead]
+        leadmem = [(veh_to_id(curmem[0]), curmem[1]) for curmem in self.leadmem]
+        self.leadmem, self.rlead, self.llead = leadmem, rlead, llead
 
     def _leadfol(self):
         """Summarize the leader/follower relationships of the Vehicle."""

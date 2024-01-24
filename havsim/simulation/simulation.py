@@ -10,6 +10,7 @@ import havsim.simulation as hs
 import copy
 import time
 import tqdm
+import sys
 
 
 def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, vehid, timeind, dt):
@@ -213,7 +214,7 @@ class Simulation:
         timesteps = self.timesteps if timesteps is None else timesteps
         elapsed_time = time.time()
         if pbar:
-            my_pbar = tqdm.tqdm(range(timesteps))
+            my_pbar = tqdm.tqdm(range(timesteps), file=sys.stdout)
             my_pbar.set_description('Simulation timesteps')
             for i in my_pbar:
                 self.step()

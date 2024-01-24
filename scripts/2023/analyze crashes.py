@@ -6,10 +6,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
 
+# todo need option to not open plots, save only.
+# todo fix title of figures as needed
 # -------  SETTINGS  ------- #
-saved_sim = 'e94_test_crash_2.pkl'
+saved_sim = 'e94_16_17_p2.pkl'
 min_crash_plots = 0
-max_crash_plots = 5
+max_crash_plots = 3
 plot_all_together = True
 save_plots = True
 

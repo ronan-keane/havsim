@@ -7,17 +7,18 @@ import tqdm
 import os
 from datetime import datetime
 from time import sleep
+import sys
 
 # -------  SETTINGS  ------- #
-save_name = 'e94_16_17'
-n_simulations = 240
+save_name = 'e94_0_5_p2'
+n_simulations = 600
 batch_size = 120
 n_workers = 40
 save_crashes_only = False if n_simulations == 1 else True
 
-use_times = [16, 17]
-gamma_parameters = [-.1, .3, .5, 2., 2.]
-xi_parameters = [.2, 4]
+use_times = [0, 5]
+gamma_parameters = [-.07, .35, .5, 2., 2.]
+xi_parameters = [.2, 5]
 # -------------------------- #
 
 
@@ -74,7 +75,7 @@ if __name__ == '__main__':
     leftover = n_simulations - batch_iters * batch_size
     batch_iters = batch_iters + 1 if leftover > 0 else batch_iters
     print('\nWorking on first simulation...')
-    pbar = tqdm.tqdm(range(n_simulations), total=n_simulations)
+    pbar = tqdm.tqdm(range(n_simulations), total=n_simulations, file=sys.stdout)
     cur_iter = 0
 
     # do parallel simulations in batches
@@ -115,7 +116,7 @@ if __name__ == '__main__':
         if i == 0:
             initial_update_rate = cur_update_rate
         if 1.1*cur_update_rate < initial_update_rate:
-            sleep(180)
+            sleep(120)
     pbar.close()
 
     # save result + config

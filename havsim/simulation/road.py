@@ -208,7 +208,7 @@ def get_inflow_wrapper(time_series=None, args=(None,), inflow_type='flow'):
         Args:
             timeind: int time index
         Returns:
-            flow: instantaneous flow value (float)
+            flow: instantaneous flow value (units of veh/second) (float)
             speed: vehicle speed (float) or None. If None, increment_inflow will get the speed automatically.
     """
     # give flow series - simple

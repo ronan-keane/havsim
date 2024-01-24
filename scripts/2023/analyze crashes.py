@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
 
+# -------  SETTINGS  ------- #
 saved_sim = 'e94_test_crash_2.pkl'
 min_crash_plots = 0
 max_crash_plots = 5
@@ -15,7 +16,7 @@ save_plots = True
 timesteps_before = 100
 timesteps_after = 5
 dt = .2
-
+# -------------------------- #
 
 with open('pickle files/'+saved_sim, 'rb') as f:
     all_vehicles_list, laneinds = pickle.load(f)

@@ -9,11 +9,11 @@ from datetime import datetime
 from time import sleep
 
 # -------  SETTINGS  ------- #
-n_simulations = 360
+save_name = 'e94_times_16_17'
+n_simulations = 80
 batch_size = 120
 n_workers = 40
-save_crashes_only = True
-save_name = 'e94_test_crash_2'
+save_crashes_only = False if n_simulations == 1 else True
 
 use_times = [16, 17]
 gamma_parameters = [-.1, .3, .5, 2., 2.]
@@ -64,8 +64,8 @@ def do_simulation(show_pbar):
 
 if __name__ == '__main__':
     now = datetime.now()
-    print('Starting at '+now.strftime("%H:%M:%S") +
-          ', simulating times '+str(use_times)+' for {:n} replications\n'.format(n_simulations))
+    print('Starting at '+now.strftime("%H:%M:%S") + ', simulating times ' + str(use_times) +
+          ' for {:n} replications ({:n} workers)'.format(n_simulations, n_workers))
 
     all_rear_end, all_sideswipe, all_near_miss, all_vmt = 0, 0, 0, 0
     initial_update_rate, cur_update_rate, cur_time_used, cur_timesteps = 0, 0, 0, 0
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     batch_iters = int(n_simulations // batch_size)
     leftover = n_simulations - batch_iters * batch_size
     batch_iters = batch_iters + 1 if leftover > 0 else batch_iters
-    print('Working on first simulation...')
+    print('\nWorking on first simulation...')
     pbar = tqdm.tqdm(range(n_simulations), total=n_simulations)
 
     # do parallel simulations in batches

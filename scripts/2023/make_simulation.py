@@ -93,7 +93,7 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
 
     def make_inflow(flow):
         def inflow(timeind):
-            return flow[timeind // interval]
+            return flow[timeind // interval]/3600
         return inflow
 
     main_inflow = make_inflow(list(np.array(upstream_flows)/2))

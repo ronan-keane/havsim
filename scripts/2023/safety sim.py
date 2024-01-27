@@ -142,7 +142,10 @@ if __name__ == '__main__':
         'near misses': all_near_miss,
         'rear ends': all_rear_end,
         'sideswipes': all_sideswipe,
-        'vmt': all_vmt/1609.34
+        'vmt': all_vmt/1609.34,
+        'timesteps_before': 100,
+        'timesteps_after': 5,
+        'dt': .2
     }
     with open('pickle files/' + save_name + '_config'+'.config', 'wb') as f:
         pickle.dump(config, f)

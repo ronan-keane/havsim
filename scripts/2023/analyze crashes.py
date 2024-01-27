@@ -4,26 +4,14 @@ import havsim
 import havsim.plotting as hp
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import animation
 
-# todo need option to not open plots, save only.
-# todo fix title of figures as needed
 # -------  SETTINGS  ------- #
-saved_sim = 'e94_16_17_p2.pkl'
+saved_sim = 'e94_16_17'
 min_crash_plots = 0
-max_crash_plots = 3
-plot_all_together = True
+max_crash_plots = 1
+show_plots = False
 save_plots = True
-
-timesteps_before = 100
-timesteps_after = 5
-dt = .2
 # -------------------------- #
-
-with open('pickle files/'+saved_sim, 'rb') as f:
-    all_vehicles_list, laneinds = pickle.load(f)
-if type(all_vehicles_list[0]) != list:
-    all_vehicles_list = [all_vehicles_list]
 
 
 def prepare_speed_plot(my_veh, start, end, crash_type=None):
@@ -152,6 +140,12 @@ def do_speed_plot(args):
 
 
 if __name__ == '__main__':
+    with open('pickle files/' + saved_sim, 'rb') as f:
+        all_vehicles_list, laneinds = pickle.load(f)
+    with open('pickle files/' + saved_sim + '_config'+'.config', 'rb') as f:
+        config = pickle.load(f)
+    timesteps_before, timesteps_after, dt = config['timesteps_before'], config['timesteps_after'], config['dt']
+
     rear_end, sideswipes, near_misses, severity = [], [], [], []
     n_crashed_veh, n_near_miss_veh = 0, 0
 
@@ -178,8 +172,6 @@ if __name__ == '__main__':
             need_speed_plots = []
             for veh in crash_veh_list[:2]:
                 mem = veh.leadmem[havsim.helper.count_leadmem(veh, veh.crash_time)]
-                if mem[0] is None:
-                    continue
                 if mem[0] in crash_veh_list:
                     need_speed_plots.append(veh)
             if len(need_speed_plots) == 0:
@@ -236,9 +228,12 @@ if __name__ == '__main__':
     print('\nplotting {:n} rear ends, {:n} sideswipes, {:n} near misses'.format(
         len(rear_end[min_crash_plots:max_crash_plots]), len(sideswipes[min_crash_plots:max_crash_plots]),
         len(near_misses[min_crash_plots:max_crash_plots])))
+    fig = plt.figure()
     plt.hist(severity, bins=[0+i*.5 for i in range(20)])
     plt.xlabel('speed difference at crash (m/s)')
     plt.ylabel('frequency')
+    if save_plots:
+        fig.savefig('pickle files/animations/'+saved_sim+'_severity.png', dpi=200)
     for ind_count, cur in enumerate(plot_crashes):
         times, platoon, need_speed_plots, count, my_crash_type = cur
         t_start, t_end = times
@@ -247,19 +242,25 @@ if __name__ == '__main__':
             min_p.append(veh.posmem[max(t_start - veh.start, 0)])
             max_p.append(veh.posmem[min(t_end - veh.start, len(veh.posmem) - 1)])
         sim, siminfo = all_sim[count]
+        title_str = 'Events: '
+        veh = need_speed_plots[0]
+        cur_event = veh.crashed[0] if my_crash_type is None else my_crash_type
+        title_str = title_str + cur_event + ' (vehicle '+str(veh.vehid)+')'
+        for veh in need_speed_plots[1:]:
+            cur_event = veh.crashed[0] if my_crash_type is None else my_crash_type
+            title_str = title_str + ', ' + cur_event + ' (vehicle '+str(veh.vehid)+')'
+
+        crash_str = my_crash_types[ind_count]
+        filename = 'pickle files/animations/' + saved_sim + ' - ' + crash_str
+        save_name = filename if save_plots else None
         ani = hp.animatetraj(sim, siminfo, platoon=[i.vehid for i in platoon], usetime=list(range(t_start, t_end+1)),
-                             spacelim=(min(min_p)-5, max(max_p)+3), lanelim=(3, -1), show_id=True, show_axis=True)
+                             spacelim=(min(min_p)-5, max(max_p)+3), lanelim=(3, -1), show_id=True, show_axis=True,
+                             title=title_str, save_name=save_name)
         all_ani.append(ani)
-        if save_plots:
-            writergif = animation.PillowWriter(fps=30)
-            crash_str = my_crash_types[ind_count]
-            filename = 'pickle files/animations/'+saved_sim+' - '+crash_str+' '+str(inds[ind_count])
-            ani.save(filename+'.gif', writer=writergif)
+
         for counter2, veh in enumerate(need_speed_plots):
             fig = do_speed_plot(prepare_speed_plot(veh, t_start, t_end, crash_type=my_crash_type))
             if save_plots:
                 fig.savefig(filename+' - '+str(counter2)+'.png', dpi=200)
-        if not plot_all_together:
-            plt.show()
-    if plot_all_together:
+    if show_plots:
         plt.show()

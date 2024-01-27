@@ -975,7 +975,8 @@ def compute_line_data(headway, i, lentail, dataset, veh_id, time):
 
 
 def animatetraj(meas, followerchain, platoon=None, usetime=None, speed_limit=None, show_id=False, interval=10,
-                spacelim=None, lanelim=None, timesteps=10, show_lengths=True, show_axis=False):
+                spacelim=None, lanelim=None, timesteps=10, show_lengths=True, show_axis=False,
+                title=None, save_name=None, fps=20):
     # platoon: if given as a platoon, only plots those vehicles in the platoon (e.g. [1,2,3])
     # usetime: if given as a list, only plots those times in the list (e.g. list(range(1,100)) )
     # speed_limit: speed_limit[0], speed_limit[1] are the speed bounds for coloring (if None, get automatically)
@@ -987,13 +988,18 @@ def animatetraj(meas, followerchain, platoon=None, usetime=None, speed_limit=Non
     # show_lengths: if True, plot vehicles with their actual length. If False, use default value. If float, plot
     #     vehicles with that float as length.
     # show_axis: if True, show x axis (space axis)
+    # title: str to set as title
+    # save_name: filename to save animation to (no file extension)
+    # fps: fps for saved movie
 
     if platoon is not None:
         followerchain = helper.platoononly(followerchain, platoon)
     platoontraj, usetime = helper.arraytraj(meas, followerchain, mytime=usetime, timesteps=timesteps)
 
     fig = plt.figure(figsize=(18, 6))  # initialize figure and axis
-    ax = fig.add_axes([.035, .09, .95, .88])
+    ax = fig.add_axes([.035, .09, .95, .85])
+    if title:
+        ax.set_title(title)
 
     spacelim = (0, 2000) if spacelim is None else spacelim
     lanelim = (3, -1) if lanelim is None else lanelim
@@ -1101,6 +1107,19 @@ def animatetraj(meas, followerchain, platoon=None, usetime=None, speed_limit=Non
         return artists
 
     out = animation.FuncAnimation(fig, aniFunc, init_func=init, frames=len(usetime), interval=interval, blit=True)
+
+    if save_name is not None:
+        try:
+            writer = animation.FFMpegWriter(fps=fps)
+            writer.setup(fig, save_name+'.mp4', dpi=250)
+            out.save(save_name+'.mp4', writer=writer, dpi=250)
+        except Exception as e:
+            print(str(e))
+            print('Failed to save using FFmpeg. Check that you can run ffmpeg -version in command prompt')
+            print('Install guide: https://www.wikihow.com/Install-FFmpeg-on-Windows (restart python after install)')
+            print('Saving as gif instead...')
+            writer = animation.PillowWriter(fps=fps)
+            out.save(save_name+'.gif', writer=writer, dpi=250)
 
     return out
 

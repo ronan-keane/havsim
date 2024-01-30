@@ -5,9 +5,10 @@ import pickle
 import multiprocessing
 import tqdm
 import os
+import sys
 from datetime import datetime
 from time import sleep
-import sys
+
 
 # -------  SETTINGS  ------- #
 save_name = 'e94_16_18'
@@ -16,6 +17,7 @@ n_workers = 1
 batch_size = 120
 save_crashes_only = False if n_simulations == 1 else True
 
+sim_name = 'e94'
 use_times = [16, 18]
 gamma_parameters = [-.07, .35, .5, 2., 2.]
 xi_parameters = [.2, 4]
@@ -134,6 +136,8 @@ if __name__ == '__main__':
         'batch_size': batch_size,
         'n_workers': n_workers,
         'save_crashes_only': save_crashes_only,
+        'sim_name': sim_name,
+        'use_times': use_times,
         'gamma_parameters': gamma_parameters,
         'xi_parameters': xi_parameters,
         'time elapsed': (after-now).total_seconds(),

@@ -303,15 +303,21 @@ class StochasticArrivalFlow:
         """
         self.dist = dist  # distribution
         self.dt = dt
+        assert start >= 0
+        self.start = start
 
         self.arrival_time = dist(start)
         assert self.arrival_time > self.dt
-        assert start >= 0
         self.flow = 1/self.arrival_time
         self.next_time = start + self.arrival_time / self.dt
         self.next_timeind = int(self.next_time) + 1
 
     def __call__(self, timeind):
+        if timeind == self.start:  # automatically reset
+            self.arrival_time = self.dist(timeind)
+            self.flow = 1/self.arrival_time
+            self.next_time = self.start + self.arrival_time / self.dt
+            self.next_timeind = int(self.next_time) + 1
         if timeind == self.next_timeind:
             self.arrival_time = self.dist(timeind)
             self.next_time += self.arrival_time/self.dt

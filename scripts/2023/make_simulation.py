@@ -228,7 +228,7 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
     onramp5_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp5_routes, None, interval)
 
     # define set_upstream method
-    increment_inflow = {'method': 'seql', 'kwargs': {'c': .9}}
+    increment_inflow = {'boundary_type': 'heql', 'kwargs': {'c': .9}}
     main_road.set_upstream(increment_inflow=increment_inflow,  get_inflow={'time_series': main_inflow},
                            new_vehicle=main_newveh)
     onramp1.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp1_inflow},
@@ -269,7 +269,7 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None, timesteps=10000):
 
     mainroad_newveh = veh_parameters(['exit'])
     onramp_newveh = veh_parameters(['main road', 'exit'])
-    increment_inflow = {'method': 'seql2', 'kwargs': {'c': .8, 'eql_speed': True, 'transition': 20}}
+    increment_inflow = {'method': 'heql', 'kwargs': {'c': .8, 'eql_speed': True, 'transition': 20}}
     if main_inflow is None:
         main_inflow = lambda *args: .56
     if onramp_inflow is None:

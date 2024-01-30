@@ -10,15 +10,15 @@ from time import sleep
 import sys
 
 # -------  SETTINGS  ------- #
-save_name = 'e94_0_5_p2'
-n_simulations = 600
+save_name = 'e94_16_18'
+n_simulations = 1
+n_workers = 1
 batch_size = 120
-n_workers = 40
 save_crashes_only = False if n_simulations == 1 else True
 
-use_times = [0, 5]
+use_times = [16, 18]
 gamma_parameters = [-.07, .35, .5, 2., 2.]
-xi_parameters = [.2, 5]
+xi_parameters = [.2, 4]
 # -------------------------- #
 
 

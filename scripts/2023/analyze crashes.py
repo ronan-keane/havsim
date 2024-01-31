@@ -9,8 +9,8 @@ import tqdm
 import sys
 
 # -------  SETTINGS  ------- #
-saved_sim = 'e94_16_17_p2'
-min_crash_plots = 1
+saved_sim = 'e94_16_17_full'
+min_crash_plots = 0
 max_crash_plots = 3
 show_plots = False
 save_plots = True
@@ -274,8 +274,8 @@ if __name__ == '__main__':
             cur_event = veh.crashed[0] if my_crash_type is None else my_crash_type
             title_str = title_str + ', ' + cur_event + ' (vehicle '+str(veh.vehid)+')'
 
-        crash_str = my_crash_types[ind_count]
-        filename = 'pickle files/animations/' + saved_sim + ' - ' + crash_str
+        crash_str, crash_ind = my_crash_types[ind_count], inds[ind_count]
+        filename = 'pickle files/animations/' + saved_sim + ' - ' + crash_str + ' - ' + str(crash_ind)
         save_name = filename if save_plots else None
         ani = hp.animatetraj(sim, siminfo, platoon=[i.vehid for i in platoon], usetime=list(range(t_start, t_end+1)),
                              spacelim=(min(min_p)-5, max(max_p)+3), lanelim=(3, -1), show_id=True, show_axis=True,
@@ -285,7 +285,10 @@ if __name__ == '__main__':
         for counter2, veh in enumerate(need_speed_plots):
             fig = do_speed_plot(prepare_speed_plot(veh, t_start, t_end, crash_type=my_crash_type))
             if save_plots:
-                fig.savefig(filename+' - '+str(counter2)+'.png', dpi=200)
+                if len(need_speed_plots) > 1:
+                    fig.savefig(filename+' - '+str(counter2)+'.png', dpi=200)
+                else:
+                    fig.savefig(filename + '.png', dpi=200)
         pbar.update()
     pbar.close()
     if show_plots:

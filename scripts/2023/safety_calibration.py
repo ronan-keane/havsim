@@ -1,5 +1,8 @@
 import havsim
-
+from make_simulation import e94
+import multiprocessing
+import tqdm
+import sys
 
 def do_simulation():
     return
@@ -23,6 +26,7 @@ def crash_confidence(crashes, n_sims, vmt_sim, z=1.96, inverse=True):
         low: lower confidence interval of crash rate (events/miles)
         high: upper confidence interval of crash rate (events/miles)
     """
+    crashes = crashes if crashes > 0 else 0.69
     mean = crashes/n_sims
     if crashes < 20:
         temp = crashes/n_sims + z**2/(2*n_sims)

@@ -328,12 +328,10 @@ class CrashesSimulation(Simulation):
                     if veh.crashed and lead.crashed:
                         continue
                     if veh in self.maybe_sideswipes:
-                        pass
-                    elif timeind < max(veh.lanemem[-1][1], lead.lanemem[-1][1]) + int(1.8/self.dt) + 1:
-                        if veh.lanemem[-1][1] > lead.lanemem[-1][1]:
-                            self.maybe_sideswipes[veh] = (timeind, lead, veh, veh.lanemem[-2][0])
-                        else:
-                            self.maybe_sideswipes[veh] = (timeind, lead, lead, lead.lanemem[-2][0])
+                        continue
+                    lc_time, changer = self._find_recent_lc_time(veh, lead)
+                    if timeind < lc_time + int(1.8/self.dt) + 1:
+                        self.maybe_sideswipes[veh] = (timeind, lead, changer, changer.lanemem[-2][0])
                     else:
                         crashed = ('rear end', timeind)
                         self._add_new_crash(veh, lead, crashed, timeind)
@@ -343,6 +341,7 @@ class CrashesSimulation(Simulation):
                         self.near_miss_times[veh].append(timeind)
                     elif not veh.crashed:
                         self.near_miss_times[veh] = [timeind]
+
 
     def simulate(self, timesteps=None, pbar=True, verbose=True, return_times=False):
         out = super().simulate(timesteps=timesteps, pbar=pbar, verbose=verbose, return_times=return_times)
@@ -412,6 +411,15 @@ class CrashesSimulation(Simulation):
             if len(times) > 0:
                 veh.near_misses = times
                 self.near_misses.add(veh)
+
+    @staticmethod
+    def _find_recent_lc_time(veh, lead):
+        veh_lc = veh.lanemem[-1][1] if len(veh.lanemem) > 1 else -100000000
+        lead_lc = lead.lanemem[-1][1] if len(lead.lanemem) > 1 else -100000000
+        if lead_lc > veh_lc:
+            return lead_lc, lead
+        else:
+            return veh_lc, veh
 
     @staticmethod
     def _maybe_fix_near_miss(veh, cur_near_miss):

@@ -220,7 +220,7 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
     onramp1_od = np.concatenate([onramp1_od, last_column], axis=1)
 
     vehicle = hs.vehicles.CrashesStochasticVehicle
-    main_newveh = hs.road.make_newveh(make_parameters(.08), vehicle, main_routes, main_od, interval)
+    main_newveh = hs.road.make_newveh(make_parameters(.1), vehicle, main_routes, main_od, interval)
     onramp1_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp1_routes, onramp1_od, interval)
     onramp2_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp2_routes, None, interval)
     onramp3_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp3_routes, None, interval)
@@ -228,20 +228,36 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
     onramp5_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp5_routes, None, interval)
 
     # define set_upstream method
+    # deterministic inflow
+    # main_get_inflow = {'time_series': main_inflow}
+    # onramp1_get_inflow = {'time_series': onramp1_inflow}
+    # onramp2_get_inflow = {'time_series': onramp2_inflow}
+    # onramp3_get_inflow = {'time_series': onramp3_inflow}
+    # onramp4_get_inflow = {'time_series': onramp4_inflow}
+    # onramp5_get_inflow = {'time_series': onramp5_inflow}
+    # stochastic inflow
+    main_get_inflow = {'inflow_type': 'stochastic',
+                       'args': (hs.road.M3Arrivals(main_inflow, 1.2, .95), .2, init_timeind)}
+    onramp1_get_inflow = {'inflow_type': 'stochastic',
+                          'args': (hs.road.M3Arrivals(onramp1_inflow, 1.2, .95), .2, init_timeind)}
+    onramp2_get_inflow = {'inflow_type': 'stochastic',
+                          'args': (hs.road.M3Arrivals(onramp2_inflow, 1.2, .95), .2, init_timeind)}
+    onramp3_get_inflow = {'inflow_type': 'stochastic',
+                          'args': (hs.road.M3Arrivals(onramp3_inflow, 1.2, .95), .2, init_timeind)}
+    onramp4_get_inflow = {'inflow_type': 'stochastic',
+                          'args': (hs.road.M3Arrivals(onramp4_inflow, 1.2, .95), .2, init_timeind)}
+    onramp5_get_inflow = {'inflow_type': 'stochastic',
+                          'args': (hs.road.M3Arrivals(onramp5_inflow, 1.2, .95), .2, init_timeind)}
+
     increment_inflow = {'boundary_type': 'seql', 'kwargs': {'c': .9}}
     increment_inflow2 = {'boundary_type': 'heql', 'kwargs': {}}
-    main_road.set_upstream(increment_inflow=increment_inflow,  get_inflow={'time_series': main_inflow},
-                           new_vehicle=main_newveh)
-    onramp1.set_upstream(increment_inflow=increment_inflow2, get_inflow={'time_series': onramp1_inflow},
-                         new_vehicle=onramp1_newveh)
-    onramp2.set_upstream(increment_inflow=increment_inflow2, get_inflow={'time_series': onramp2_inflow},
-                         new_vehicle=onramp2_newveh)
-    onramp3.set_upstream(increment_inflow=increment_inflow2, get_inflow={'time_series': onramp3_inflow},
-                         new_vehicle=onramp3_newveh)
-    onramp4.set_upstream(increment_inflow=increment_inflow2, get_inflow={'time_series': onramp4_inflow},
-                         new_vehicle=onramp4_newveh)
-    onramp5.set_upstream(increment_inflow=increment_inflow2, get_inflow={'time_series': onramp5_inflow},
-                         new_vehicle=onramp5_newveh)
+
+    main_road.set_upstream(increment_inflow=increment_inflow,  get_inflow=main_get_inflow, new_vehicle=main_newveh)
+    onramp1.set_upstream(increment_inflow=increment_inflow2, get_inflow=onramp1_get_inflow, new_vehicle=onramp1_newveh)
+    onramp2.set_upstream(increment_inflow=increment_inflow2, get_inflow=onramp2_get_inflow, new_vehicle=onramp2_newveh)
+    onramp3.set_upstream(increment_inflow=increment_inflow2, get_inflow=onramp3_get_inflow, new_vehicle=onramp3_newveh)
+    onramp4.set_upstream(increment_inflow=increment_inflow2, get_inflow=onramp4_get_inflow, new_vehicle=onramp4_newveh)
+    onramp5.set_upstream(increment_inflow=increment_inflow2, get_inflow=onramp5_get_inflow, new_vehicle=onramp5_newveh)
 
     simulation = hs.simulation.CrashesSimulation(
         roads=[main_road, onramp1, onramp2, onramp3, onramp4, onramp5, offramp1, offramp2, offramp3], dt=dt,

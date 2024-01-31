@@ -282,10 +282,10 @@ class Vehicle:
         self.npr = np.random.default_rng(seed=seed)
 
         # parameters
-        self.cf_parameters = cf_parameters if cf_parameters is not None else [34, 1.2, 3, 1.5, 1.6]
-        self.lc_parameters = lc_parameters if lc_parameters is not None else [-6.5, -8, .5, .1, 0, 0, .2, 6, 80]
-        self.lc2_parameters = lc2_parameters if lc2_parameters is not None else [2, 2, 1, -1.2, 1, .2]
-        self.relax_parameters = relax_parameters if relax_parameters is not None else [9, 4.5, .6, 2.]
+        self.cf_parameters = cf_parameters if cf_parameters is not None else [37.5, 1.17, 3, 1.7, 1.5]
+        self.lc_parameters = lc_parameters if lc_parameters is not None else [-11, -10, .3, .03, 0, 0, .1, 5, 100]
+        self.lc2_parameters = lc2_parameters if lc2_parameters is not None else [1, 2, 1, -1, 1, .5]
+        self.relax_parameters = relax_parameters if relax_parameters is not None else [11., 4.5, .6, 2.]
         self.route_parameters = route_parameters if route_parameters is not None else [300, 500]
 
         # bounds

@@ -4,7 +4,7 @@ import havsim.simulation as hs
 import havsim.plotting as hp
 import matplotlib.pyplot as plt
 
-with open('pickle files/e94_16_18.pkl', 'rb') as f:
+with open('pickle files/e94_16_19_full.pkl', 'rb') as f:
     all_vehicles, lanes = pickle.load(f)
 
 all_vehicles = hs.vehicles.reload(all_vehicles[0], lanes)
@@ -18,12 +18,12 @@ sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (7300, 9300))
 # hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[288000, 300000], colorcode=True)
 # hp.platoonplot(sim, None, siminfo, lane=0, opacity=0, timerange=[1000, 3000], colorcode=False)
 
-hp.plotflows(sim, [[9230, 9330], [11000, 11100]], [18000*16, 18000*18], 300, h=.2)
+hp.plotflows(sim, [[8900, 9000], [9300, 9400]], [18000*16, 18000*19], 300, h=.2)
 
-ani2 = hp.animatetraj(sim2, siminfo2, usetime=list(range(int(18000*16.5), int(18000*16.9))), show_id=False,
-                      spacelim=(8700, 9300), lanelim=(3.5, -1), interval=10)
+ani2 = hp.animatetraj(sim2, siminfo2, usetime=list(range(int(18000*18.5), int(18000*18.9))), show_id=False,
+                      spacelim=(8400, 9300), lanelim=(3.5, -1), interval=10)
 
-hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 35))
+hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 40))
 # hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=0, speed_bounds=(0, 35))
 
 plt.show()

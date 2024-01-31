@@ -400,6 +400,8 @@ def eql_speed_headway(curlane, inflow, timeind, v_low=1, a_min=-0.35, min_speed=
     cf_model, cf_params = newveh.cf_model, newveh.cf_parameters
 
     if eql_hd >= hd:
+        if hd < 0:
+            return None
         spd = max(lspd-v_low, min_speed)
         acc = cf_model(cf_params, [hd, spd, lspd])
         if acc > a_min:

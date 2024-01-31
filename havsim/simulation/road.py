@@ -390,7 +390,7 @@ def eql_speed_headway(curlane, inflow, timeind, v_low=1, a_min=-0.35, min_speed=
             return None
     else:
         acc = cf_model(cf_params, [hd, lspd, lspd])
-        spd = estimate_speed_for_zero_acc(cf_model, cf_params, hd, lspd, lspd, acc, None, tol)
+        spd = estimate_speed_for_zero_acc(cf_model, cf_params, hd, lspd, lspd, acc, newveh.maxspeed, tol)
         return curlane.start, spd, hd
 
 

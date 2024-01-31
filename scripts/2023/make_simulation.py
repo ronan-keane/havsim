@@ -220,7 +220,7 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
     onramp1_od = np.concatenate([onramp1_od, last_column], axis=1)
 
     vehicle = hs.vehicles.CrashesStochasticVehicle
-    main_newveh = hs.road.make_newveh(make_parameters(.1), vehicle, main_routes, main_od, interval)
+    main_newveh = hs.road.make_newveh(make_parameters(.08), vehicle, main_routes, main_od, interval)
     onramp1_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp1_routes, onramp1_od, interval)
     onramp2_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp2_routes, None, interval)
     onramp3_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp3_routes, None, interval)
@@ -228,18 +228,19 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
     onramp5_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp5_routes, None, interval)
 
     # define set_upstream method
-    increment_inflow = {'boundary_type': 'heql', 'kwargs': {'c': .9}}
+    increment_inflow = {'boundary_type': 'seql', 'kwargs': {'c': .9}}
+    increment_inflow2 = {'boundary_type': 'heql', 'kwargs': {}}
     main_road.set_upstream(increment_inflow=increment_inflow,  get_inflow={'time_series': main_inflow},
                            new_vehicle=main_newveh)
-    onramp1.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp1_inflow},
+    onramp1.set_upstream(increment_inflow=increment_inflow2, get_inflow={'time_series': onramp1_inflow},
                          new_vehicle=onramp1_newveh)
-    onramp2.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp2_inflow},
+    onramp2.set_upstream(increment_inflow=increment_inflow2, get_inflow={'time_series': onramp2_inflow},
                          new_vehicle=onramp2_newveh)
-    onramp3.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp3_inflow},
+    onramp3.set_upstream(increment_inflow=increment_inflow2, get_inflow={'time_series': onramp3_inflow},
                          new_vehicle=onramp3_newveh)
-    onramp4.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp4_inflow},
+    onramp4.set_upstream(increment_inflow=increment_inflow2, get_inflow={'time_series': onramp4_inflow},
                          new_vehicle=onramp4_newveh)
-    onramp5.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp5_inflow},
+    onramp5.set_upstream(increment_inflow=increment_inflow2, get_inflow={'time_series': onramp5_inflow},
                          new_vehicle=onramp5_newveh)
 
     simulation = hs.simulation.CrashesSimulation(
@@ -263,13 +264,13 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None, timesteps=10000):
 
     def veh_parameters(route):
         def newveh(self, vehid, timeind):
-            kwargs = hs.models.default_parameters()
+            kwargs = hs.models.default_parameters(truck_prob=.05)
             self.newveh = hs.Vehicle(vehid, self, **kwargs, route=route.copy())
         return newveh
 
     mainroad_newveh = veh_parameters(['exit'])
     onramp_newveh = veh_parameters(['main road', 'exit'])
-    increment_inflow = {'method': 'heql', 'kwargs': {'c': .8, 'eql_speed': True, 'transition': 20}}
+    increment_inflow = {'boundary_type': 'seql2', 'kwargs': {'c': .8, 'eql_speed': True, 'transition': 20}}
     if main_inflow is None:
         main_inflow = lambda *args: .56
     if onramp_inflow is None:

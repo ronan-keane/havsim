@@ -11,16 +11,16 @@ from time import sleep
 
 
 # -------  SETTINGS  ------- #
-save_name = 'e94_16_19_full'
+save_name = 'e94_15_19_full_2'
 n_simulations = 1
 n_workers = 1
 batch_size = 150
 save_crashes_only = False if n_simulations == 1 else True
 
 sim_name = 'e94'
-use_times = [16, 19]
-gamma_parameters = [-.1, .33, .5, 2., 2.]
-xi_parameters = [.2, 4]
+use_times = [15, 19]
+gamma_parameters = [-.1, .33, .5, 2.0, 3]
+xi_parameters = [.2, 3]
 # -------------------------- #
 
 

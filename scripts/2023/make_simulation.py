@@ -220,7 +220,7 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
     onramp1_od = np.concatenate([onramp1_od, last_column], axis=1)
 
     vehicle = hs.vehicles.CrashesStochasticVehicle
-    main_newveh = hs.road.make_newveh(make_parameters(.1), vehicle, main_routes, main_od, interval)
+    main_newveh = hs.road.make_newveh(make_parameters(.08), vehicle, main_routes, main_od, interval)
     onramp1_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp1_routes, onramp1_od, interval)
     onramp2_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp2_routes, None, interval)
     onramp3_newveh = hs.road.make_newveh(make_parameters(), vehicle, onramp3_routes, None, interval)

@@ -9,9 +9,9 @@ import tqdm
 import sys
 
 # -------  SETTINGS  ------- #
-saved_sim = 'e94_16_17_full'
+saved_sim = 'e94_16_17_3'
 min_crash_plots = 0
-max_crash_plots = 3
+max_crash_plots = 1
 show_plots = False
 save_plots = True
 # -------------------------- #
@@ -198,6 +198,8 @@ if __name__ == '__main__':
             need_speed_plots = []
             for veh in crash_veh_list[:2]:
                 mem = veh.leadmem[havsim.helper.count_leadmem(veh, veh.crash_time)]
+                if mem[0] is None:
+                    continue
                 if mem[0] in crash_veh_list:
                     need_speed_plots.append(veh)
             if len(need_speed_plots) == 0:
@@ -211,7 +213,10 @@ if __name__ == '__main__':
                         sideswipes.append(((t_start, t_end), platoon, need_speed_plots, count, None))
                     break
             veh1, veh2 = crash_veh_list[0], crash_veh_list[1]
-            severity.append(abs(veh1.speedmem[veh1.crash_time-veh1.start]-veh2.speedmem[veh2.crash_time-veh2.start]))
+            try:
+                severity.append(abs(veh1.speedmem[veh1.crash_time-veh1.start]-veh2.speedmem[veh2.crash_time-veh2.start]))
+            except:
+                pass
             for veh in crash_veh_list[2:]:
                 other = veh.leadmem[havsim.helper.count_leadmem(veh, veh.crash_time)][0]
                 if veh.crashed[0] == 'sideswipe':

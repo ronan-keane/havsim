@@ -24,7 +24,7 @@ if make_plots:
     # hp.platoonplot(sim, None, siminfo, lane=1, opacity=0, timerange=[1000, 5000])
 
     # hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=1, speed_bounds=(0, 35))
-    hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=0, speed_bounds=(0, 35))
+    hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=0, speed_bounds=(0, 40))
 
     hp.plotflows(sim, [[800, 900], [1400, 1500]], [0, timesteps], 300, h=.2)
 

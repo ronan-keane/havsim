@@ -204,7 +204,7 @@ def get_inflow_wrapper(inflow_type='flow', time_series=None, args=(None,)):
             Returns:
                 flow: flow in veh/sec if inflow_type = 'flow', or speed in m/s if inflow_type = 'speed'
                 speed: speed if inflow_type = 'flow speed'
-        args: tuple of arguments to be passed to StochasticArrivalFlow if inflow_type is 'arrivals'.
+        args: tuple of arguments to be passed to StochasticArrivalFlow if inflow_type is 'stochastic'.
 
     Returns:
         get_inflow method for a Lane. (note that get_inflow must be bound to the Lane)
@@ -255,7 +255,7 @@ def get_inflow_wrapper(inflow_type='flow', time_series=None, args=(None,)):
 
         case _:
             raise RuntimeError('invalid inflow_type. Should be one of \'flow\', \'flow speed\', \'speed\', '
-                               '\'stochastic\', received '+str(inflow_type))
+                               '\'stochastic\'. Received '+str(inflow_type))
 
     return get_inflow
 
@@ -270,20 +270,39 @@ def timeseries_wrapper(timeseries, starttimeind=0):
 class M3Arrivals:
     """Generates random arrival times according to the M3 Model (Cowan, 1975)."""
 
-    def __init__(self, q, tm, alpha):
+    def __init__(self, q, tm, alpha, max_t=30.):
         """Inits object whose call method generates arrival times.
 
         Args:
-            q (float): the (expected) flow rate q  (units of veh/sec)
+            q (callable): function which accepts timeind, returns current flow rate  (units of veh/sec)
             tm (float): the minimum possible time headway
             alpha (float): (1- alpha) is the probability having tm arrival time
+            max_t (float): maximum possible arrival time. Used in case q ~= 0.
         """
+        self.q = q
+        self.tm = tm
+        self.alpha = alpha
+        self.max_t = max_t
+
+    def __call__(self, timeind):
+        """Returns a random arrival time sampled from the distribution."""
+        y = np.random.rand()
+        q = self.q(timeind)
+        lam = self.alpha*q/(1-self.tm*q) if q != 0 else 1e-6
+        if y >= self.alpha:
+            return self.tm
+        else:
+            return min(-math.log(y/self.alpha)/lam + self.tm, self.max_t)
+
+
+class M3ArrivalsFixed:
+    """Like M3Arrivals, but the flow q is constant, instead of a callable which accepts a timeind."""
+    def __init__(self, q, tm, alpha):
         self.tm = tm
         self.alpha = alpha
         self.lam = alpha*q/(1-tm*q)   # reads as lambda
 
     def __call__(self, *args):
-        """Returns a random arrival time sampled from the distribution."""
         y = np.random.rand()
         if y >= self.alpha:
             return self.tm

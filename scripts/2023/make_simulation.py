@@ -252,7 +252,7 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
     return simulation, lanes
 
 
-def merge_bottleneck(main_inflow=None, onramp_inflow=None, timesteps=10000):
+def merge_bottleneck(main_inflow=None, onramp_inflow=None, timesteps=18000):
     """Test simulation of merge bottleneck."""
     main_road = hs.Road(num_lanes=2, length=2000, name='main road')
     main_road.connect('exit', is_exit=True)
@@ -272,14 +272,16 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None, timesteps=10000):
     onramp_newveh = veh_parameters(['main road', 'exit'])
     increment_inflow = {'boundary_type': 'seql2', 'kwargs': {'c': .8, 'eql_speed': True, 'transition': 20}}
     if main_inflow is None:
-        main_inflow = lambda *args: .56
+        main_inflow = lambda timeind: 3200 / 3600 / 2 * min(timeind, 10000) / 10000
     if onramp_inflow is None:
-        onramp_inflow = lambda *args: .11111
+        onramp_inflow = lambda timeind: 600 / 3600 * min(timeind, 12000) / 12000
 
-    main_road.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': main_inflow},
-                           new_vehicle=mainroad_newveh)
-    onramp.set_upstream(increment_inflow=increment_inflow, get_inflow={'time_series': onramp_inflow},
-                        new_vehicle=onramp_newveh)
+    # main_get_inflow = {'time_series': main_inflow}
+    # onramp_get_inflow = {'time_series': onramp_inflow}
+    main_get_inflow = {'inflow_type': 'stochastic', 'args': (hs.road.M3Arrivals(main_inflow, 1.1, .95), .2, 0)}
+    onramp_get_inflow = {'inflow_type': 'stochastic', 'args': (hs.road.M3Arrivals(onramp_inflow, 1.1, .95), .2, 0)}
+    main_road.set_upstream(increment_inflow=increment_inflow, get_inflow=main_get_inflow, new_vehicle=mainroad_newveh)
+    onramp.set_upstream(increment_inflow=increment_inflow, get_inflow=onramp_get_inflow, new_vehicle=onramp_newveh)
     simulation = hs.Simulation(roads=[main_road, onramp], dt=.2, timesteps=timesteps)
     lanes = {main_road[0]: 0, main_road[1]: 1, onramp[0]: 2}
 

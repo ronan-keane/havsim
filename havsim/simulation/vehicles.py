@@ -631,8 +631,6 @@ class Vehicle:
         leadmem = [(veh_to_id(curmem[0]), curmem[1]) for curmem in state['leadmem']]
         state['leadmem'], state['rlead'], state['llead'] = leadmem, rlead, llead
         # simplify memory
-        if 'rvmem' in state:
-            state['rvmem'] = []
         if len(state['speedmem']) > 1 and state['speedmem'][0] != 0:
             dt = (state['posmem'][1] - state['posmem'][0])/state['speedmem'][0]
             state['posmem'] = (state['posmem'][0], dt)

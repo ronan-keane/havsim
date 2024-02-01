@@ -11,16 +11,16 @@ from time import sleep
 
 
 # -------  SETTINGS  ------- #
-save_name = 'e94_16_17_6'
-n_simulations = 300
-n_workers = 50
+save_name = 'e94_14_15_full'
+n_simulations = 1
+n_workers = 1
 batch_size = 150
 save_crashes_only = False if n_simulations == 1 else True
 
 sim_name = 'e94'
-use_times = [16, 17]
-gamma_parameters = [-.08, .35, .5, 2.0, 1.5]
-xi_parameters = [.2, 5]
+use_times = [14, 15]
+gamma_parameters = [-.1, .4, .3, 1.5, 1.5]
+xi_parameters = [.2, 3]
 # -------------------------- #
 
 
@@ -101,11 +101,11 @@ if __name__ == '__main__':
             vmt_miles = all_vmt/1609.34
             crash_stats = (vmt_miles/max(all_rear_end, .69), vmt_miles/max(all_sideswipe, .69),
                            vmt_miles/max(all_near_miss, .69))
-            sim_stats = (vmt_miles/cur_iter, cur_timesteps/cur_time_used, cur_time_used/(count+1))
+            sim_stats = (vmt_miles, cur_timesteps/cur_time_used, cur_time_used/(count+1))
             pbar.update()
             pbar.set_description('Simulations finished')
             pbar.set_postfix_str('Miles/Event (Rear end/Sideswipe/Near miss): {:.1e}/{:.1e}/{:.1e}'.format(
-                *crash_stats) + ', Miles/Sim: {:.1e}, Steps/Sec: {:.1e}, Secs/Sim:{:.0f}'.format(*sim_stats))
+                *crash_stats) + ', Total Miles: {:.2e}, Steps/Sec: {:.1e}, Secs/Sim:{:.0f}'.format(*sim_stats))
 
         pool.close()
         pool.join()

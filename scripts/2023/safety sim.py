@@ -11,16 +11,16 @@ from time import sleep
 
 
 # -------  SETTINGS  ------- #
-save_name = 'e94_15_19_full_2'
-n_simulations = 1
-n_workers = 1
+save_name = 'e94_16_17_6'
+n_simulations = 300
+n_workers = 50
 batch_size = 150
 save_crashes_only = False if n_simulations == 1 else True
 
 sim_name = 'e94'
-use_times = [15, 19]
-gamma_parameters = [-.1, .33, .5, 2.0, 3]
-xi_parameters = [.2, 3]
+use_times = [16, 17]
+gamma_parameters = [-.08, .35, .5, 2.0, 1.5]
+xi_parameters = [.2, 5]
 # -------------------------- #
 
 
@@ -67,8 +67,9 @@ def do_simulation(show_pbar):
 
 if __name__ == '__main__':
     now = datetime.now()
-    print('Starting at '+now.strftime("%H:%M:%S") + ', simulating times ' + str(use_times) +
+    print('Starting job '+save_name+' at '+now.strftime("%H:%M:%S") + ', simulating times ' + str(use_times) +
           ' for {:n} replications ({:n} workers)'.format(n_simulations, n_workers))
+    print('gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters) + '.')
 
     all_rear_end, all_sideswipe, all_near_miss, all_vmt = 0, 0, 0, 0
     initial_update_rate, cur_update_rate, cur_time_used, cur_timesteps = 0, 0, 0, 0

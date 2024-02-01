@@ -290,7 +290,7 @@ class Vehicle:
 
         # bounds
         if accbounds is None:
-            self.minacc, self.maxacc = -12, None
+            self.minacc, self.maxacc = -12, 8
         else:
             self.minacc, self.maxacc = accbounds[0], accbounds[1]
         self.maxspeed = self.cf_parameters[0] - .2 if maxspeed is None else maxspeed
@@ -869,8 +869,9 @@ class StochasticVehicle(Vehicle):
         super().__init__(vehid, curlane, **kwargs)
         self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.1, .3, .5, 2., 2.]
         self.xi_parameters = xi_parameters if xi_parameters is not None else [.15, 3]
-        self.rvmem = []
         self.lc_accmem = []
+        # self.gammamem = []  # memory of random variables (not currently used)
+        # self.ximem = []
 
         self.prev_acc = 0  # old cf acc
         self.prev_lc_acc = 0  # old lc acc
@@ -898,26 +899,24 @@ class StochasticVehicle(Vehicle):
         return models.stochastic_lc_havsim(self, lc_actions, lc_followers, timeind)
 
     def set_relax(self, timeind, dt):
-        # modify gamma when lane change occurs, according to gamma_parameters[-1]
-        t_left = self.next_t_ind + self.beta - timeind
-        new_gamma = t_left/self.gamma_parameters[-1]
-        bar_gamma = new_gamma // 1.
-        if bar_gamma == 0. and timeind < self.next_t_ind:
-            self.beta = 0
-            self.next_t_ind = timeind + 1
-        else:
-            self.beta = new_gamma - bar_gamma
-            self.next_t_ind = timeind + int(bar_gamma)
+        # modify gamma when lane change occurs, according to gamma_parameters[-1] (if gamma was not already adjusted)
+        if not self.in_relax:
+            t_left = self.next_t_ind + self.beta - timeind
+            new_gamma = t_left/self.gamma_parameters[-1]
+            bar_gamma = new_gamma // 1.
+            if bar_gamma == 0. and timeind < self.next_t_ind:
+                self.beta = 0
+                self.next_t_ind = timeind + 1
+            else:
+                self.beta = new_gamma - bar_gamma
+                self.next_t_ind = timeind + int(bar_gamma)
+            # self.gammamem[-1] = (*self.gammamem[1][:3], True)
 
         models.new_relaxation(self, timeind, dt)
 
     def update(self, timeind, dt):
         if timeind == self.next_t_ind:
             acc = max(abs(self.prev_acc), abs(self.acc + self.lc_acc))
-            if self.in_relax:
-                if self.lead is not None:
-                    no_r_acc = self.cf_model(self.cf_parameters, [self.hd, self.speed, self.lead.speed])
-                    acc = max(acc, abs(no_r_acc))
             gamma = self.sample_gamma(acc, timeind)
             bar_gamma = (gamma / dt) // 1.
             self.beta = gamma / dt - bar_gamma
@@ -932,13 +931,15 @@ class StochasticVehicle(Vehicle):
     def sample_gamma(self, acc, timeind):
         p = self.gamma_parameters
         gamma = np.exp(self.npr.standard_normal()*p[1] + p[0])/(p[2]*acc**2 + p[3]*acc + 1)
-        self.rvmem.append((timeind, acc, gamma))
+        if self.in_relax:
+            gamma = gamma/p[4]
+        # self.gammamem.append((timeind, gamma, acc, self.in_relax))
         return gamma
 
     def sample_xi(self, timeind):
         p = self.xi_parameters
         xi = p[0]/(self.npr.random()**(1/p[1]))-p[0]
-        self.rvmem.append((timeind, xi))
+        # self.ximem.append((timeind, xi))
         return xi
 
 

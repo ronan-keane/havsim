@@ -7,7 +7,7 @@ import math
 import copy
 
 
-def downstream_wrapper(method='speed', time_series=None, congested=True, merge_side='l',
+def downstream_wrapper(method='speed', time_series=None, p=1.5, congested=True, merge_side='l',
                        merge_anchor_ind=None, target_lane=None, self_lane=None, shift=1, minacc=-2,
                        stopping='car following'):
     """Defines call_downstream method for Lane. keyword options control behavior of call_downstream.
@@ -25,6 +25,7 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
             'speed' - Give a function which explicitly returns the speed, and we compute the acceleration.
                 Options -
                 time_series: function takes in timeind, returns speed
+                p: speed adjustment time when following downstream boundary
 
             'free' - We use the vehicle's free_cf method to update the acceleration. This is as if vehicles
             can exit the simulation as quickly as possible.
@@ -36,6 +37,7 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
                 Options -
                 time_series: function takes in timeind, returns flow
                 congested: whether to assume flow is in congested or free flow branch
+                p: speed adjustment time when following downstream boundary
 
             'free merge' - We use the vehicle's free flow method to update, unless we are getting too close
             to the end of the road, in which case we ensure the Vehicle will stop before reaching the end of
@@ -83,7 +85,7 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
     if method == 'speed':  # specify a function which takes in time and returns the speed
         def call_downstream(self, veh, timeind):
             speed = time_series(timeind)
-            return veh.acc_bounds((speed - veh.speed)/self.dt)
+            return veh.acc_bounds((speed - veh.speed)/p)
         return call_downstream
 
     # options - none
@@ -97,10 +99,10 @@ def downstream_wrapper(method='speed', time_series=None, congested=True, merge_s
         def call_downstream(self, veh, timeind):
             flow = time_series(timeind)
             speed = veh.inv_flow(flow, output_type='v', congested=congested)
-            return (speed - veh.speed)/self.dt
+            return veh.acc_bounds((speed - veh.speed)/p)
         return call_downstream
 
-    # options - minacc, self_lane
+    # options - minacc, self_lane, time_series
     elif method == 'free merge':  # use free flow method of the vehicle, stop at end of lane
         endanchor = AnchorVehicle(self_lane, None)
         endanchor.pos = self_lane.end

@@ -24,10 +24,11 @@ if __name__ == '__main__':
     # hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[288000, 300000], colorcode=True)
     # hp.platoonplot(sim, None, siminfo, lane=0, opacity=0, timerange=[1000, 3000], colorcode=False)
 
-    hp.plotflows(sim, [[8000, 8100], [9300, 9400]], [18000*use_times[0], 18000*use_times[1]], 300, h=.2)
+    hp.plotflows(sim, [[8000, 8100], [8800, 8900], [9300, 9400]], [18000*use_times[0], 18000*use_times[1]], 300, h=.2)
 
-    # ani2 = hp.animatetraj(sim2, siminfo2, usetime=list(range(int(18000*18.25), int(18000*18.75))), show_id=False,
-    #                       spacelim=(8400, 9300), lanelim=(3.5, -1), interval=10)
+    ani2 = hp.animatetraj(sim2, siminfo2, usetime=list(range(int(18000*18.25), int(18000*18.75))), show_id=False,
+                          spacelim=(8400, 9300), lanelim=(3.5, -1), interval=10,
+                          save_name='pickle files/animations/'+filename+'_animation')
 
     # hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 40))
     # hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=0, speed_bounds=(0, 35))

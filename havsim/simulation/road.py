@@ -853,7 +853,7 @@ def get_headway(veh, lead):
     """Calculates distance from Vehicle veh to the back of Vehicle lead."""
     hd = lead.pos - veh.pos - lead.len
     if veh.road != lead.road:
-        hd += veh.lane.roadlen[lead.road]  # lead.road is hashable because its a string
+        hd += veh.lane.roadlen[lead.road]
     return hd
 
 
@@ -861,7 +861,7 @@ def get_dist(veh, lead):
     """Calculates distance from veh to the front of lead."""
     dist = lead.pos-veh.pos
     if veh.road != lead.road:
-        dist += veh.lane.roadlen[lead.road]  # lead.road is hashable because its a string
+        dist += veh.lane.roadlen[lead.road]
     return dist
 
 
@@ -905,7 +905,8 @@ class Lane:
         connect_to: what the end of Lane connects to. Can be None (no connection or exit)
         connections: for making routes - refer to update_lane_routes.make_cur_route
         anchor: AnchorVehicle for lane
-        roadlen: defines distance between Lane's road and other roads.
+        roadlen: defines distance between Lane's road and other roads. Keys are roads, value is float distance
+            which is added to the base headway to get the correct headway.
         merge_anchors: any merge anchors for the lane (see update_lane_routes.update_merge_anchors).
             List of list, where each inner list is a pair of [merge_anchor, position].
         events: lane events (see update_lane_events)
@@ -915,7 +916,7 @@ class Lane:
     """
 
     def __init__(self, start, end, road, laneind, connect_left=None, connect_right=None, connect_to=None,
-                 downstream=None, increment_inflow=None, get_inflow=None, new_vehicle=None, dt=None):
+                 roadlen=None, downstream=None, increment_inflow=None, get_inflow=None, new_vehicle=None, dt=None):
         """Inits Lane. Note methods for boundary conditions are defined (and bound) here.
 
         Args:
@@ -928,6 +929,7 @@ class Lane:
             connect_right: list of tuples where each tuple is a (Lane or None, position) pair such that Lane
                 is the right connection of self starting at position.
             connect_to: Lane or None which a Vehicle transitions to after reaching end of Lane
+            roadlen: roadlen dictionary, if available, or None
             downstream: dictionary of keyword args which defines call_downstream method, or None
             increment_inflow: dictionary of keyword args which defines increment_inflow method, or None
             get_inflow: dictionary of keyword args which defines increment_inflow method, or None
@@ -947,7 +949,7 @@ class Lane:
         self.connections = {}
         self.dt = dt
 
-        self.roadlen = {self.roadname: 0}
+        self.roadlen = {self.roadname: 0} if roadlen is None else roadlen
         self.events = []
         self.anchor = AnchorVehicle(self, self.start)
         self.merge_anchors = []
@@ -1336,13 +1338,9 @@ class Road:
 
         # Construct lane objects for the road
         self.lanes = []
-        # All lanes will share the same roadlen dictionary,
-        # this is convenient for updating roadlen
         roadlen = {name: 0}
         for i in range(num_lanes):
-            lane = Lane(start=length[i][0], end=length[i][1], road=self, laneind=i)
-            # Overwrite the default roadlen to be the shared one
-            lane.roadlen = roadlen
+            lane = Lane(start=length[i][0], end=length[i][1], road=self, laneind=i, roadlen=roadlen)
             self.lanes.append(lane)
 
         # Connect adjacent lanes
@@ -1412,8 +1410,7 @@ class Road:
             # have the same start position
             assert all_self_lanes_end and min(all_self_lanes_end) == max(all_self_lanes_end)
             assert all_new_lanes_start and min(all_new_lanes_start) == max(all_new_lanes_start)
-            # Since roadlen dict is shared across all lanes, we only need to update it via one of
-            # the lanes
+            # update roadlen
             self.lanes[0].roadlen[new_road.name] = all_self_lanes_end[0] - all_new_lanes_start[0]
             new_road.lanes[0].roadlen[self.name] = all_new_lanes_start[0] - all_self_lanes_end[0]
             for i in range(self.num_lanes):

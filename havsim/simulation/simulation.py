@@ -294,23 +294,33 @@ class CrashesSimulation(Simulation):
         remove_veh = []
         for veh in self.maybe_sideswipes:
             lc_timeind, lead, changer, prev_lane = self.maybe_sideswipes[veh]
-            if veh.lead != lead:  # another lane change occurred
+            if veh.lead is None:
+                if lead.end:
+                    remove_veh.append(veh)
+                    continue
+                check_crash = True
+            elif veh.lead != lead:
+                check_crash = True
+            else:
+                check_crash = False
+
+            if check_crash:
                 new_changer = veh if veh.lanemem[-1][1] > lc_timeind else lead
                 if new_changer == changer:
                     if new_changer.lane.anchor == prev_lane.anchor:
-                        pass
+                        pass  # sideswipe is avoided by aborting the lane change
                     else:
                         crashed = ('sideswipe', timeind)
                         self._add_new_crash(veh, lead, crashed, timeind)
                 elif new_changer.lane.anchor != prev_lane.anchor:
-                    pass
+                    pass  # sideswipe is avoided by vehicle in target lane making lane change
                 else:
                     crashed = ('sideswipe', timeind)
                     self._add_new_crash(veh, lead, crashed, timeind)
                 remove_veh.append(veh)
                 continue
 
-            if veh.hd > 0:
+            if veh.hd > 0:  # sideswipe was avoided before lane change completes
                 remove_veh.append(veh)
             elif timeind > lc_timeind + int(1.8/self.dt):  # lane change completes
                 crashed = ('sideswipe', timeind)

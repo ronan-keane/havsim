@@ -572,6 +572,7 @@ def stochastic_lc_havsim(veh, lc_actions, lc_followers, timeind):
         new_lcfol = veh.lfol
         new_lcfol_hd, new_veh_hd, new_lcfol_a, new_veh_a = new_hd_acc_under_lc(new_lcfol, veh, timeind)
 
+    xi = veh.sample_xi(timeind)
     if veh.in_disc:  # discretionary update
         if veh.is_coop:  # if cooperating, make sure the incentive includes lc_acceleration
             if veh.lc_acc == 0:
@@ -580,11 +581,12 @@ def stochastic_lc_havsim(veh, lc_actions, lc_followers, timeind):
                 check_coop_and_apply(veh, ego_veh, veh.lc2_parameters, ego_safety, timeind)
             incentive -= veh.lc_acc
 
+        incentive = incentive + 2 * p[3] * xi
         if incentive > p[2]:
             if timeind < veh.disc_cooldown:
                 return lc_actions, lc_followers
             safety = p[0]
-            stochastic_safety = safety - veh.sample_xi(timeind)
+            stochastic_safety = safety - xi
             fol_safe, veh_safe = new_lcfol_a > stochastic_safety, new_veh_a > stochastic_safety
             if fol_safe and veh_safe:
                 return complete_change(lc_actions, lc_followers, veh, new_lcfol)
@@ -613,7 +615,7 @@ def stochastic_lc_havsim(veh, lc_actions, lc_followers, timeind):
 
     else:  # mandatory update
         safety = p[1]
-        stochastic_safety = safety - veh.sample_xi(timeind)
+        stochastic_safety = safety - xi
         fol_safe, veh_safe = new_lcfol_a > stochastic_safety, new_veh_a > stochastic_safety
         if fol_safe and veh_safe:
             return complete_change(lc_actions, lc_followers, veh, new_lcfol)

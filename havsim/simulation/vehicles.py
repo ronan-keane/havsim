@@ -276,7 +276,7 @@ class Vehicle:
         self.vehid = vehid
         self.len = length
         self.lane = curlane
-        self.road = curlane.road.name if curlane is not None else None
+        self.road = curlane.road if curlane is not None else None
         self.route = [] if route is None else route
         self.routemem = self.route.copy()
         self.npr = np.random.default_rng(seed=seed)

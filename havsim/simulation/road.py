@@ -903,7 +903,24 @@ class Lane:
         connect_left: defines left connections for Lane
         connect_right: defines right connections for Lane
         connect_to: what the end of Lane connects to. Can be None (no connection or exit)
-        connections: for making routes - refer to update_lane_routes.make_cur_route
+        connections: for making routes. Dict where keys are roads and value is a tuple of:
+            pos: for 'continue' change_type, a float which gives the position that the current road
+                changes to the desired road.
+                for 'merge' type, a tuple of the first position that changing into the desired road
+                becomes possible, and the last position where it is still possible to change into that road.
+            change_type: if 'continue', this corresponds to the case where the current road turns into
+                the next road in the route; the vehicle still needs to make sure it is in the right lane
+                (different lanes may transition to different roads)
+                if 'merge', this is the situation where the vehicle needs to change lanes onto a different road.
+                Thus in the 'merge' case after completing its lane change, the vehicle is on the next desired
+                road, in contrast to the continue case where the vehicle actually needs to reach the end of
+                the lane in order to transition.
+            laneind: if 'continue', a tuple of 2 ints, giving the leftmost and rightmost lanes which will
+                continue to the desired lane. if 'merge', the laneind of the lane we need to be on to merge.
+            side: for 'merge' type only, gives whether we want to do a left or right change upon reaching
+                laneind ('l_lc' or 'r_lc')
+            nextroad: desired road
+            refer also to update_lane_routes.make_cur_route.
         anchor: AnchorVehicle for lane
         roadlen: defines distance between Lane's road and other roads. Keys are roads, value is float distance
             which is added to the base headway to get the correct headway.
@@ -1072,7 +1089,6 @@ class Lane:
         if type(other) != Lane:
             return False
         return self.roadname == other.roadname and self.laneind == other.laneind
-        # return self is other
 
     def __ne__(self, other):
         """Comparison for Lanes using !=."""
@@ -1338,7 +1354,7 @@ class Road:
 
         # Construct lane objects for the road
         self.lanes = []
-        roadlen = {name: 0}
+        roadlen = {self: 0}
         for i in range(num_lanes):
             lane = Lane(start=length[i][0], end=length[i][1], road=self, laneind=i, roadlen=roadlen)
             self.lanes.append(lane)
@@ -1406,13 +1422,22 @@ class Road:
 
             all_self_lanes_end = tuple([self.lanes[i].end for i in self_indices])
             all_new_lanes_start = tuple([new_road.lanes[i].start for i in new_road_indices])
-            # It's assumed that all self lanes have the same end position and all new lanes
-            # have the same start position
+            # It's assumed that all lanes should share the same distance measurements
             assert all_self_lanes_end and min(all_self_lanes_end) == max(all_self_lanes_end)
             assert all_new_lanes_start and min(all_new_lanes_start) == max(all_new_lanes_start)
             # update roadlen
-            self.lanes[0].roadlen[new_road.name] = all_self_lanes_end[0] - all_new_lanes_start[0]
-            new_road.lanes[0].roadlen[self.name] = all_new_lanes_start[0] - all_self_lanes_end[0]
+            self_roadlen = self.lanes[0].roadlen
+            new_roadlen = new_road.lanes[0].roadlen
+            new_to_self = all_new_lanes_start[0] - all_self_lanes_end[0]
+            self_to_new = all_self_lanes_end[0] - all_new_lanes_start[0]
+            self_roadlen[new_road] = self_to_new
+            new_roadlen[self] = new_to_self
+            all_new_roads = new_roadlen.keys()
+            for cur_new_road in all_new_roads:
+                if cur_new_road == new_road.name or cur_new_road == self.name:
+                    continue
+                self_roadlen[cur_new_road.name] = self_to_new + new_roadlen[cur_new_road.name]
+                new_road.lanes[0].roadlen[self.name] = all_new_lanes_start[0] - all_self_lanes_end[0]
             for i in range(self.num_lanes):
                 if i not in self_indices and hasattr(self.lanes[i], "connect_to") and self.lanes[i].connect_to is not None:
                     self.lanes[i].connect_to.roadlen[new_road.name] = self.lanes[0].roadlen[new_road.name] - self.lanes[0].roadlen[self.lanes[i].connect_to.road.name]
@@ -1613,3 +1638,23 @@ class Road:
     def __getitem__(self, index):
         assert isinstance(index, int) and 0 <= index < self.num_lanes
         return self.lanes[index]
+
+    def __eq__(self, other):
+        """Comparison for Roads using ==."""
+        if type(other) != Road:
+            return False
+        return self.name == other.name and self.num_lanes == other.num_lanes and self.lanes[0].end == other.lanes[0].end
+
+    def __hash__(self):
+        """Hash Road based on road name and number of lanes."""
+        if hasattr(self, 'name'):
+            return hash((self.name, self.num_lanes))
+        else:
+            return super().__hash__()
+
+    def __repr__(self):
+        return self.name
+
+    def __getstate__(self):
+        my_dict = self.__dict__.copy()
+        return my_dict

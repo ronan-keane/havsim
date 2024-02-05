@@ -19,19 +19,19 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
     main_road.connect('exit', is_exit=True)
     offramp1 = hs.Road(num_lanes=1, length=[(475, 675)], name='jackson off ramp')
     main_road.merge(offramp1, self_index=1, new_lane_index=0, self_pos=(475, 660), new_lane_pos=(475, 660))
-    offramp1.connect('offramp 1', is_exit=True)
+    offramp1.connect('jackson offramp exit', is_exit=True)
     onramp1 = hs.Road(num_lanes=1, length=[(1000, 1350)], name='jackson on ramp')
     onramp1.merge(main_road, self_index=0, new_lane_index=1, self_pos=(1100, 1350), new_lane_pos=(1100, 1350))
     offramp2 = hs.Road(num_lanes=1, length=[(5330, 5530)], name='ann arbor saline off ramp')
     main_road.merge(offramp2, self_index=1, new_lane_index=0, self_pos=(5330, 5480), new_lane_pos=(5330, 5480))
-    offramp2.connect('offramp 2', is_exit=True)
+    offramp2.connect('saline offramp exit', is_exit=True)
     onramp2 = hs.Road(num_lanes=1, length=[(5950, 6330)], name='ann arbor saline on ramp SW')
     onramp2.merge(main_road, self_index=0, new_lane_index=1, self_pos=(6050, 6330), new_lane_pos=(6050, 6330))
     onramp3 = hs.Road(num_lanes=1, length=[(6410, 6810)], name='ann arbor saline on ramp NE')
     onramp3.merge(main_road, self_index=0, new_lane_index=1, self_pos=(6610, 6810), new_lane_pos=(6610, 6810))
     offramp3 = hs.Road(num_lanes=1, length=[(7810, 7990)], name='state off ramp')
     main_road.merge(offramp3, self_index=1, new_lane_index=0, self_pos=(7810, 7940), new_lane_pos=(7810, 7940))
-    offramp3.connect('offramp 3', is_exit=True)
+    offramp3.connect('state offramp exit', is_exit=True)
     onramp4 = hs.Road(num_lanes=1, length=[(8310, 8710)], name='state on ramp S')
     onramp4.merge(main_road, self_index=0, new_lane_index=1, self_pos=(8410, 8710), new_lane_pos=(8410, 8710))
     onramp5 = hs.Road(num_lanes=1, length=[(8830, 9230)], name='state on ramp N')
@@ -104,10 +104,10 @@ def e94(times=None, gamma_parameters=None, xi_parameters=None):
     onramp5_inflow = make_inflow(onramp5_flows)
 
     # OD pairs definition
-    main_routes = [['jackson off ramp', 'offramp 1'], ['ann arbor saline off ramp', 'offramp 2'],
-                   ['state off ramp', 'offramp 3'], ['exit']]
-    onramp1_routes = [['E94', 'ann arbor saline off ramp', 'offramp 2'], ['E94', 'state off ramp', 'offramp 3'],
-                      ['E94', 'exit']]
+    main_routes = [['jackson off ramp', 'jackson offramp exit'], ['ann arbor saline off ramp', 'saline offramp exit'],
+                   ['state off ramp', 'state offramp exit'], ['exit']]
+    onramp1_routes = [['E94', 'ann arbor saline off ramp', 'saline offramp exit'],
+                      ['E94', 'state off ramp', 'state offramp exit'], ['E94', 'exit']]
     onramp2_routes = [['E94', 'exit']]
     onramp3_routes = [['E94', 'exit']]
     onramp4_routes = [['E94', 'exit']]

@@ -62,10 +62,10 @@ def update_lane_after_lc(veh, lc, timeind):
     if lc == 'l':
         veh.rlane = veh.lane
         lcsidelane = veh.llane
-        newroadname = lcsidelane.roadname
-        if newroadname != veh.road:
-            veh.pos -= veh.lane.roadlen[newroadname]
-            veh.road = newroadname
+        newroad = lcsidelane.road
+        if newroad != veh.road:
+            veh.pos -= veh.lane.roadlen[newroad]
+            veh.road = newroad
             veh.r_lc = None
         else:
             veh.r_lc = 'd'
@@ -80,10 +80,10 @@ def update_lane_after_lc(veh, lc, timeind):
     else:
         veh.llane = veh.lane
         lcsidelane = veh.rlane
-        newroadname = lcsidelane.roadname
-        if newroadname != veh.road:
-            veh.pos -= veh.lane.roadlen[newroadname]
-            veh.road = newroadname
+        newroad = lcsidelane.road
+        if newroad != veh.road:
+            veh.pos -= veh.lane.roadlen[newroad]
+            veh.road = newroad
             veh.l_lc = None
         else:
             veh.l_lc = 'd'
@@ -273,10 +273,10 @@ def update_new_lane(veh, oldlane, newlane, timeind):
     Returns:
         None. Modifies veh in place
     """
-    newroadname = newlane.roadname
-    if newroadname != veh.road:
-        veh.pos -= oldlane.roadlen[newroadname]
-        veh.road = newroadname
+    newroad = newlane.road
+    if newroad != veh.road:
+        veh.pos -= oldlane.roadlen[newroad]
+        veh.road = newroad
     veh.lane = newlane
     veh.lanemem.append((newlane, timeind))
 
@@ -355,7 +355,7 @@ def make_cur_route(p, curlane, nextroadname):
     Upon entering a new road, we create a cur_route which stores the list of route events for several lanes,
     specifically the lanes we will ultimately end up on, as well as all lanes which we will need to cross
     to reach those lanes we want to be on. We do not create the routes for every single lane on a road.
-    Roads have a connections attribute whose keys are road names and value is a tuple of:
+    Roads have a connections attribute whose keys are road names (str) and value is a tuple of:
         pos: for 'continue' change_type, a float which gives the position that the current road
             changes to the desired road.
             for 'merge' type, a tuple of the first position that changing into the desired road
@@ -382,6 +382,9 @@ def make_cur_route(p, curlane, nextroadname):
     for lane changing with a merge/diverse (e.g. on/off-ramp) which begins at 'x' and ends at 'y',
     you will start mandatory at 'x' always, reaching 100% cooperation by 'y' - p[0]
 
+    Note that if the vehicle cannot follow the route, it will reset to a "default" state where it will always
+    just stay in discretionary state, and will not make any more turns/merges etc.
+
     Args:
         p: parameters, length 2 list of floats, where p[0] controls how quickly a vehicle with mandatory LC can
             force cooperation of the lfol/rfol, larger is faster to force cooperation. p[0] + p[1] is a comfortable
@@ -399,11 +402,6 @@ def make_cur_route(p, curlane, nextroadname):
     curroad = curlane.road
     curlaneind = curlane.laneind
     pos, change_type, laneind, side, nextroad = curlane.connections[nextroadname][:]
-    # if nextroadname in curlane.connections:
-    #     pos, change_type, laneind, side, nextroad = curlane.connections[nextroadname][:]
-    # else:
-    #     print(' vehicle on ' + str(curlane) + ' missed route which planned for going to ' + nextroadname)
-    #     return {i: [] for i in curroad.lanes}
 
     cur_route = {}
     if change_type == 'continue':  # -> vehicle needs to reach end of lane
@@ -571,11 +569,11 @@ def set_route_events(veh, timeind):
         None. Modifies veh attributes in place (route_events, cur_route, possibly applies route events).
     """
 
-    # get new route events if they are stored in memory already
     newlane = veh.lane
-    if newlane in veh.cur_route:
+    if newlane in veh.cur_route:  # get new route events if they are stored in memory already
         veh.route_events = veh.cur_route[newlane].copy()  # route_events store current route events, cur_route
-        # stores all route events for subset of lanes on current road
+        # stores all route events for multiples Lanes of current road
+
     else:
         p = veh.route_parameters
         prevlane = veh.lanemem[-2][0]

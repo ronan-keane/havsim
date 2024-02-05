@@ -278,7 +278,7 @@ class Vehicle:
         self.lane = curlane
         self.road = curlane.road if curlane is not None else None
         self.route = [] if route is None else route
-        self.routemem = self.route.copy()
+
         self.npr = np.random.default_rng(seed=seed)
 
         # parameters
@@ -287,7 +287,6 @@ class Vehicle:
         self.lc2_parameters = lc2_parameters if lc2_parameters is not None else [1, 2, 1, -1, 1, .5]
         self.relax_parameters = relax_parameters if relax_parameters is not None else [11., 4.5, .6, 2.]
         self.route_parameters = route_parameters if route_parameters is not None else [300, 500]
-
         # bounds
         if accbounds is None:
             self.minacc, self.maxacc = -12, 8
@@ -340,6 +339,7 @@ class Vehicle:
         self.posmem = []
         self.speedmem = []
         self.relaxmem = []
+        self.routemem = self.route.copy()
 
     def initialize(self, pos, spd, hd, start):
         """Updates the remaining attributes of the vehicle, making it able to be simulated.

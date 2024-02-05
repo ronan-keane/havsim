@@ -2,9 +2,9 @@
 import scipy.optimize as sc
 import numpy as np
 
-from havsim.simulation.road import get_dist, get_headway
-from havsim.simulation import models
-from havsim.simulation import update_lane_routes
+from havsim import get_dist, get_headway
+from havsim import models
+from havsim import update_lane_routes
 
 
 def get_eql_helper(veh, x, input_type='v', eql_type='v', spdbounds=(0, 1e4), hdbounds=(0, 1e4), tol=.1):
@@ -235,7 +235,8 @@ class Vehicle:
         rlane: the Lane to the right of the current lane the vehicle is on, or None
     """
     # TODO set_route_events should be a method of vehicle? (more generally, better compartmentalization of core methods)
-    # TODO numba implementation
+    # TODO numba/cython implementation
+    # TODO GradVehicle implementation
 
     def __init__(self, vehid, curlane, cf_parameters=None, lc_parameters=None, lc2_parameters=None,
                  relax_parameters=None, route_parameters=None, route=None, lead=None, fol=None,

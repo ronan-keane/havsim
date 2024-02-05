@@ -1,8 +1,8 @@
 """Example of subclassed models for Calibration"""
 
 import math
-import havsim.simulation.models as hm
-import havsim.calibration.calibration as hc
+import havsim.models as hm
+import havsim.old.calibration as hc
 import havsim.simulation as hs
 from havsim import helper
 

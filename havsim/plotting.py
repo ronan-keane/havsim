@@ -1,5 +1,6 @@
 """Plotting functions."""
-# TODO fix code style, add documentation and examples
+# TODO fix code style/documentation
+# TODO update all code to use new VehicleData format instead of older meas/platooninfo format.
 import numpy as np
 import math
 

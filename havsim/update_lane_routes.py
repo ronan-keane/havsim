@@ -2,8 +2,8 @@
 """
 Functions for setting/updating lane events, route events, and code for changing lanes.
 """
-from havsim.simulation import vehicle_orders
-from havsim.simulation.road import get_headway
+from havsim import vehicle_orders
+from havsim import get_headway
 
 
 def update_veh_after_lc(lc_actions, veh, timeind):
@@ -332,6 +332,7 @@ def update_route_events(veh, timeind):
         elif curevent['event'] == 'mandatory':
             if veh.pos > curevent['endpos']:  # case where the mandatory LC can no longer be completed
                 # just reset to default state. The route will not be followed.
+                # todo should get a new route if the given route will not be followed?
                 if veh.llane is not None:
                     veh.l_lc = 'd' if veh.llane.roadname == veh.road else None
                 if veh.rlane is not None:

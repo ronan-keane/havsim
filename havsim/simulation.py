@@ -6,7 +6,7 @@ The Vehicle class defines the vehicle update model and stores the memory of the 
 The Simulation is mainly set up by defining the Roads/Lanes, and setting up the upstream
 and downstream boundary conditions (see havsim.simulation.road.Road)
 """
-import havsim.simulation as hs
+import havsim as hs
 import copy
 import time
 import tqdm

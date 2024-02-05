@@ -3,7 +3,6 @@ import tensorflow as tf
 import numpy as np
 from havsim import helper
 import math
-from IPython import embed
 
 def generate_lane_data(veh_data):
     """

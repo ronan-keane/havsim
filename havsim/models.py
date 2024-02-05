@@ -1,7 +1,7 @@
 """Houses all the different models for simulation."""
 
 import numpy as np
-from havsim.simulation.road import get_headway
+from havsim import get_headway
 
 
 def IDM(p, state):

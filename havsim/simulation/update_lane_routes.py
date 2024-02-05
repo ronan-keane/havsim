@@ -148,7 +148,7 @@ def update_lane_events(veh, timeind, remove_vehicles):
         elif curevent['event'] == 'update lr':
             update_lane_lr(veh, veh.lane, curevent)
             veh.update_lc_state(timeind)
-            veh.lane_events.pop(0)  # event is over, so we shouldn't check it in the future
+            veh.lane_events = veh.lane_events[1:]
 
         elif curevent['event'] == 'exit':
             fol = veh.fol
@@ -343,12 +343,12 @@ def update_route_events(veh, timeind):
 
             veh.update_lc_state(timeind)
 
-        veh.route_events.pop(0)
+        veh.route_events = veh.route_events[1:]
         update_route_events(veh, timeind)
     return
 
 
-def make_cur_route(p, curlane, nextroadname):
+def add_cur_route_to_veh(veh):
     """Creates cur_route attribute (stores route events) for Vehicle after entering a new lane.
 
     Refer to update_route_events for a description of route events.
@@ -386,18 +386,15 @@ def make_cur_route(p, curlane, nextroadname):
     just stay in discretionary state, and will not make any more turns/merges etc.
 
     Args:
-        p: parameters, length 2 list of floats, where p[0] controls how quickly a vehicle with mandatory LC can
-            force cooperation of the lfol/rfol, larger is faster to force cooperation. p[0] + p[1] is a comfortable
-            distance for completing a mandatory lane change
-        curlane: Lane object to create route events for
-        nextroadname: str name of the next road in the route (the next road you want to be on after leaving
-            curlane's road)
-
+        veh: Vehicle to update
     Returns:
-        cur_route: dictionary where keys are lanes, value is a list of route event dictionaries which
-            defines the route a vehicle with parameters p needs to take on that lane
+        None. Updates veh in place. Note that the veh.route attribute is consumed when this is called.
     """
     # TODO we only get the route for the current road - no look ahead to take into account future roads
+
+    p = veh.route_parameters
+    curlane = veh.lane
+    nextroadname = veh.route.pop()
 
     curroad = curlane.road
     curlaneind = curlane.laneind
@@ -456,7 +453,8 @@ def make_cur_route(p, curlane, nextroadname):
         if curlaneind != laneind:
             cur_route = make_route_helper(p, cur_route, curroad, curlaneind, laneind, pos, endpos)
 
-    return cur_route
+    veh.cur_route = cur_route
+    return
 
 
 def make_route_helper(p, cur_route, curroad, curlaneind, laneind, curpos, endpos):
@@ -590,7 +588,7 @@ def set_route_events(veh, timeind):
                 curpos, endpos = prevlane_events[0]['pos'], prevlane_events[0]['endpos']
                 make_route_helper(p, veh.cur_route, veh.lane.road, newlane.laneind, prevlane.laneind, curpos, endpos)
         else:  # on new road - we need to generate new cur_route and update the vehicle's route
-            veh.cur_route = make_cur_route(p, newlane, veh.route.pop(0))
+            add_cur_route_to_veh(veh)
 
         veh.route_events = veh.cur_route[newlane].copy()
 

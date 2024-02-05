@@ -157,7 +157,7 @@ def inv_flow_helper(veh, x, leadlen=None, output_type='v', congested=True, eql_t
 
 
 class Vehicle:
-    """Base Vehicle class. Implemented for a second order ODE car following model.
+    """Base Vehicle class for simulating vehicle trajectories.
 
     Vehicles are responsible for implementing the rules to update their positions. This includes a
     'car following' (cf) model which is used to update the position (in the direction of travel).
@@ -185,7 +185,7 @@ class Vehicle:
         relax_start: time index corresponding to relax[0]. (int)
         relax_end: The last time index when relaxation is active. (int)
         route: list of road names (str). When the vehicle first enters the simulation or enters a new road,
-            the route gets pop().
+            the route gets pop(). Note the last entry of route (-1 index) is the next road in the planned route.
         routemem: route which was used to init vehicle.
         minacc: minimum allowed acceleration (float)
         maxacc: maxmimum allowed acceleration(float)
@@ -256,7 +256,7 @@ class Vehicle:
             lc2_parameters: list of float parameters for the lc model (see simulation.models.lc_havsim)
             relax_parameters: list of float parameters for relaxation (see simulation.models.lc_havsim)
             route_parameters: list of float parameters for the route model (see simulation.models.lc_havsim)
-            route: list of road names (str) which defines the route for the vehicle.
+            route: list of road names (str) which defines the route for the vehicle, in order of the route.
             lead: leading vehicle (Vehicle). Optional, can be set by the boundary condition.
             fol: following vehicle (Vehicle). Optional, can be set by the boundary condition.
             lfol: left follower (Vehicle). Optional, can be set by the boundary condition.
@@ -277,7 +277,7 @@ class Vehicle:
         self.len = length
         self.lane = curlane
         self.road = curlane.road if curlane is not None else None
-        self.route = [] if route is None else route
+        self.route = [] if route is None else route.reverse()
 
         self.npr = np.random.default_rng(seed=seed)
 
@@ -384,8 +384,7 @@ class Vehicle:
 
         # set lane/route events - sets lane_events, route_events, cur_route attributes
         if len(self.route) > 0:
-            self.cur_route = update_lane_routes.make_cur_route(
-                self.route_parameters, self.lane, self.route.pop(0))
+            self.cur_route = update_lane_routes.add_cur_route_to_veh(self)
             update_lane_routes.set_lane_events(self)
             update_lane_routes.set_route_events(self, start)
 

@@ -1,6 +1,6 @@
 """Example of loading saved data and using plotting api."""
 import pickle
-import havsim.simulation as hs
+import havsim as hs
 import havsim.plotting as hp
 import matplotlib.pyplot as plt
 

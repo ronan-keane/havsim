@@ -2,7 +2,7 @@
 import scipy.optimize as sc
 import numpy as np
 
-from havsim import get_dist, get_headway
+from havsim.road import get_dist, get_headway
 from havsim import models
 from havsim import update_lane_routes
 

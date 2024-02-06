@@ -20,7 +20,7 @@ save_crashes_only = False if n_simulations == 1 else True
 sim_name = 'e94'
 use_times = [14, 15]
 gamma_parameters = [-.1, .33, .3, 2.0, 1.5]
-xi_parameters = [1, 2]
+xi_parameters = [1, 3]
 # -------------------------- #
 
 

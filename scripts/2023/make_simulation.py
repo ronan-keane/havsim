@@ -1,5 +1,5 @@
 """Configure simulations."""
-import havsim.simulation as hs
+import havsim as hs
 import numpy as np
 
 

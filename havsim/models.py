@@ -1,7 +1,7 @@
 """Houses all the different models for simulation."""
 
+import havsim
 import numpy as np
-from havsim import get_headway
 
 
 def IDM(p, state):
@@ -393,7 +393,7 @@ def new_relaxation(veh, timeind, dt):
         # oldv = veh.speed
     olds = veh.hd
     oldv = prevlead.speed
-    news = get_headway(veh, veh.lead)
+    news = havsim.get_headway(veh, veh.lead)
     newv = veh.lead.speed
 
     rp = veh.relax_parameters

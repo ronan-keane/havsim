@@ -2,9 +2,10 @@
 
 import math
 import havsim.models as hm
-import havsim.old.calibration as hc
-import havsim.simulation as hs
+import havsim as hs
+import havsim.old.calibration.calibration as hc
 from havsim import helper
+
 
 class OVMCalibrationVehicle(hc.CalibrationVehicle):
     """Optimal Velocity Model Implementation."""

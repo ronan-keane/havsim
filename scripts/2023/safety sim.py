@@ -12,8 +12,8 @@ from time import sleep
 
 # -------  SETTINGS  ------- #
 save_name = 'e94_14_15_3'
-n_simulations = 450
-n_workers = 50
+n_simulations = 1
+n_workers = 1
 batch_size = 150
 save_crashes_only = False if n_simulations == 1 else True
 

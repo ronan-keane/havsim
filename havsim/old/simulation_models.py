@@ -4,7 +4,8 @@ For subclassed Vehicles to be used in Simulation.
 import havsim
 import math
 
-class OVMVehicle(havsim.Vehicle):
+
+class OVMVehicle(havsim.vehicles.Vehicle):
     """Optimal Velocity Model Implementation."""
     def cf_model(self, p, state):
         return havsim.models.OVM(p, state)
@@ -16,7 +17,7 @@ class OVMVehicle(havsim.Vehicle):
         return havsim.models.OVM_free(p, v)
     
     
-class SKARelaxIDM(havsim.Vehicle):
+class SKARelaxIDM(havsim.vehicles.Vehicle):
     def initialize(self, pos, spd, hd, starttime):
         super().initialize(pos, spd, hd, starttime)
         self.max_relax = self.cf_parameters[1]

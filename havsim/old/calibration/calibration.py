@@ -8,7 +8,6 @@ Either single vehicles, or strings (platoons) of vehicles can be simulated.
 
 import numpy as np
 import havsim as hs
-from havsim import get_headway
 from havsim import helper
 import math
 
@@ -17,7 +16,7 @@ import math
     #removing vehicles and downstream boundary
 # TODO implement calibration for latitudinal models also
 
-class CalibrationVehicle(hs.Vehicle):
+class CalibrationVehicle(hs.vehicles.Vehicle):
     """Base CalibrationVehicle class for a second order ODE model.
 
     CalibrationVehicles implement rules to update their own positions only. There is currently no
@@ -247,7 +246,7 @@ class Calibration:
         for veh in self.vehicles:
             if veh.in_leadveh:
                 veh.leadveh.update(self.timeind)
-            veh.hd = get_headway(veh, veh.lead)
+            veh.hd = hs.get_headway(veh, veh.lead)
 
 
         # do simulation by calling step repeatedly
@@ -292,7 +291,7 @@ def update_calibration(vehicles, add_events, lc_events, addtime, lctime, timeind
     addtime = update_add_event(vehicles, add_events, addtime, timeind, dt, lc_event)
 
     for veh in vehicles:
-        veh.hd = get_headway(veh, veh.lead)
+        veh.hd = hs.get_headway(veh, veh.lead)
 
     return addtime, lctime
 

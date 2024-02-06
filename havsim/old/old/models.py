@@ -1,11 +1,4 @@
 
-"""
-traffic models in their function form
-
-@author: rlk268@cornell.edu
-"""
-
-from havsim import helper
 import math
 import numpy as np
 

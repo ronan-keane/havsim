@@ -4,7 +4,7 @@ calibration related functions which define algorithms (such as custom optimizati
 """
 import numpy as np
 import scipy.stats as ss
-import havsim.helper as helper
+from havsim.old.old import helper
 
 
 def SPSA_grad(p,objfn, *args,q = 1, ck = 1e-8, **kwargs):

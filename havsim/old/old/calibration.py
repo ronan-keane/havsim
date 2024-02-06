@@ -7,9 +7,10 @@ import time
 import copy
 import scipy.optimize as sc
 import numpy as np
+# import nlopt
 
-from havsim import helper
-from havsim.old import opt
+from havsim.old.old import helper
+from havsim.old.old import opt
 
 def calibrate_custom(plist,bounds,meas,platooninfo,platoonlist,makeleadfolinfo, custom, platoonobjfn, platoonobjfn_der, platoonobjfn_hess, model,modeladjsys, modeladj,
                      linesearch, kwargs, *args, cutoff=7.5, delay = False, dim = 2 ):
@@ -529,7 +530,7 @@ def calibrate_nlopt_helper(alg, pguess, bounds, meas, sim, platooninfo, platoon,
 
     N = len(pguess) #total number of parameters
     m = args[1] #number of parameters per vehicle
-    opt = nlopt.opt(alg,N)
+    # opt = nlopt.opt(alg,N)
     lb = []; ub = [];
     for i in bounds:
         lb.append(i[0]); ub.append(i[1])

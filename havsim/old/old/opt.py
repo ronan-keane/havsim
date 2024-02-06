@@ -1,29 +1,6 @@
 
 """
 All calibration related functions which set up optimization problems, including doing the actual simulation of vehicle trajectories.
-
-
-    \\ TO DO
-	HIGH PRIORITY
-		-being able to use autodifferentiation so we don't have to rely on adjoint calculation
-		-want to rewrite the platoonobjfn to use python lists and be vectorized - should have similar construction to simulation code
-        should use auxinfo/modelinfo and take up less memory as well ; will need to modify plotting functions to work with
-        this updated format
-            -many of the problems in general features/QOL can be solved by using the new simulation code in place of current calibration code
-        -We have written code for LL and delay models which has not been tested
-        -should refactor calibration code to be cleaner, including a polished api for users
-        -create test script that can be used to check for bugs in the calibration code
-
-
-    general features/QOL
-        -support for using relaxation phenomenon on a platoon, where we would like to update the relaxation amount during simulation.
-            -Also need to support relaxation for delay
-        -need to implement solving for delay models
-
-    \\ TO DO
-
-
-@author: rlk268@cornell.edu
 """
 
 import numpy as np
@@ -32,9 +9,9 @@ import math
 from collections import deque
 import scipy.interpolate as sci
 import scipy.optimize as sc
-from havsim.old import models
+from havsim.old.old import models
 
-from havsim.helper import r_constant
+from havsim.old.old.helper import r_constant
 
 
 def r_constant2(currinfo, frames, T_n, rp, h = .1):

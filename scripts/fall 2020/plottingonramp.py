@@ -8,8 +8,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 
-# meas, platooninfo = havsim.calibration.algs.makeplatoonlist(data, 1, False)
-with open('C:\\Users\\tawit\\Documents\\Github\\havsim\\data\\recon-ngsim-old.pkl', 'rb') as f:
+# meas, platooninfo = havsim.old.calibration.makeplatoonlist(data, 1, False)
+with open('/data/recon-ngsim-old.pkl', 'rb') as f:
     meas, platooninfo = pickle.load(f)
 
 #%%
@@ -24,7 +24,7 @@ lane6vehlist = []
 for i in platooninfo.keys():
     if 6 in np.unique(meas[i][:,7]):
         lane6vehlist.append(i)
-sortedvehlist = havsim.calibration.platoon_formation.sortveh(6, meas, lane6vehlist)
+sortedvehlist = havsim.old.calibration.sortveh(6, meas, lane6vehlist)
 
 # #%%
 # hp.animatevhd(meas, None, platooninfo, sortedvehlist[50:52], interval = 30, lane = 6)

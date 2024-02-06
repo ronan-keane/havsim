@@ -77,6 +77,7 @@ if __name__ == '__main__':
     batch_iters = int(n_simulations // batch_size)
     leftover = n_simulations - batch_iters * batch_size
     batch_iters = batch_iters + 1 if leftover > 0 else batch_iters
+    do_simulation(False)  # todo
     print('\nWorking on first simulation...')
     pbar = tqdm.tqdm(range(n_simulations), total=n_simulations, file=sys.stdout)
     cur_iter = 0

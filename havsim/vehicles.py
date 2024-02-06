@@ -278,7 +278,7 @@ class Vehicle:
         self.len = length
         self.lane = curlane
         self.road = curlane.road if curlane is not None else None
-        self.route = [] if route is None else route.reverse()
+        self.route = [] if route is None else route[-1::-1]
 
         self.npr = np.random.default_rng(seed=seed)
 
@@ -385,7 +385,7 @@ class Vehicle:
 
         # set lane/route events - sets lane_events, route_events, cur_route attributes
         if len(self.route) > 0:
-            self.cur_route = update_lane_routes.add_cur_route_to_veh(self)
+            update_lane_routes.add_cur_route_to_veh(self)
             update_lane_routes.set_lane_events(self)
             update_lane_routes.set_route_events(self, start)
 
@@ -840,6 +840,7 @@ def reload(all_vehicles, lanes=None):
         all_vehicles: list of Vehicles which will have their references added back
         lanes: dictionary of Lane objects as keys, values are int index which represents the lane index (for plots)
     """
+    # make dict to map str vehids to Vehicles/AnchorVehicles
     veh_dict = {}
     if lanes is not None:
         for lane in lanes.keys():

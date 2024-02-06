@@ -589,7 +589,6 @@ def set_route_events(veh, timeind):
                 make_route_helper(p, veh.cur_route, veh.lane.road, newlane.laneind, prevlane.laneind, curpos, endpos)
         else:  # on new road - we need to generate new cur_route and update the vehicle's route
             add_cur_route_to_veh(veh)
-
         veh.route_events = veh.cur_route[newlane].copy()
 
     # for route events, past events need to be applied.

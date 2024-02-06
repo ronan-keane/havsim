@@ -775,10 +775,9 @@ class AnchorVehicle:
     """
 
     def __init__(self, curlane, start, lead=None, rlead=None, llead=None):
-        """Inits for Anchor."""
         self.cf_parameters = None
         self.lane = curlane
-        self.road = curlane.road.name
+        self.road = curlane.road
         self.vehid = str(self.road)+'-'+str(self.lane.laneind)+'-anchor'
 
         self.init_lead = lead
@@ -1408,7 +1407,7 @@ class Road:
                 add_lane_events(self.lanes[i].events, {'event': 'exit', 'pos': self.lanes[i].end})
             for i in range(self.num_lanes):
                 cur_lane = self.lanes[i]
-                cur_lane.connections[new_road.name] = \
+                cur_lane.connections[new_road] = \
                     (all_lanes_end[0], 'continue', (self_indices[0], self_indices[-1]), None, None)
         else:
             if new_road_indices is None:

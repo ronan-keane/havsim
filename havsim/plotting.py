@@ -463,7 +463,7 @@ def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane=N
 
     if MFD:
         plt.figure()
-        marker_list = ['o', '^', 'x']
+        marker_list = ['o', '^', 'x', 's']
         # different marker types
         for count, curq in enumerate(q):
             curmarker = marker_list[count]

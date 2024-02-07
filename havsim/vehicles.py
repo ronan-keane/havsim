@@ -958,21 +958,18 @@ def update_after_crash(veh, timeind, crashed):
 
 
 def set_cf_crashed(veh, timeind):
-    """After crash, set constant deceleration at -3. Remove vehicle after 20 timesteps at 0 speed."""
+    """After crash, set constant deceleration at -2. Remove vehicle after 50 timesteps."""
     if veh.lead is not None:
         if veh.hd < 0:
             veh.acc = -100
         else:
             test_acc = veh.cf_model(veh.cf_parameters, [veh.hd, veh.speed, veh.lead.speed])
-            veh.acc = min(-3, test_acc)
+            veh.acc = min(-2, test_acc)
     else:
-        veh.acc = -3
+        veh.acc = -2
 
-    if veh.speed == 0.:
-        if timeind >= veh.crash_time + 20:
-            if veh.speedmem[-20] == 0.:
-                # remove vehicle by creating lane event
-                veh.lane_events = [{'pos': -1e6, 'event': 'exit'}]
+    if timeind >= veh.crash_time + 50:
+        veh.lane_events = [{'pos': -1e6, 'event': 'exit'}]
 
 
 class CrashesVehicle(Vehicle):

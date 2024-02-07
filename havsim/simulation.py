@@ -435,8 +435,10 @@ class CrashesSimulation(Simulation):
     def _maybe_fix_near_miss(veh, cur_near_miss):
         crash_time = veh.crash_time
         remove_inds = []
+        count2 = 0
         for count, interval in enumerate(cur_near_miss):
             if interval[1] >= crash_time:
-                remove_inds.append(count)
+                remove_inds.append(count-count2)
+                count2 += 1
         for count in remove_inds:
             cur_near_miss.pop(count)

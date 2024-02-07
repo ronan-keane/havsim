@@ -9,9 +9,9 @@ import tqdm
 import sys
 
 # -------  SETTINGS  ------- #
-saved_sim = 'e94_14_15_2'
+saved_sim = 'e94_12_16_full'
 min_crash_plots = 0
-max_crash_plots = 0
+max_crash_plots = 5
 show_plots = False
 save_plots = True
 # -------------------------- #
@@ -57,7 +57,7 @@ def prepare_speed_plot(my_veh, start, end, crash_type=None):
 
     # make deterministic behavior
     params = {'cf_parameters': my_veh.cf_parameters, 'relax_parameters': my_veh.relax_parameters}
-    test_veh = havsim.simulation.Vehicle('test', None, **params)
+    test_veh = havsim.Vehicle('test', None, **params)
 
     test_pos, test_speed = veh_pos[0], veh_speed[0]
     test_posmem = [test_pos]
@@ -170,9 +170,11 @@ if __name__ == '__main__':
         out_data_rear_ends = crash_confidence(data_rear_ends, 2600, vmt/n_simulations)
         out_data_sideswipes = crash_confidence(data_sideswipes, 2600, vmt/n_simulations)
         print('rear end inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_rear_ends) +
-              ' ground truth: {:.3}. ground truth 95% confidence: [{:.3}, {:.3}]'.format(*out_data_rear_ends))
+              ' ground truth: {:.3} ({:.0f} crashes). ground truth 95% confidence: [{:.3}, {:.3}]'.format(
+                  out_data_rear_ends[0], data_rear_ends, *out_data_rear_ends[1:]))
         print('sideswipe inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_sideswipes) +
-              ' ground truth: {:.3}. ground truth 95% confidence: [{:.3}, {:.3}]'.format(*out_data_sideswipes))
+              ' ground truth: {:.3} ({:.0f} crashes). ground truth 95% confidence: [{:.3}, {:.3}]'.format(
+                  out_data_sideswipes[0], data_sideswipes, *out_data_sideswipes[1:]))
     else:
         print('rear end inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_rear_ends))
         print('sideswipe inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}]'.format(*out_sideswipes))
@@ -182,7 +184,7 @@ if __name__ == '__main__':
     n_crashed_veh, n_near_miss_veh = 0, 0
 
     for count, all_vehicles in enumerate(all_vehicles_list):
-        all_vehicles = havsim.simulation.vehicles.reload(all_vehicles)
+        all_vehicles = havsim.reload(all_vehicles)
         crashes_only = {}
         for veh in all_vehicles:
             if veh.crashed:

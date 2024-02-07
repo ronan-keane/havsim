@@ -420,7 +420,8 @@ def add_cur_route_to_veh(veh):
                                         'event': 'end discretionary', 'side': 'r_lc'})
 
         if leftind <= curlaneind <= rightind:  # if on correct lane already, do no more work
-            return cur_route
+            veh.cur_route = cur_route
+            return
         elif curlaneind < leftind:  # need to change right possibly multiple times
             uselaneind = leftind
         else:

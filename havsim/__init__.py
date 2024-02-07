@@ -16,4 +16,5 @@ from havsim.simulation import Simulation
 from havsim.vehicles import Vehicle
 from havsim.road import Lane, Road
 from havsim.road import get_headway, get_dist
+from havsim.vehicles import reload
 

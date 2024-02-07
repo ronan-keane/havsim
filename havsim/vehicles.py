@@ -370,14 +370,14 @@ class Vehicle:
         self.llane = self.lane.get_connect_left(pos)
         if self.llane is None:
             self.l_lc = None
-        elif self.llane.roadname == self.road:
+        elif self.llane.road == self.road:
             self.l_lc = 'd'
         else:
             self.l_lc = None
         self.rlane = self.lane.get_connect_right(pos)
         if self.rlane is None:
             self.r_lc = None
-        elif self.rlane.roadname == self.road:
+        elif self.rlane.road == self.road:
             self.r_lc = 'd'
         else:
             self.r_lc = None

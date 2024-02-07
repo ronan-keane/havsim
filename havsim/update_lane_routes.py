@@ -333,9 +333,9 @@ def update_route_events(veh, timeind):
                 # just reset to default state. The route will not be followed.
                 # todo should get a new route if the given route will not be followed?
                 if veh.llane is not None:
-                    veh.l_lc = 'd' if veh.llane.roadname == veh.road else None
+                    veh.l_lc = 'd' if veh.llane.road == veh.road else None
                 if veh.rlane is not None:
-                    veh.r_lc = 'd' if veh.rlane.roadname == veh.road else None
+                    veh.r_lc = 'd' if veh.rlane.road == veh.road else None
             else:  # normal update
                 side = curevent['side']
                 setattr(veh, side, 'm')

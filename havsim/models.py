@@ -81,8 +81,9 @@ def lc_havsim(veh, lc_actions, lc_followers, timeind):
             possible
 
     lc2 parameters:
-        0 - speed adjustment time (need 2.3*p[0] seconds to adjust to 90% of the speed difference)
-        1 - comfortable acceleration for lane changes
+        0 - speed adjustment time (need 2.3*p[0] seconds to adjust to 90% of the speed difference).
+            used for deceleration during cooperation or for mandatory lane changes.
+        1 - comfortable acceleration for overtaking during discretionary lane change
         2 - comfortable speed gap. Decelerate if more than p[2] speed gap with new leader for lane changing
         3 - comfortable deceleration for cooperation during lane change
         4 - comfortable speed gap for cooperation during lane change. The cooperation vehicle will slow down until

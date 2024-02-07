@@ -352,7 +352,6 @@ class CrashesSimulation(Simulation):
                     elif not veh.crashed:
                         self.near_miss_times[veh] = [timeind]
 
-
     def simulate(self, timesteps=None, pbar=True, verbose=True, return_times=False):
         out = super().simulate(timesteps=timesteps, pbar=pbar, verbose=verbose, return_times=return_times)
         self._process_near_miss_times()

@@ -893,7 +893,7 @@ class Lane:
     Attributes:
         start: starting position of lane
         end: ending position of lane
-        road: the Road that Lane belongs to. Roads have a unique str name and
+        road: the Road that Lane belongs to. Roads have a unique str name
         roadname: string name of road
         laneind: index of Lane
         connect_left: defines left connections for Lane

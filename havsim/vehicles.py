@@ -864,6 +864,26 @@ def reload(all_vehicles, lanes=None):
 
 
 class StochasticVehicle(Vehicle):
+    """Adds error-prone behavior to Vehicle, which makes it possible for crashes to occur.
+
+    Attributes:
+        gamma_parameters: list of float parameters, controlling the human reaction time/distraction
+            0 - mean for log normal. Larger = higher average reactions (less safe)
+            1 - stdev for log normal. Larger = heavier tail reactions (less safe)
+            2 - scaling factor for squared acceleration. The gamma distraction length is scaled by
+                p[2]*acc**2 + p[3]*abs(acc) where acc is the acceleration.
+            3 - scaling factor for acceleration.
+            4 - scaling factor for lane changes. The gamma distraction length is scaled by p[4] if
+                a lane change occurs.
+        xi_parameters:
+            0 - scale for pareto  (Larger = larger xi = less safe)
+            1 - shape for pareto  (Larger = smaller tail = more safe)
+        lc_accmem: mem of lc_acc
+        prev_acc: previous acceleration
+        prev_lc_acc: previous lc acceleration
+        beta: float percentage of timestep that we should be distracted for in next_t_ind
+        next_t_ind: next timestep we can update the acceleration
+    """
     def __init__(self, vehid, curlane, gamma_parameters=None, xi_parameters=None, **kwargs):
         super().__init__(vehid, curlane, **kwargs)
         self.gamma_parameters = gamma_parameters if gamma_parameters is not None else [-.1, .3, .5, 2., 2.]

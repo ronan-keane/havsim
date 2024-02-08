@@ -198,18 +198,19 @@ class Simulation:
         self.timeind += 1
         self.prev_vehicles.extend(remove_vehicles)
 
-    def simulate(self, timesteps=None, pbar=True, verbose=True, return_times=False):
+    def simulate(self, timesteps=None, pbar=True, verbose=True, return_stats=False):
         """Do simulation for requested number of timesteps and return all vehicles.
 
         Args:
             timesteps: int number of timesteps to run simulation. If None, use default value.
             pbar: bool, if True then do simulation with progress bar
-            verbose: bool, if True then do simulation with progress bar and print out when finished
-            return_times: bool, if True then additionally return the total simulation time and number of timesteps
+            verbose: bool, if True then print out when finished
+            return_stats: bool, if True then return extra stats of the (elapsed_time, total timesteps, vmt)
         Returns:
             all_vehicles: list of Vehicles in the simulation
-            elapsed_time: float clock time taken to run simulation
-            total_timesteps: total number of timesteps, added over all vehicles
+            stats: Only returned if return_times is True. Tuple of (elapsed_time, n_updates, vmt), the total
+                clock time needed to run the simulation, the total number of vehicle updates done in the simulation,
+                and the cumulative distance traveled in the simulation (units are meters by default)
         """
         timesteps = self.timesteps if timesteps is None else timesteps
         elapsed_time = time.time()
@@ -226,13 +227,13 @@ class Simulation:
 
         all_vehicles = self.prev_vehicles.copy()
         all_vehicles.extend(self.vehicles)
-        if verbose or return_times:
-            total_timesteps = sum([self.timeind-max(veh.start, self.timeind-timesteps)+1 if veh.end is None
-                                   else veh.end-max(veh.start, self.timeind-timesteps)+1 for veh in all_vehicles])
+        if verbose or return_stats:
+            n_updates = sum([self.timeind-max(veh.start, self.timeind-timesteps)+1 if veh.end is None
+                             else veh.end-max(veh.start, self.timeind-timesteps)+1 for veh in all_vehicles])
         if verbose:
             print('simulation time is {:.1f} seconds over {:.2e} timesteps ({:n} vehicles)'.format(
                 elapsed_time, total_timesteps, len(all_vehicles)))
-        if return_times:
+        if return_stats:
             return all_vehicles, elapsed_time, total_timesteps
         return all_vehicles
 
@@ -352,8 +353,8 @@ class CrashesSimulation(Simulation):
                     elif not veh.crashed:
                         self.near_miss_times[veh] = [timeind]
 
-    def simulate(self, timesteps=None, pbar=True, verbose=True, return_times=False):
-        out = super().simulate(timesteps=timesteps, pbar=pbar, verbose=verbose, return_times=return_times)
+    def simulate(self, timesteps=None, pbar=True, verbose=True, return_stats=False):
+        out = super().simulate(timesteps=timesteps, pbar=pbar, verbose=verbose, return_stats=return_stats)
         self._process_near_miss_times()
 
         if verbose:

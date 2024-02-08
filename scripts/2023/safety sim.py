@@ -11,9 +11,9 @@ from time import sleep
 
 
 # -------  SETTINGS  ------- #
-save_name = 'e94_16_17_full_test2'
-n_simulations = 1
-n_workers = 1
+save_name = 'e94_16_17'
+n_simulations = 750
+n_workers = 50
 batch_size = 150
 save_crashes_only = False if n_simulations == 1 else True
 
@@ -27,7 +27,7 @@ xi_parameters = [1, 3.8]
 def do_simulation(show_pbar):
     # make + run simulation
     simulation, my_lanes = e94(use_times, gamma_parameters, xi_parameters)
-    all_vehicles, elapsed_time, total_timesteps = simulation.simulate(pbar=show_pbar, verbose=False, return_times=True)
+    all_vehicles, elapsed_time, total_timesteps = simulation.simulate(pbar=show_pbar, verbose=False, return_stats=True)
     if show_pbar:
         print('simulation time is {:.1f} seconds over {:.2e} timesteps ({:n} vehicles)\n'.format(
             elapsed_time, total_timesteps, len(all_vehicles)))
@@ -67,7 +67,7 @@ def do_simulation(show_pbar):
 
 if __name__ == '__main__':
     now = datetime.now()
-    print('Starting job '+save_name+' at '+now.strftime("%H:%M:%S") + ', simulating times ' + str(use_times) +
+    print('\nStarting job '+save_name+' at '+now.strftime("%H:%M:%S") + ', simulating times ' + str(use_times) +
           ' for {:n} replications ({:n} workers)'.format(n_simulations, n_workers))
     print('gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters) + '.')
 
@@ -84,6 +84,7 @@ if __name__ == '__main__':
     # do parallel simulations in batches
     for i in range(batch_iters):
         all_veh_lists = []
+        cur_time_used, cur_timesteps = 0, 0
         cur_sims = leftover if i == batch_iters-1 and leftover > 0 else batch_size
         pool = multiprocessing.Pool(min(n_workers, cur_sims))
         args = [False for k in range(cur_sims)]
@@ -101,7 +102,7 @@ if __name__ == '__main__':
             vmt_miles = all_vmt/1609.34
             crash_stats = (vmt_miles/max(all_rear_end, .69), vmt_miles/max(all_sideswipe, .69),
                            vmt_miles/max(all_near_miss, .69))
-            sim_stats = (vmt_miles, cur_timesteps/cur_time_used, cur_time_used/(count+1))
+            sim_stats = (vmt_miles, vmt_miles/cur_iter, cur_timesteps/cur_time_used)
             pbar.update()
             pbar.set_description('Simulations finished')
             pbar.set_postfix_str('Miles/Event (Rear end/Sideswipe/Near miss): {:.1e}/{:.1e}/{:.1e}'.format(

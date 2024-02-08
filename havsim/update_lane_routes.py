@@ -72,7 +72,7 @@ def update_lane_after_lc(veh, lc, timeind):
         veh.lanemem.append((lcsidelane, timeind))
         newlcsidelane = lcsidelane.get_connect_left(veh.pos)
         veh.llane = newlcsidelane
-        if newlcsidelane is not None and newlcsidelane.roadname == veh.road:
+        if newlcsidelane is not None and newlcsidelane.road == veh.road:
             veh.l_lc = 'd'
         else:
             veh.l_lc = None
@@ -90,7 +90,7 @@ def update_lane_after_lc(veh, lc, timeind):
         veh.lanemem.append((lcsidelane, timeind))
         newlcsidelane = lcsidelane.get_connect_right(veh.pos)
         veh.rlane = newlcsidelane
-        if newlcsidelane is not None and newlcsidelane.roadname == veh.road:
+        if newlcsidelane is not None and newlcsidelane.road == veh.road:
             veh.r_lc = 'd'
         else:
             veh.r_lc = None

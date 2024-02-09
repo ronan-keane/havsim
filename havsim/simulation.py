@@ -208,9 +208,10 @@ class Simulation:
             return_stats: bool, if True then return extra stats of the (elapsed_time, total timesteps, vmt)
         Returns:
             all_vehicles: list of Vehicles in the simulation
-            stats: Only returned if return_times is True. Tuple of (elapsed_time, n_updates, vmt), the total
-                clock time needed to run the simulation, the total number of vehicle updates done in the simulation,
-                and the cumulative distance traveled in the simulation (units are meters by default)
+            stats: Tuple of (elapsed_time, n_updates, vmt), only returned if return_times is True.
+                elapsed_time: clock time to run simulation
+                n_updates: total number of vehicle updates done in simulation
+                vmt: total distance traveled in the simulation (units are meters by default)
         """
         timesteps = self.timesteps if timesteps is None else timesteps
         elapsed_time = time.time()
@@ -227,14 +228,29 @@ class Simulation:
 
         all_vehicles = self.prev_vehicles.copy()
         all_vehicles.extend(self.vehicles)
+
+        n_updates, vmt = 0, 0
         if verbose or return_stats:
             n_updates = sum([self.timeind-max(veh.start, self.timeind-timesteps)+1 if veh.end is None
                              else veh.end-max(veh.start, self.timeind-timesteps)+1 for veh in all_vehicles])
+            for veh in all_vehicles:  # vehicle miles traveled calculation
+                vmt += veh.posmem[-1] - veh.posmem[0]
+                last_road = veh.lanemem[-1][0].road
+                if last_road in veh.lanemem[0][0].roadlen:
+                    vmt += veh.lanemem[0][0].roadlen[last_road]
+                else:
+                    prev_lane = veh.lanemem[0][0]
+                    for cur_lanemem in veh.lanemem[1:]:
+                        vmt += prev_lane.roadlen[cur_lanemem[0].road]
+                        prev_lane = cur_lanemem[0]
         if verbose:
-            print('simulation time is {:.1f} seconds over {:.2e} timesteps ({:n} vehicles)'.format(
-                elapsed_time, total_timesteps, len(all_vehicles)))
+            print('Simulation took {:.0f} seconds. Simulated {:.1e} miles and {:n} vehicles. '.format(
+                  elapsed_time, vmt/1609.34, len(all_vehicles))+' Simulation speed (updates/sec): '.format(
+                  n_updates/elapsed_time))
+
         if return_stats:
-            return all_vehicles, elapsed_time, total_timesteps
+            stats = (elapsed_time, n_updates, vmt)
+            return all_vehicles, stats
         return all_vehicles
 
     def reset(self):
@@ -354,14 +370,52 @@ class CrashesSimulation(Simulation):
                         self.near_miss_times[veh] = [timeind]
 
     def simulate(self, timesteps=None, pbar=True, verbose=True, return_stats=False):
+        """Do simulation for requested number of timesteps and return all vehicles.
+
+        Args:
+            timesteps: int number of timesteps to run simulation. If None, use default value.
+            pbar: bool, if True then do simulation with progress bar
+            verbose: bool, if True then print out when finished
+            return_stats: bool, if True then return extra stats of the (elapsed_time, total timesteps, vmt)
+        Returns:
+            all_vehicles: list of Vehicles in the simulation
+            stats: Tuple of (elapsed_time, n_updates, vmt, rear_ends, sideswipes, ...), only returned
+                if return_times is True.
+                elapsed_time: clock time to run simulation
+                n_updates: total number of vehicle updates done in simulation
+                vmt: total distance traveled in the simulation (units are meters by default)
+                rear_ends: number of rear ends in simulation
+                sideswipes: number of sideswipes in simulation
+                near_misses: number of near misses in simulation
+                rear_end_veh: number of vehicles involved in crash caused by rear end
+                sideswipe_veh: number of vehicles involved in crash caused by sideswipe
+                near_miss_veh: number of vehicles which had a near miss
+        """
         out = super().simulate(timesteps=timesteps, pbar=pbar, verbose=verbose, return_stats=return_stats)
         self._process_near_miss_times()
 
+        rear_ends, sideswipes, near_misses, rear_end_veh, sideswipe_veh, nm_veh = 0, 0, 0, 0, 0, 0
+        if verbose or return_stats:
+            for crash in self.crashes:
+                if crash[0].crashed[0] == 'rear end':
+                    rear_ends += 1
+                    rear_end_veh += len(crash)
+                else:
+                    sideswipes += 1
+                    sideswipe_veh += len(crash)
+            all_vehicles = out[0] if return_stats else out
+            for veh in all_vehicles:
+                near_misses += len(veh.near_misses)
+                if len(veh.near_misses) > 0:
+                    nm_veh += 1
         if verbose:
-            n_misses = sum([len(veh.near_misses) for veh in self.near_misses])
-            print('number of near misses: {:n} ({:n} vehicles)'.format(n_misses, len(self.near_misses)))
-            n_crashed_veh = sum([len(crash) for crash in self.crashes])
-            print('number of crashes: {:n} ({:n} vehicles)'.format(len(self.crashes), n_crashed_veh))
+            print('Events - Rear ends: {.1e} ({.0f} vehicles),  Sideswipes: {.1e} ({.0f} vehicles)'.format(
+                rear_ends, rear_end_veh, sideswipes, sideswipe_veh) + ',  Near misses: {.1e} ({.0f} vehicles)'.format(
+                near_misses, nm_veh))
+
+        if return_stats:
+            all_vehicles, stats = out
+            return all_vehicles, (*stats, rear_ends, sideswipes, near_misses, rear_end_veh, sideswipe_veh, nm_veh)
         return out
 
     def _add_new_crash(self, veh, lead, crashed, timeind):

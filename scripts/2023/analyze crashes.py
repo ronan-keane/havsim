@@ -156,9 +156,12 @@ if __name__ == '__main__':
     timesteps_before, timesteps_after = config.get('timesteps_before', 100), config.get('timesteps_after', 5)
     near_miss, rear_end, sideswipes, vmt, n_simulations = config.get('near misses', 0), config.get('rear ends', 0), \
         config.get('sideswipes', 0), config.get('vmt', 0), config.get('n_simulations', 0)
-    print('{:n} replications of '.format(n_simulations)+str(sim_name)+' for times '+str(use_times) +
-          '. Simulated {:.3} miles total, giving {:.0f} rear ends, {:.0f} sideswipes, and {:.0f} near misses.'.format(
-              vmt, rear_end, sideswipes, near_miss))
+    re_veh, ss_veh, nm_veh = \
+        config.get('rear end vehicles', 0), config.get('sideswipe vehicles', 0), config.get('near miss vehicles', 0)
+    print('{:n} replications of '.format(n_simulations)+str(sim_name)+' for times '+str(use_times))
+    print('Simulated {:.3} miles. Events: {:.0f} rear ends ({:.0f} vehicles)'.format(vmt, rear_end, re_veh) +
+          ',  {:.0f} sideswipes ({:.0f} vehicles)'.format(sideswipes, ss_veh) +
+          ',  {:.0f} near misses ({:.0f} vehicles).'.format(near_miss, nm_veh))
     gamma_parameters, xi_parameters = config.get('gamma_parameters', '?'), config.get('xi_parameters', '?')
     print('gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters)+'.')
     out_rear_ends = crash_confidence(rear_end, n_simulations, vmt/n_simulations)

@@ -1317,7 +1317,7 @@ def connect_lane_left_right(left_lane, right_lane, left_connection, right_connec
 
 
 class Road:
-    """Provided for convenience in defining road networks as  a collection of Lanes.
+    """Provided for convenience in defining road networks as a collection of Lanes.
 
     Attributes:
         num_lanes: int number of lanes
@@ -1426,16 +1426,22 @@ class Road:
             # update roadlen
             self_roadlen = self.lanes[0].roadlen
             new_roadlen = new_road.lanes[0].roadlen
-            new_to_self = all_new_lanes_start[0] - all_self_lanes_end[0]
-            self_to_new = all_self_lanes_end[0] - all_new_lanes_start[0]
-            self_roadlen[new_road] = self_to_new
-            new_roadlen[self] = new_to_self
+            new_to_self = - all_new_lanes_start[0] + all_self_lanes_end[0]
+            self_to_new = - all_self_lanes_end[0] + all_new_lanes_start[0]
+            self_roadlen[new_road] = new_to_self
+            new_roadlen[self] = self_to_new
             for cur_new_road in new_roadlen.keys():
                 if cur_new_road == new_road or cur_new_road == self:
                     continue
-                new_to_cur = new_roadlen[cur_new_road]
-                self_roadlen[cur_new_road] = self_to_new + new_to_cur
-                cur_new_road.lanes[0].roadlen[self] = - new_to_cur - self_to_new
+                cur_to_new = new_roadlen[cur_new_road]
+                self_roadlen[cur_new_road] = cur_to_new + new_to_self
+                cur_new_road.lanes[0].roadlen[self] = - cur_to_new - new_to_self
+            for cur_self_road in self_roadlen.keys():
+                if cur_self_road == new_road or cur_self_road == self:
+                    continue
+                cur_to_self = self_roadlen[cur_self_road]
+                new_roadlen[cur_self_road] = cur_to_self + self_to_new
+                cur_self_road.lanes[0].roadlen[new_road] = - cur_to_self - self_to_new
 
             # Update connections attribute for all lanes
             new_connection = (all_self_lanes_end[0], 'continue', (min(self_indices), max(self_indices)), None, new_road)
@@ -1554,16 +1560,22 @@ class Road:
         # Update roadlen
         self_roadlen = self.lanes[0].roadlen
         new_roadlen = new_road.lanes[0].roadlen
-        new_to_self = self_pos[0] - new_lane_pos[0]
-        self_to_new = new_lane_pos[0] - self_pos[0]
-        self_roadlen[new_road] = self_to_new
-        new_roadlen[self] = new_to_self
+        new_to_self = - new_lane_pos[0] + self_pos[0]
+        self_to_new = - self_pos[0] + new_lane_pos[0]
+        self_roadlen[new_road] = new_to_self
+        new_roadlen[self] = self_to_new
         for cur_new_road in new_roadlen.keys():
             if cur_new_road == new_road or cur_new_road == self:
                 continue
-            new_to_cur = new_roadlen[cur_new_road]
-            self_roadlen[cur_new_road] = self_to_new + new_to_cur
-            cur_new_road.lanes[0].roadlen[self] = - new_to_cur - self_to_new
+            cur_to_new = new_roadlen[cur_new_road]
+            self_roadlen[cur_new_road] = cur_to_new + new_to_self
+            cur_new_road.lanes[0].roadlen[self] = - cur_to_new - new_to_self
+        for cur_self_road in self_roadlen.keys():
+            if cur_self_road == new_road or cur_self_road == self:
+                continue
+            cur_to_self = self_roadlen[cur_self_road]
+            new_roadlen[cur_self_road] = cur_to_self + self_to_new
+            cur_self_road.lanes[0].roadlen[new_road] = - cur_to_self - self_to_new
 
         # Update lane events and connect_left/connect_right for both lanes
         if change_side == 'l_lc':

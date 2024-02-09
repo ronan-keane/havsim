@@ -9,9 +9,9 @@ import tqdm
 import sys
 
 # -------  SETTINGS  ------- #
-saved_sim = 'e94_16_17_test'
+saved_sim = 'e94_16_17_4'
 min_crash_plots = 0
-max_crash_plots = 5
+max_crash_plots = 0
 show_plots = False
 save_plots = True
 # -------------------------- #
@@ -230,7 +230,11 @@ if __name__ == '__main__':
                             pass
                     else:
                         other = crash_veh_list[0]
-                severity.append(abs(other.speedmem[veh.crash_time-other.start]-veh.speedmem[veh.crash_time-veh.start]))
+                try:
+                    severity.append(abs(other.speedmem[veh.crash_time-other.start]-
+                                        veh.speedmem[veh.crash_time-veh.start]))
+                except:
+                    pass
     for count, all_vehicles in enumerate(all_vehicles_list):
         for veh in all_vehicles:
             if len(veh.near_misses) == 0:

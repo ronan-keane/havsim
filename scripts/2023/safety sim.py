@@ -12,16 +12,16 @@ from safety_calibration import crash_confidence
 
 
 # -------  SETTINGS  ------- #
-save_name = 'e94_16_17'
+save_name = 'e94_14_15'
 n_simulations = 600
 n_workers = 50
 batch_size = 150
 save_crashes_only = False if n_simulations == 1 else True
 
 sim_name = 'e94'
-use_times = [16, 17]
-gamma_parameters = [-.1, .31, .3, 1.5, 1.8]
-xi_parameters = [1, 3.2]
+use_times = [14, 15]
+gamma_parameters = [-.08, .28, .2, 2.0, 1.8]
+xi_parameters = [.5, 3.5]
 # -------------------------- #
 
 
@@ -116,7 +116,7 @@ if __name__ == '__main__':
         cur_update_rate, cur_time_used, cur_updates = cur_updates/cur_time_used, 0, 0
         if i == 0:
             initial_update_rate = cur_update_rate
-        if 1.15*cur_update_rate < initial_update_rate and i < batch_iters-1:
+        if 1.1*cur_update_rate < initial_update_rate and i < batch_iters-1:
             sleep(time_used*.25)
     pbar.close()
 

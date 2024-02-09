@@ -53,7 +53,7 @@ def do_simulation(show_pbar):
         [veh._remove_veh_references() for veh in all_vehicles]
         my_vehs = all_vehicles
 
-    return stats, my_vehs, my_lanes
+    return my_stats, my_vehs, my_lanes
 
 
 if __name__ == '__main__':
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     print('gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters) + '.')
 
     all_rear_end, all_sideswipe, all_near_miss, all_vmt, all_re_veh, all_ss_veh, all_nm_veh = 0, 0, 0, 0, 0, 0, 0
-    initial_update_rate, cur_update_rate, cur_time_used, cur_updates = 0, 0, 0, 0
+    initial_update_rate, cur_update_rate, cur_time_used, cur_updates, time_used = 0, 0, 0, 0, 0
     all_veh_lists, lanes = None, None
     batch_iters = int(n_simulations // batch_size)
     leftover = n_simulations - batch_iters * batch_size
@@ -95,14 +95,15 @@ if __name__ == '__main__':
             crash_stats = (vmt_miles/max(all_rear_end, .69), vmt_miles/max(all_sideswipe, .69),
                            vmt_miles/max(all_near_miss, .69))
             event_stats = (all_rear_end, all_sideswipe, all_near_miss)
-            event_stats2 = (all_re_veh/all_rear_end, all_ss_veh/all_sideswipe, all_nm_veh/all_near_miss)
+            event_stats2 = (all_re_veh/max(all_rear_end, 1), all_ss_veh/max(all_sideswipe, 1),
+                            all_nm_veh/max(all_near_miss, 1))
             sim_stats = (vmt_miles, cur_updates/cur_time_used*min(n_workers, cur_sims))
             pbar.update()
             pbar.set_description('Simulations finished')
             pbar.set_postfix_str('Miles/Event (Rear end/Sideswipe/Near miss): {:.1e}/{:.1e}/{:.1e}'.format(
                 *crash_stats) + ',  Events: {:.0f}/{:.0f}/{:.0f}'.format(*event_stats) +
                 ',  Vehicles/Event: {:.1f}/{:.1f}/{:.2f}'.format(*event_stats2) +
-                ',  Miles: {:.2e},  Steps/Sec: {:.1e}'.format(*sim_stats))
+                ',  Miles: {:.2e},  Updates/Sec: {:.1e}'.format(*sim_stats))
 
         pool.close()
         pool.join()
@@ -115,8 +116,8 @@ if __name__ == '__main__':
         cur_update_rate, cur_time_used, cur_updates = cur_updates/cur_time_used, 0, 0
         if i == 0:
             initial_update_rate = cur_update_rate
-        if 1.1*cur_update_rate < initial_update_rate:
-            sleep(60)
+        if 1.15*cur_update_rate < initial_update_rate and i < batch_iters-1:
+            sleep(time_used*.25)
     pbar.close()
 
     # save result + config

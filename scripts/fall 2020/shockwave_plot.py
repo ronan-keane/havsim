@@ -12,11 +12,12 @@ platoon = [1732, 1739, 1746, 1748, 1755, 1765, 1772, 1780, 1793, 1795, 1804, 181
            2122, 2128, 2132, 2146, 2151, 2158, 2169, 2176, 2186, 2190, 2199, 2234, 2253,]
 
 ani = havsim.plotting.animatetraj(meas, platooninfo, show_id=False,
-                                  spacelim=(0, 2000), lanelim=(8.5, -1), save_name='ngsim_shockwave')
+                                  spacelim=(0, 1600), lanelim=(8, 4.5), usetime=list(range(1000, 5000)),
+                                  save_name='ngsim_shockwave')
 
 # #%%
-ani2 = havsim.plotting.animatevhd(meas,None,platooninfo, [998, 1013])
-plt.show()
+# ani2 = havsim.plotting.animatevhd(meas,None,platooninfo, [998, 1013])
+# plt.show()
 
 # #%%  FD plots
 # import havsim.simulation as hs

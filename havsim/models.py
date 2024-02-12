@@ -513,7 +513,42 @@ def default_parameters(truck_prob=0., stochasticity=True):
         accbounds[0] += s2
         lc_parameters[0] += s2*.5
         lc_parameters[1] += s2*.5
+    return {'cf_parameters': cf_parameters, 'lc_parameters': lc_parameters, 'lc2_parameters': lc2_parameters,
+            'relax_parameters': relax_parameters, 'route_parameters': route_parameters, 'accbounds': accbounds,
+            'length': length}
 
+
+def idm_mobil_parameters(truck_prob=0., stochasticity=True):
+    """Turn off all lane changing dynamics, so only use IDM + MOBIL with no LC havsim."""
+    npr = np.random.default_rng()
+    is_car = True if truck_prob == 0. else npr.random() > truck_prob
+    if is_car:
+        cf_parameters = [37.5, 1.12, 3, 1.7, 1.5]
+        lc_parameters = [-11, -25, .3, .03, 0, 0, .1, 5, 100]
+        lc2_parameters = [1.2, 0, 1e6, 1e6, 1e6, -1e6]
+        relax_parameters = [0, 0, .6, 2.]
+        route_parameters = [300, 500]
+        length = 4
+        accbounds = [-11, None]
+    else:
+        cf_parameters = [34, 1.3, 6, 1.1, 1.6]
+        lc_parameters = [-10, -25, 1, .1, 0, 0, .1, 5, 100]
+        lc2_parameters = [1.2, 0, 1e6, 1e6, 1e6, -1e6]
+        relax_parameters = [0, 0, .6, 2.]
+        route_parameters = [500, 1000]
+        length = 22
+        accbounds = [-10, None]
+    if stochasticity:
+        s1 = 2 * npr.normal()
+        s1 = s1 if s1 > 0 else s1 / 4
+        cf_parameters[0] += s1
+        cf_parameters[1] += npr.random() * .1
+        cf_parameters[3] = cf_parameters[3] * (.9 + npr.random() * .3)
+        length = length * (.8 + npr.random() * .4) if is_car else length * (.85 + npr.random() * .2)
+        s2 = 2.5 * npr.random()
+        accbounds[0] += s2
+        lc_parameters[0] += s2 * .5
+        lc_parameters[1] += s2 * .5
     return {'cf_parameters': cf_parameters, 'lc_parameters': lc_parameters, 'lc2_parameters': lc2_parameters,
             'relax_parameters': relax_parameters, 'route_parameters': route_parameters, 'accbounds': accbounds,
             'length': length}

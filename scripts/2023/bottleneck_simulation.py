@@ -24,11 +24,13 @@ if make_plots:
     # hp.platoonplot(sim, None, siminfo, lane=1, opacity=0, timerange=[1000, 5000])
 
     # hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=1, speed_bounds=(0, 35))
-    hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=0, speed_bounds=(0, 40))
+    # hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=0, speed_bounds=(0, 40))
+    #
+    hp.plotflows(sim, [[100, 200], [800, 900], [1100, 1200], [1400, 1500]], [0, timesteps], 300, h=.2)
+    plt.show()
 
-    hp.plotflows(sim, [[800, 900], [1400, 1500]], [0, timesteps], 300, h=.2)
-
-    ani = hp.animatetraj(sim, siminfo, usetime=list(range(11000, 13000)), show_id=False, spacelim=(800, 1500), lanelim=(3, -1))
+    ani = hp.animatetraj(sim, siminfo, usetime=list(range(10000, 13000)), show_id=False, spacelim=(800, 1500), lanelim=(3.5, -1),
+                         save_name='havsim transition')
     # ani2 = hp.animatetraj(sim, siminfo, usetime=list(range(10000, timesteps)), show_id=False, spacelim=(0, 2000),
     #                      lanelim=(3, -1))
-    plt.show()
+    # plt.show()

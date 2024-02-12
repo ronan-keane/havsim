@@ -245,7 +245,7 @@ class Simulation:
                         prev_lane = cur_lanemem[0]
         if verbose:
             print('Simulation took {:.0f} seconds. Simulated {:.1e} miles and {:n} vehicles. '.format(
-                  elapsed_time, vmt/1609.34, len(all_vehicles))+' Simulation speed (updates/sec): '.format(
+                  elapsed_time, vmt/1609.34, len(all_vehicles))+' Simulation speed (updates/sec): {:.1e}'.format(
                   n_updates/elapsed_time))
 
         if return_stats:

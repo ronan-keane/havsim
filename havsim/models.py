@@ -383,24 +383,17 @@ def new_relaxation(veh, timeind, dt):
             veh.relax = veh.relax[:timeind-veh.relax_start]
             veh.relaxmem.append((veh.relax, veh.relax_start))
         return
-    prevlead = get_prev_lead(veh, timeind)
-    if prevlead is None:  # old lead is None -> reset relaxation
-        if veh.in_relax:
-            veh.in_relax = False
-            veh.relax = veh.relax[:timeind-veh.relax_start]
-            veh.relaxmem.append((veh.relax, veh.relax_start))
-        return
-        # olds = veh.get_eql(veh.speed)  # alternative definition of relaxation when old lead is None
-        # oldv = veh.speed
-    olds = veh.hd
-    oldv = prevlead.speed
-    news = havsim.get_headway(veh, veh.lead)
-    newv = veh.lead.speed
-
+    prev_lead = get_prev_lead(veh, timeind)
+    if prev_lead is None:  # old lead is None -> special update rule
+        relax_amount_s = 0
+        relax_amount_v = veh.speed - veh.lead.speed
+    else:
+        old_s = veh.hd
+        new_s = havsim.get_headway(veh, veh.lead)
+        relax_amount_s = old_s - new_s
+        relax_amount_v = prev_lead.speed - veh.lead.speed
     rp = veh.relax_parameters
-    relaxamount_s = olds-news
-    relaxamount_v = oldv-newv
-    relax_helper_vhd(rp[0], rp[1], 60, relaxamount_s, relaxamount_v, veh, timeind, dt)
+    relax_helper_vhd(rp[0], rp[1], 60, relax_amount_s, relax_amount_v, veh, timeind, dt)
 
 
 def get_prev_lead(veh, timeind):
@@ -417,38 +410,38 @@ def get_prev_lead(veh, timeind):
         return mem[0]
 
 
-def relax_helper_vhd(pos_r, neg_r, max_s, relaxamount_s, relaxamount_v, veh, timeind, dt):
+def relax_helper_vhd(pos_r, neg_r, max_s, relax_amount_s, relax_amount_v, veh, timeind, dt):
     """Helper function for headway + speed relaxation.
 
     Args:
         pos_r: positive relaxation length in seconds (float)
         neg_r: negative relaxation length in seconds (float)
         max_s: safeguard amount for headway relaxation
-        relaxamount_s: relaxation amount for headway (float)
-        relaxamount_v: relaxation amount for speed (float)
+        relax_amount_s: relaxation amount for headway (float)
+        relax_amount_v: relaxation amount for speed (float)
         veh: Vehicle to apply relaxation to
         timeind: time index
         dt: length of timestep
     """
     # rp = parameter, relaxamount_s = headway relaxation, _v = velocity relaxation
-    rp = neg_r if relaxamount_v < 0 else pos_r
+    rp = neg_r if relax_amount_v < 0 else pos_r
     relaxlen = int(np.ceil(rp/dt)) - 1
     if relaxlen <= 0:
         return
 
-    relaxamount_s = max(min(relaxamount_s, max_s), -max_s)
+    relax_amount_s = max(min(relax_amount_s, max_s), -max_s)
     if veh.in_relax:  # case where relaxation is added to existing relax
         if timeind > veh.relax_start + len(veh.relax) - 1:  # edge case where veh is not actually in_relax
             veh.relaxmem.append((veh.relax, veh.relax_start))
-            apply_normal_relaxation(veh, rp, relaxamount_s, relaxamount_v, timeind, dt, relaxlen)
+            apply_normal_relaxation(veh, rp, relax_amount_s, relax_amount_v, timeind, dt, relaxlen)
         else:
             # calculate updated relax amount taking into account the current relax
             old_relax_s = veh.relax[timeind - veh.relax_start][0]
-            relaxamount_s = max(min(relaxamount_s + old_relax_s, max_s), -max_s)
-            relaxamount_s = relaxamount_s - old_relax_s
-            tempdt = -dt / rp * relaxamount_s
-            tempdt2 = -dt / rp * relaxamount_v
-            curr = [(relaxamount_s + tempdt * i, relaxamount_v + tempdt2 * i) for i in range(1, relaxlen + 1)]
+            relax_amount_s = max(min(relax_amount_s + old_relax_s, max_s), -max_s)
+            relax_amount_s = relax_amount_s - old_relax_s
+            tempdt = -dt / rp * relax_amount_s
+            tempdt2 = -dt / rp * relax_amount_v
+            curr = [(relax_amount_s + tempdt * i, relax_amount_v + tempdt2 * i) for i in range(1, relaxlen + 1)]
 
             # find indices with overlapping relax, add relax together
             if veh.relax_end < timeind + relaxlen:
@@ -469,7 +462,7 @@ def relax_helper_vhd(pos_r, neg_r, max_s, relaxamount_s, relaxamount_v, veh, tim
                 prevr.extend(curr[overlap_len:])
     else:  # normal case (no existing relax)
         veh.in_relax = True
-        apply_normal_relaxation(veh, rp, relaxamount_s, relaxamount_v, timeind, dt, relaxlen)
+        apply_normal_relaxation(veh, rp, relax_amount_s, relax_amount_v, timeind, dt, relaxlen)
 
 
 def apply_normal_relaxation(veh, rp, relaxamount_s, relaxamount_v, timeind, dt, relaxlen):

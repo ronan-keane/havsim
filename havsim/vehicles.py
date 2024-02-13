@@ -547,7 +547,7 @@ class Vehicle:
             -after the network topology changes (e.g. a new left lane, or right lane ends)
             -after a lane changing is completed (lc=True)
 
-        The purpose of this function is to ensure that the lane changing model is in the correct state. This means
+        The purpose of this function is to ensure that the lane changing model is in a correct state. This means
         setting the attributes in_disc, chk_disc, and clearing any cooperation that may be applied.
         """
         if lc:

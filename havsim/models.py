@@ -246,15 +246,15 @@ def complete_change(lc_actions, lc_followers, veh, new_lcfol):
 def apply_coop(veh, ego_veh, lc_acc, p2):
     # veh = cooperating, ego_veh = trying to change, p2 = parameters for veh
     min_speed = ego_veh.speed + p2[4]
-    if veh.speed > min_speed:  # speed too fast -> always decelerate
+    if lc_acc > p2[3]:  # safe to follow ego -> use min of leader, ego
+        if veh.acc > lc_acc:
+            veh.lc_acc = -veh.acc + lc_acc
+    elif veh.speed > min_speed:  # speed too fast -> always decelerate
         decel = max((min_speed - veh.speed)/p2[0], p2[3])
         if veh.acc > 0:
             veh.lc_acc = -veh.acc + decel
         else:
             veh.lc_acc = decel
-    elif lc_acc > p2[3]:  # safe to follow ego -> use min of leader, ego
-        if veh.acc > lc_acc:
-            veh.lc_acc = -veh.acc + lc_acc
 
 
 def check_coop_and_apply(veh, ego_veh, veh_p, ego_safety, timeind):

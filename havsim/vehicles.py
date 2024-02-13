@@ -904,9 +904,6 @@ class StochasticVehicle(Vehicle):
     def set_cf(self, timeind):
         if timeind == self.next_t_ind:
             super().set_cf(timeind)
-            new_acc = self.acc
-            self.acc = self.prev_acc*self.beta + new_acc*(1-self.beta)
-            self.prev_acc = new_acc
         else:
             self.acc = self.prev_acc
             if self.in_relax:
@@ -935,12 +932,15 @@ class StochasticVehicle(Vehicle):
 
     def update(self, timeind, dt):
         if timeind == self.next_t_ind:
-            acc = max(abs(self.prev_acc), abs(self.acc + self.lc_acc))
-            gamma = self.sample_gamma(acc, timeind)
+            new_acc = self.acc
+            self.acc = self.prev_acc * self.beta + new_acc * (1 - self.beta)
+            gamma_acc = max(abs(new_acc), abs(self.acc + self.lc_acc), abs(new_acc + self.lc_acc))
+            gamma = self.sample_gamma(gamma_acc, timeind)
             bar_gamma = (gamma / dt) // 1.
             self.beta = gamma / dt - bar_gamma
             self.next_t_ind = timeind + int(bar_gamma) + 1
             self.prev_lc_acc = self.lc_acc
+            self.prev_acc = new_acc
         else:
             self.lc_acc = self.prev_lc_acc
         self.lc_accmem.append(self.lc_acc)

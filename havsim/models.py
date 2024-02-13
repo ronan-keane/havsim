@@ -387,6 +387,8 @@ def new_relaxation(veh, timeind, dt):
     if prev_lead is None:  # old lead is None -> special update rule
         relax_amount_s = 0
         relax_amount_v = veh.speed - veh.lead.speed
+        if relax_amount_v < 0:
+            return
     else:
         old_s = veh.hd
         new_s = havsim.get_headway(veh, veh.lead)

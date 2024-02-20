@@ -428,16 +428,21 @@ class Vehicle:
             return
         if self.in_relax:
             p = self.relax_parameters
-            currelax, currelax_v = self.relax[timeind - self.relax_start]
+            if timeind >= self.relax_end:
+                self.in_relax = False
+                self.relaxmem.append((self.relax, self.relax_start))
+                if timeind == self.relax_end:
+                    currelax, currelax_v = self.relax[timeind - self.relax_start]
+                else:
+                    currelax, currelax_v = 0, 0
+            else:
+                currelax, currelax_v = self.relax[timeind - self.relax_start]
 
             ttc = max(hd - 2 - p[2]*spd, 0) / (spd - lead.speed + 1e-6)
             if p[3] > ttc >= 0:
                 currelax = currelax * (ttc / p[3]) ** 2 if currelax > 0 else currelax
                 currelax_v = currelax_v * (ttc / p[3]) ** 2 if currelax_v > 0 else currelax_v
 
-            if timeind == self.relax_end:
-                self.in_relax = False
-                self.relaxmem.append((self.relax, self.relax_start))
             hd += currelax
             lspd = lead.speed + currelax_v
         else:
@@ -906,10 +911,6 @@ class StochasticVehicle(Vehicle):
             super().set_cf(timeind)
         else:
             self.acc = self.prev_acc
-            if self.in_relax:
-                if timeind == self.relax_end:
-                    self.in_relax = False
-                    self.relaxmem.append((self.relax, self.relax_start))
 
     def set_lc(self, lc_actions, lc_followers, timeind):
         return models.stochastic_lc_havsim(self, lc_actions, lc_followers, timeind)
@@ -999,7 +1000,7 @@ class CrashesVehicle(Vehicle):
         crashed: if False, the vehicle has not been in a crash. Otherwise, is a tuple of (crash_type, crash_time)
             where crash_type is a str and crash_time is the earliest crash time (int) of any vehicle in the crash
         crash_time: if not None, the time (int) that the vehicle crashed
-        near_misses: if not [], list of tuples of (start_time, end_time) of near miss status, in time index
+        near_misses: if not [], list of tuples of (start_time, end_time) of near miss status
     """
     def __init__(self, *args, **kwargs):
         self.crashed = False

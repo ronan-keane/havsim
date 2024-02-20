@@ -26,7 +26,7 @@ def make_follower_trajectory(lead_pos, lead_speed, dt, length, veh_pos, veh_spee
     for i in range(len(lead_pos)-1):
         l_pos, l_speed = lead_pos[i], lead_speed[i]
         s = l_pos - veh_pos - length
-        veh_acc = havsim.simulation.models.IDM(p, [s, veh_speed, l_speed])
+        veh_acc = havsim.models.IDM(p, [s, veh_speed, l_speed])
         veh_pos += dt*veh_speed
         veh_speed += dt*veh_acc
         xn.append(veh_pos)

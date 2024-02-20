@@ -278,6 +278,8 @@ class Simulation:
 class CrashesSimulation(Simulation):
     """Keeps track of crashes in a simulation. Vehicles must have update_after_crash method.
 
+    See also havsim.vehicles.CrashesVehicle
+
     Attributes:
         near_misses: set of all vehicles which experience a near miss, but not a crash
         crashes: list of crashes, each crash is a list of vehicles involved in the crash
@@ -312,16 +314,16 @@ class CrashesSimulation(Simulation):
         for veh in self.maybe_sideswipes:
             lc_timeind, lead, changer, prev_lane = self.maybe_sideswipes[veh]
             if veh.lead is None:
-                if lead.end:
-                    remove_veh.append(veh)
-                    continue
                 check_crash = True
             elif veh.lead != lead:
                 check_crash = True
             else:
                 check_crash = False
 
-            if check_crash:
+            if check_crash:  # another lane change occurred, so check if the crash was avoided or not
+                if lead.end or veh.end:
+                    remove_veh.append(veh)
+                    continue
                 new_changer = veh if veh.lanemem[-1][1] > lc_timeind else lead
                 if new_changer == changer:
                     if new_changer.lane.anchor == prev_lane.anchor:
@@ -337,6 +339,7 @@ class CrashesSimulation(Simulation):
                 remove_veh.append(veh)
                 continue
 
+            # normal check for possible sideswipes
             if veh.hd > 0:  # sideswipe was avoided before lane change completes
                 remove_veh.append(veh)
             elif timeind > lc_timeind + int(1.8/self.dt):  # lane change completes

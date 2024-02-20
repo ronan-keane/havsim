@@ -58,7 +58,7 @@ def make_loss_fn(meas, platooninfo, vehid):
 
 
 if __name__ == '__main__':
-    with open('C:\\Users\\tawit\\Documents\\Github\\havsim\\data\\recon-ngsim-old.pkl', 'rb') as f:
+    with open('/data/recon-ngsim-old.pkl', 'rb') as f:
         meas, platooninfo = pickle.load(f)
     vehid = 1013
     p = [35*3.3, 1.3, 2*3.3, 1.1*3.3, 1.5*3.3]  # initial guess, note that units use feet, seconds

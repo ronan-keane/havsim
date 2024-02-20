@@ -480,6 +480,10 @@ class CrashesSimulation(Simulation):
                 self.near_misses.add(veh)
 
     @staticmethod
+    def _process_near_miss_interval(start, end):
+        pass
+
+    @staticmethod
     def _find_recent_lc_time(veh, lead):
         veh_lc = veh.lanemem[-1][1] if len(veh.lanemem) > 1 else -100000000
         lead_lc = lead.lanemem[-1][1] if len(lead.lanemem) > 1 else -100000000

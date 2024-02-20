@@ -9,7 +9,7 @@ import tqdm
 import sys
 
 # -------  SETTINGS  ------- #
-saved_sim = 'e94_5_7_2'
+saved_sim = 'e94_7_9_full'
 min_crash_plots = 0
 max_crash_plots = 0
 show_plots = False

@@ -445,22 +445,22 @@ class CrashesSimulation(Simulation):
         for veh, times in self.near_miss_times.items():
             cur_near_miss = []
             if times[-1] == times[0] + len(times) - 1:
-                cur_near_miss.append((times[0], times[-1]))
+                cur_near_miss.extend(self._process_near_miss_interval(veh, times[0], times[1]))
             else:
                 start_ind, prev_time, cur_len = 0, times[0], len(times)
                 while start_ind < cur_len:
                     for ind in range(start_ind+1, cur_len):
                         if times[ind] > prev_time + 20:
-                            cur_near_miss.append((times[start_ind], prev_time))
+                            cur_near_miss.extend(self._process_near_miss_interval(veh, times[start_ind], prev_time))
                             start_ind, prev_time = ind, times[ind]
                             break
                         else:
                             prev_time = times[ind]
                     else:
-                        cur_near_miss.append((times[start_ind], times[-1]))
+                        cur_near_miss.extend(self._process_near_miss_interval(veh, times[start_ind], times[-1]))
                         break
                     if times[-1] == times[start_ind] + cur_len - 1 - start_ind:
-                        cur_near_miss.append((times[start_ind], times[-1]))
+                        cur_near_miss.extend(self._process_near_miss_interval(veh, times[start_ind], times[-1]))
                         break
             near_misses[veh] = cur_near_miss
 
@@ -480,8 +480,16 @@ class CrashesSimulation(Simulation):
                 self.near_misses.add(veh)
 
     @staticmethod
-    def _process_near_miss_interval(start, end):
-        pass
+    def _process_near_miss_interval(veh, start, end):
+        start_ind = hs.helper.count_leadmem(veh, start)
+        end_ind = hs.helper.count_leadmem(veh, end)
+        if start_ind == end_ind:
+            return [(start, end)]
+        temp = [leadmem[1] for leadmem in veh.leadmem[start_ind+1:end_ind+1]]
+        temp.insert(0, start)
+        temp.append(end)
+        out = [(temp[i], temp[i+1]) for i in range(len(temp)-1)]
+        return out
 
     @staticmethod
     def _find_recent_lc_time(veh, lead):

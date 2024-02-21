@@ -445,7 +445,7 @@ class CrashesSimulation(Simulation):
         for veh, times in self.near_miss_times.items():
             cur_near_miss = []
             if times[-1] == times[0] + len(times) - 1:
-                cur_near_miss.extend(self._process_near_miss_interval(veh, times[0], times[1]))
+                cur_near_miss.extend(self._process_near_miss_interval(veh, times[0], times[-1]))
             else:
                 start_ind, prev_time, cur_len = 0, times[0], len(times)
                 while start_ind < cur_len:

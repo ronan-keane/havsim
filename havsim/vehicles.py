@@ -972,7 +972,7 @@ def update_after_crash(veh, timeind, crashed):
     veh.l_lc = None
     veh.r_lc = None
     veh.update_lc_state(timeind)
-    veh.is_coop = -1
+    veh.is_coop = 0
     # remove all lane and route events to ensure state will not change
     veh.lane_events = []
     veh.route_events = []

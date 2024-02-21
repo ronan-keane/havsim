@@ -798,7 +798,7 @@ class AnchorVehicle:
         self.hd = None
         self.len = 0
 
-        self.is_coop = -1  # for cooperation model
+        self.is_coop = 0  # for cooperation model
 
     def get_cf(self, lead, timeind):
         """Dummy method - so we don't have to check for anchors when calling set_lc."""

@@ -412,8 +412,8 @@ class CrashesSimulation(Simulation):
                 if len(veh.near_misses) > 0:
                     nm_veh += 1
         if verbose:
-            print('Events - Rear ends: {.1e} ({.0f} vehicles),  Sideswipes: {.1e} ({.0f} vehicles)'.format(
-                rear_ends, rear_end_veh, sideswipes, sideswipe_veh) + ',  Near misses: {.1e} ({.0f} vehicles)'.format(
+            print('Events - Rear ends: {:.1e} ({:.0f} vehicles),  Sideswipes: {:.1e} ({:.0f} vehicles)'.format(
+                rear_ends, rear_end_veh, sideswipes, sideswipe_veh) + ',  Near misses: {:.1e} ({:.0f} vehicles)'.format(
                 near_misses, nm_veh))
 
         if return_stats:

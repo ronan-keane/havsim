@@ -170,6 +170,7 @@ def update_lane_events(veh, timeind, remove_vehicles):
             if veh.rfol is not None:
                 veh.rfol.llead.remove(veh)
 
+            # call to possibly remove cooperation
             veh.update_lc_state(timeind)
 
             # to remove the vehicle set its end and put it in the remove_vehicles

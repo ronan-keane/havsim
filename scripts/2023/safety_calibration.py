@@ -18,7 +18,7 @@ def do_simulation(parameters):
 
 
 def evaluate_crash_rate(parameters):
-    pass
+    pass  # l2 crash rate target, regularizer for near miss + nveh/crash
 
 
 def crash_confidence(crashes, n_sims, vmt_sim, z=1.96, inverse=True):

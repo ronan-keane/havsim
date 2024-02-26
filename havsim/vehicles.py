@@ -950,9 +950,13 @@ class StochasticVehicle(Vehicle):
 
     def sample_gamma(self, acc, timeind):
         p = self.gamma_parameters
-        gamma = np.exp(self.npr.standard_normal()*p[1] + p[0])/(p[2]*acc**2 + p[3]*acc + 1)
         if self.in_relax:
-            gamma = gamma/p[4]
+            if self.lead is not None:
+                acc = max(acc, abs(self.cf_model(self.cf_parameters, [self.hd, self.speed, self.lead.speed])))
+            scale = p[4] * (p[2]*acc**2 + p[3]*acc + 1)
+        else:
+            scale = (p[2]*acc**2 + p[3]*acc + 1)
+        gamma = np.exp(self.npr.standard_normal()*p[1] + p[0])/scale
         # self.gammamem.append((timeind, gamma, acc, self.in_relax))
         return gamma
 

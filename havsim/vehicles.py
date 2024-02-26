@@ -203,7 +203,8 @@ class Vehicle:
         r_lc: the current lane changing state for the right side, None, 'd' (discretionary) or 'm' (mandatory)
         chk_disc: If True, do additional check to enter into lane change model calculation (for discretionary state).
         in_disc: If True, lane changing model checks discretionary condition. Check mandatory condition otherwise.
-        is_coop: if not None, is_coop is a Vehicle that we are currently cooperating with (is_coop is changer)
+        is_coop: if not None, is_coop is a Vehicle that we are currently cooperating with (is_coop is changer).
+            Can set the is_coop = 0 to manually remove cooperation.
         has_coop: if not None, has_coop is a Vehicle that is cooperating with self (self is the changer)
         coop_side_fol: if requesting cooperation on left side, has value 'lfol' otherwise 'rfol'
         cur_route: dictionary where keys are lanes, value is a list of route event dictionaries which
@@ -871,15 +872,18 @@ def reload(all_vehicles, lanes=None):
 class StochasticVehicle(Vehicle):
     """Adds error-prone behavior to Vehicle, which makes it possible for crashes to occur.
 
+    Note that this class does not define what should happen after a crash. That is done by CrashesVehicle.
+    This class adds stochastic behavior to the Vehicle.
+
     Attributes:
         gamma_parameters: list of float parameters, controlling the human reaction time/distraction
             0 - mean for log normal. Larger = higher average reactions (less safe)
             1 - stdev for log normal. Larger = heavier tail reactions (less safe)
             2 - scaling factor for squared acceleration. The gamma distraction length is scaled by
-                p[2]*acc**2 + p[3]*abs(acc) where acc is the acceleration.
-            3 - scaling factor for acceleration.
+                p[2]*acc**2 + p[3]*abs(acc) where acc is the acceleration. (larger = more safe)
+            3 - scaling factor for acceleration. (larger = more safe)
             4 - scaling factor for lane changes. The gamma distraction length is scaled by p[4] if
-                a lane change occurs.
+                a lane change occurs. (larger = more safe)
         xi_parameters:
             0 - scale for pareto  (Larger = larger xi = less safe)
             1 - shape for pareto  (Larger = smaller tail = more safe)
@@ -955,7 +959,7 @@ class StochasticVehicle(Vehicle):
                 acc = max(acc, abs(self.cf_model(self.cf_parameters, [self.hd, self.speed, self.lead.speed])))
             scale = p[4] * (p[2]*acc**2 + p[3]*acc + 1)
         else:
-            scale = (p[2]*acc**2 + p[3]*acc + 1)
+            scale = p[2]*acc**2 + p[3]*acc + 1
         gamma = np.exp(self.npr.standard_normal()*p[1] + p[0])/scale
         # self.gammamem.append((timeind, gamma, acc, self.in_relax))
         return gamma
@@ -998,7 +1002,7 @@ def set_cf_crashed(veh, timeind):
 
 
 class CrashesVehicle(Vehicle):
-    """Keeps memory of crashes/near misses and changes behavior if crash occurs.
+    """Keeps memory of crashes/near misses and implement the crash behavior if a crash occurs.
 
     Attributes:
         crashed: if False, the vehicle has not been in a crash. Otherwise, is a tuple of (crash_type, crash_time)

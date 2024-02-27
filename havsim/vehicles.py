@@ -889,6 +889,7 @@ class StochasticVehicle(Vehicle):
             0 - scale for pareto  (Larger = larger xi = less safe)
             1 - shape for pareto  (Larger = smaller tail = more safe)
         lc_accmem: mem of lc_acc
+        r_acc: acceleration with no relaxation model, used for computing scaling of gamma
         prev_acc: previous acceleration
         prev_lc_acc: previous lc acceleration
         beta: float percentage of timestep that we should be distracted for in next_t_ind
@@ -902,6 +903,7 @@ class StochasticVehicle(Vehicle):
         # self.gammamem = []  # memory of random variables (not currently used)
         # self.ximem = []
 
+        self.r_acc = 0
         self.prev_acc = 0  # old cf acc
         self.prev_lc_acc = 0  # old lc acc
         self.beta = 0  # next attention at time next_t_ind + beta
@@ -909,11 +911,16 @@ class StochasticVehicle(Vehicle):
 
     def initialize(self, pos, spd, hd, start):
         super().initialize(pos, spd, hd, start)
-        self.next_t_ind = start+1
+        self.next_t_ind = start
 
     def set_cf(self, timeind):
         if timeind == self.next_t_ind:
             super().set_cf(timeind)
+            if self.in_relax:
+                if self.lead is not None:
+                    self.r_acc = abs(self.cf_model(self.cf_parameters, [self.hd, self.speed, self.lead.speed]))
+                    return
+            self.r_acc = 0.
         else:
             self.acc = self.prev_acc
 
@@ -940,7 +947,7 @@ class StochasticVehicle(Vehicle):
         if timeind == self.next_t_ind:
             new_acc = self.acc
             self.acc = self.prev_acc * self.beta + new_acc * (1 - self.beta)
-            gamma_acc = max(abs(new_acc), abs(self.acc + self.lc_acc), abs(new_acc + self.lc_acc))
+            gamma_acc = max(abs(new_acc), self.r_acc, abs(self.acc + self.lc_acc), abs(new_acc + self.lc_acc))
             gamma = self.sample_gamma(gamma_acc, timeind)
             bar_gamma = (gamma / dt) // 1.
             self.beta = gamma / dt - bar_gamma
@@ -956,8 +963,6 @@ class StochasticVehicle(Vehicle):
     def sample_gamma(self, acc, timeind):
         p = self.gamma_parameters
         if self.in_relax:
-            if self.lead is not None:
-                acc = max(acc, abs(self.cf_model(self.cf_parameters, [self.hd, self.speed, self.lead.speed])))
             scale = p[4] * (p[2]*acc**2 + p[3]*acc + 1)
         else:
             scale = p[2]*acc**2 + p[3]*acc + 1

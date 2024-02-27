@@ -275,6 +275,25 @@ def check_coop_and_apply(veh, ego_veh, veh_p, ego_safety, timeind):
     veh.is_coop = ego_veh.has_coop = None
 
 
+def check_coop_and_apply_sc(veh, ego_veh, veh_p, ego_safety, timeind):
+    """For stochastic_lc_havsim."""
+    unused, new_a = veh.get_cf(ego_veh, timeind)
+    if new_a > ego_safety:
+        if veh == getattr(ego_veh, ego_veh.coop_side_fol):
+            if timeind == veh.next_t_ind:
+                apply_coop(veh, ego_veh, new_a, veh_p)
+            return
+        elif veh.lead is not None:
+            lead = veh.lead
+            unused, lead_a = lead.get_cf(ego_veh, timeind)
+            if lead_a < ego_safety and lead.speed > ego_veh.speed:
+                if timeind == veh.next_t_ind:
+                    apply_coop(veh, ego_veh, new_a, veh_p)
+                return
+    veh.chk_disc = timeind > veh.disc_endtime if veh.in_disc else False
+    veh.is_coop = ego_veh.has_coop = None
+
+
 def apply_tactical(veh, new_lcfol, veh_safe, fol_safe, p2):
     if not veh_safe:
         lead = new_lcfol.lead
@@ -361,6 +380,36 @@ def maybe_add_new_coop(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_corre
             test_veh.chk_disc = False
             test_veh.disc_endtime = timeind + test_veh.lc_parameters[7]
             apply_coop(test_veh, veh, test_veh_a, test_veh.lc2_parameters)
+
+
+def try_find_new_coop_sc(new_lcfol, veh, new_lcfol_a, veh_safety, timeind, coop_correction):
+    """For stochastic lc_havsim."""
+    if new_lcfol_a > veh_safety:
+        maybe_add_new_coop_sc(new_lcfol, veh, new_lcfol, new_lcfol_a, timeind, coop_correction)
+        return
+    lead, lead_a = new_lcfol, new_lcfol_a
+    for i in range(5):
+        test_veh = lead.fol
+        unused, test_veh_a = test_veh.get_cf(veh, timeind)
+        if test_veh_a > veh_safety:
+            if lead.speed > veh.speed:
+                maybe_add_new_coop_sc(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_correction)
+            break
+        lead, lead_a = test_veh, test_veh_a
+
+
+def maybe_add_new_coop_sc(test_veh, veh, new_lcfol, test_veh_a, timeind, coop_correction):
+    """For stochastic lc_havsim"""
+    if test_veh.is_coop is None:  # not currently cooperating
+        coop_p = test_veh.lc2_parameters[5] + coop_correction
+        if veh.npr.random() < coop_p:  # cooperation condition met
+            test_veh.is_coop = veh
+            veh.has_coop = test_veh
+            veh.coop_side_fol = 'lfol' if new_lcfol is veh.lfol else 'rfol'
+            test_veh.chk_disc = False
+            test_veh.disc_endtime = timeind + test_veh.lc_parameters[7]
+            if timeind == test_veh.next_t_ind:
+                apply_coop(test_veh, veh, test_veh_a, test_veh.lc2_parameters)
 
 
 def new_relaxation(veh, timeind, dt):
@@ -554,7 +603,7 @@ def stochastic_lc_havsim(veh, lc_actions, lc_followers, timeind):
 
     StochasticVehicles have random variable xi which randomly perturbs the safety condition and incentives.
     Also, for timesteps where the cf acceleration is not updated (due to gamma reaction time), the lc acceleration
-    is also not updated.
+    is also not updated. Note that the cooperation relationships are always updated.
     """
     if veh.chk_disc:
         if veh.npr.random() > veh.lc_parameters[6]:
@@ -610,61 +659,48 @@ def stochastic_lc_havsim(veh, lc_actions, lc_followers, timeind):
 
     xi = veh.sample_xi(timeind)
     if veh.in_disc:  # discretionary update
-        if timeind == veh.next_t_ind:  # normal update, calculate lc_acc as normal
-            if veh.is_coop:  # if cooperating, make sure the incentive includes lc_acceleration
+        if veh.is_coop:  # if cooperating, make sure the incentive includes lc_acceleration
+            if timeind == veh.next_t_ind:
                 if veh.lc_acc == 0:
                     ego_veh = veh.is_coop
                     ego_safety = ego_veh.lc_parameters[0] if ego_veh.in_disc else ego_veh.lc_parameters[1]
                     check_coop_and_apply(veh, ego_veh, veh.lc2_parameters, ego_safety, timeind)
                 incentive -= veh.lc_acc
+            else:
+                incentive -= veh.prev_lc_acc
 
-            incentive = incentive + 2 * p[3] * xi
-            if incentive > p[2]:
-                if timeind < veh.disc_cooldown:
-                    return lc_actions, lc_followers
-                safety = p[0]
-                stochastic_safety = safety - xi
-                fol_safe, veh_safe = new_lcfol_a > stochastic_safety, new_veh_a > stochastic_safety
-                if fol_safe and veh_safe:
-                    return complete_change(lc_actions, lc_followers, veh, new_lcfol)
-                if veh.chk_disc:
-                    veh.chk_disc = False
-                veh.disc_endtime = timeind + p[7]
+        incentive = incentive + 2 * p[3] * xi
+        if incentive > p[2]:
+            if timeind < veh.disc_cooldown:
+                return lc_actions, lc_followers
+            safety = p[0]
+            stochastic_safety = safety - xi
+            fol_safe, veh_safe = new_lcfol_a > stochastic_safety, new_veh_a > stochastic_safety
+            if fol_safe and veh_safe:
+                return complete_change(lc_actions, lc_followers, veh, new_lcfol)
+            if veh.chk_disc:
+                veh.chk_disc = False
+            veh.disc_endtime = timeind + p[7]
 
-                # apply tactical and cooperative
+            # apply tactical and cooperative
+            if timeind == veh.next_t_ind:
                 if veh.lc_acc == 0:
                     apply_tactical_discretionary(veh, veh_safe, fol_safe, veh.lc2_parameters)
-                has_coop = veh.has_coop
-                if not has_coop:
-                    try_find_new_coop(new_lcfol, veh, new_lcfol_a, safety, timeind, 0)
-                elif has_coop.lc_acc == 0:
-                    check_coop_and_apply(has_coop, veh, has_coop.lc2_parameters, safety, timeind)
+            has_coop = veh.has_coop
+            if not has_coop:
+                try_find_new_coop_sc(new_lcfol, veh, new_lcfol_a, safety, timeind, 0)
+            elif has_coop.lc_acc == 0:
+                check_coop_and_apply_sc(has_coop, veh, has_coop.lc2_parameters, safety, timeind)
 
-            else:
-                if veh.has_coop:
-                    coop_veh = veh.has_coop
-                    coop_veh.chk_disc = timeind > coop_veh.disc_endtime if coop_veh.in_disc else False
-                    coop_veh.is_coop = veh.has_coop = None
+        else:
+            if veh.has_coop:
+                coop_veh = veh.has_coop
+                coop_veh.chk_disc = timeind > coop_veh.disc_endtime if coop_veh.in_disc else False
+                coop_veh.is_coop = veh.has_coop = None
 
-            if not veh.chk_disc:
-                if timeind > veh.disc_endtime:
-                    veh.chk_disc = True
-
-        else:  # stochastic update, assuming driver is temporarily insensitive to changes (due to gamma reaction time)
-            incentive = incentive - veh.prev_lc_acc + 2 * p[3] * xi
-            if incentive > p[2]:
-                if timeind < veh.disc_cooldown:
-                    return lc_actions, lc_followers
-                safety = p[0]
-                stochastic_safety = safety - xi
-                fol_safe, veh_safe = new_lcfol_a > stochastic_safety, new_veh_a > stochastic_safety
-                if fol_safe and veh_safe:
-                    return complete_change(lc_actions, lc_followers, veh, new_lcfol)
-                if veh.chk_disc:
-                    veh.chk_disc = False
-                veh.disc_endtime = timeind + p[7]
-
-
+        if not veh.chk_disc:
+            if timeind > veh.disc_endtime:
+                veh.chk_disc = True
     else:  # mandatory update
         safety = p[1]
         stochastic_safety = safety - xi
@@ -673,15 +709,16 @@ def stochastic_lc_havsim(veh, lc_actions, lc_followers, timeind):
             return complete_change(lc_actions, lc_followers, veh, new_lcfol)
 
         # apply tactical and cooperative
-        if veh.lc_acc == 0:
-            apply_tactical(veh, new_lcfol, veh_safe, fol_safe, veh.lc2_parameters)
+        if timeind == veh.next_t_ind:
+            if veh.lc_acc == 0:
+                apply_tactical(veh, new_lcfol, veh_safe, fol_safe, veh.lc2_parameters)
         has_coop = veh.has_coop
         if not has_coop:
             s1, s2 = veh.lc_urgency
             coop_correction = (veh.pos - s1)/(s2 - s1 + 1)
-            try_find_new_coop(new_lcfol, veh, new_lcfol_a, safety, timeind, coop_correction)
+            try_find_new_coop_sc(new_lcfol, veh, new_lcfol_a, safety, timeind, coop_correction)
         elif has_coop.lc_acc == 0:
-            check_coop_and_apply(has_coop, veh, has_coop.lc2_parameters, safety, timeind)
+            check_coop_and_apply_sc(has_coop, veh, has_coop.lc2_parameters, safety, timeind)
 
     return lc_actions, lc_followers
 

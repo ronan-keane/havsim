@@ -12,15 +12,15 @@ from safety_calibration import crash_confidence
 
 
 # -------  SETTINGS  ------- #
-save_name = 'e94_16_17_test'
+save_name = 'e94_16_17_test2'
 n_simulations = 500
-n_workers = 55
+n_workers = 50
 batch_size = 200
 save_crashes_only = False if n_simulations == 1 else True
 
 sim_name = 'e94'
 use_times = [16, 17]
-gamma_parameters = [-.13, .25, .2, .6, 2.]
+gamma_parameters = [-.13, .3, .2, .6, 1.5]
 xi_parameters = [.8, 3.75]
 # -------------------------- #
 

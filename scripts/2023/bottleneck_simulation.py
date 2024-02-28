@@ -14,7 +14,10 @@ onramp = lambda timeind: 800/3600 * min(timeind, 12000)/12000
 timesteps = 20000
 simulation, laneinds = merge_bottleneck(main_inflow=main, onramp_inflow=onramp, timesteps=timesteps)
 
-all_vehicles = simulation.simulate()
+for i in range(100):
+    all_vehicles = simulation.simulate(timesteps=10000)
+    simulation.reset()
+    del all_vehicles
 
 if save_output:
     with open(save_name + '.pkl', 'wb') as f:
@@ -26,11 +29,10 @@ if make_plots:
     # hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=1, speed_bounds=(0, 35))
     # hp.plotspacetime(sim, siminfo, timeint=150, xint=30, lane=0, speed_bounds=(0, 40))
     #
-    hp.plotflows(sim, [[100, 200], [800, 900], [1100, 1200], [1400, 1500]], [0, timesteps], 300, h=.2)
-    plt.show()
+    # hp.plotflows(sim, [[100, 200], [800, 900], [1100, 1200], [1400, 1500]], [0, timesteps], 300, h=.2)
+    # plt.show()
 
-    ani = hp.animatetraj(sim, siminfo, usetime=list(range(10000, 13000)), show_id=False, spacelim=(800, 1500), lanelim=(3.5, -1),
-                         save_name='havsim transition')
+    # ani = hp.animatetraj(sim, siminfo, usetime=list(range(10000, 13000)), show_id=False, spacelim=(800, 1500), lanelim=(3.5, -1))
     # ani2 = hp.animatetraj(sim, siminfo, usetime=list(range(10000, timesteps)), show_id=False, spacelim=(0, 2000),
     #                      lanelim=(3, -1))
     # plt.show()

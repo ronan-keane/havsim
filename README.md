@@ -1,4 +1,5 @@
 ## havsim - a traffic simulator written in python
+havsim implements a parametric model of human driving, which also includes a stochastic model of human driving errors. havsim can realistically simulate traffic (including crashes and near misses) on an arbitrary highway network.
 
 # Install
 1. Download the repository
@@ -10,26 +11,30 @@ pip install -e .
 ```
 
 # Description
-havsim implements a parametric model of human driving, and can simulate traffic on an arbitrary highway network.
-The **deterministic havsim model** (havsim.Vehicle) is based on traditional traffic flow models. It consists of the following parts:
-1. Car following model (IDM) - 5 parameters
-      - outputs scalar acceleration
-2. Lane changing model (lc_havsim) - 21 parameters
-      - decision model based on MOBIL can output {stay, change left, change right} - 9 parameters
-      - dynamics model outputs an acceleration which is added to the car following acceleration - 10 parameters
-      - route model adjusts the lane changing state so the vehicle will stay on the planned route - 2 parameters
+Refer to the provided scripts for examples of using havsim. The quickstart guide also explains how to create a simulation in havsim ([broken-link.asdf.lol.com]).
 
-The **stochastic havsim model** (havsim.CrashesStochasticVehicle) incorporates human driving errors into the model, which can lead to rear ends and sideswipe crashes.
-3. Stochastic human behavior - 7 parameters
-      - human perception response time - 4 parameters
-      - errors in lane changing decisions - 3 parameters
+### The deterministic havsim model (havsim.Vehicle) 
+- Based on traditional traffic flow models
+- Car following model uses 6 parameters
+       - output scalar acceleration from IDM - 5 parameters
+       - bounded maximum deceleration - 1 parameter
+- Lane changing model uses - 21 parameters
+       - decision model based on MOBIL can output {stay, change left, change right} - 9 parameters
+       - dynamics model outputs an acceleration which is added to the car following acceleration - 10 parameters
+       - route model adjusts the lane changing state so vehicles will stay on their planned route - 2 parameters
+
+### The stochastic havsim model (havsim.CrashesStochasticVehicle)
+- Incorporates human driving errors into the model, which can lead to rear ends and sideswipe crashes.
+- Stochastic human behavior - 7 parameters
+       - human perception response time - 4 parameters
+       - errors in lane changing decisions - 3 parameters
 
 ## Code Structure
 scripts
 
 
 # Usage
-## Example
+## Quickstart Example
 
 # References
 ```

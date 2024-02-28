@@ -11,7 +11,7 @@ pip install -e .
 ```
   
 # Description
-Refer to the provided scripts for examples of using havsim. The quickstart guide also explains how to create a simulation in havsim [test link](google.com). 
+Refer to the provided scripts for examples of using havsim.
 
 ## Code Structure
      /scripts/ - included examples of using havsim
@@ -51,8 +51,29 @@ Refer to the provided scripts for examples of using havsim. The quickstart guide
 - Default parameters given in havsim.models.stochastic_default_parameters()
      
 # Usage
-## Quickstart Example
+You can see what havsim can do by running the included scripts. The beginning of scripts define what they will do, and can be changed accordingly.
+###safety_sim.py
+Settings:
+     save_name: str, the output will be saved at havsim/scripts/pickle files/save_name.pkl
+     n_simulation: int number of simulations to run
+     n_workers: int number of workers to use for multiprocessing
+     batch_size: int number of simulations per batch (may run out of memory if batch_size is too large)
+     save_crashes_only: bool, by default, only save Vehicles which crash or have near misses, or have interaction with those crashed/near missed Vehicles. By default, if the n_simulation=1, then all Vehicles will be saved.
+     sim_name: str, name of simulation to run
+     use_times: list of \[start, end\], where start is the start time of the simulation and end is the end time of the simulation (times are floats between \[0-24\))
+     gamma_parameters: stochastic parameters to use for simulation (see havsim.vehicles.StochasticVehicle)
+     xi_parameters: stochastic parameters to use for simulation (see havsim.vehicles.StochasticVehicle)
+     
+Example output:
 
+###analyze_crashes.py
+Settings:
+     saved_sim: str, the name of the output (the save_name from safety_sim.py)
+     min_crash_plots: int, plot all crashes with index from min_crash_plots to max_crash_plots
+     max_crash_plots: int, plot all crashes with index from min_crash_plots to max_crash_plots
+     show_plots: bool, whether or not to show figures
+     save_plots: bool, whether or not to save figures/animations
+     
 # References
 ```
 @article{havsim2021,

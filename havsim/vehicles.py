@@ -405,6 +405,8 @@ class Vehicle:
     def get_cf(self, lead, timeind):
         """Evaluates car following model if lead was the lead vehicle.
 
+        Provided for convenience (especially for evaluating lane changing models).
+
         Args:
             lead (Vehicle): lead Vehicle
             timeind (int): time index
@@ -422,7 +424,11 @@ class Vehicle:
         return hd, acc
 
     def set_cf(self, timeind):
-        """Sets a vehicle's acceleration, with relaxation added after lane changing."""
+        """Sets a vehicle's acceleration, with relaxation added after lane changing.
+
+        This is the main method to call a Vehicle's car following model. It calls the model and updates the
+        self.acc attribute. The self.acc is then used by self.update() to update the Vehicle.
+        """
         hd, spd, lead = self.hd, self.speed, self.lead
         if lead is None:
             self.acc = self.lane.call_downstream(self, timeind)
@@ -522,14 +528,19 @@ class Vehicle:
                                (0, self.maxspeed), self.hdbounds)
 
     def set_lc(self, lc_actions, lc_followers, timeind):
-        """Evaluates a vehicle's lane changing action.
+        """Evaluates a vehicle's lane changing model.
 
-        If a vehicle makes a lane change, it must be recorded in the dictionary lc_actions. The LC will be completed
-        except in the case where multiple vehicles try to change in front of the same vehicle. In that case, only
-        one of the lane changes can be completed.
+        This the method for evaluating a Vehicle's lane changing model. The lane change model outputs a decision
+        (left, right or stay), and a lane changing acceleration (lc_acc).  The lc acceleration is added to
+        the car following acceleration when updating the Vehicle with self.update().
 
-        The set_lc method may also affect the acceleration by setting the attribute lc_acc. This is a separate
-        acceleration from the 'acc' attribute set by set_cf. The lc_acc and acc are added to get the final acceleration.
+        The lc decision is recorded in lc_actions and lc_followers.  Note that the LC output from the model may not
+        be completed, in the edge case where multiple vehicles try to change in front of the same vehicle.
+        In that case, only one of the lane changes can be completed.
+
+        This method also updates several attributes of self. Most notably, self.lc_acc. It can also update
+        the internal lane changing state, specifically the attributes self.is_coop, self.has_coop, self.chk_disc,
+        and self.disc_endtime.
 
         See havsim.models.lc_havsim for more information.
 

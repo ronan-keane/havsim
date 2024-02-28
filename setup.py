@@ -18,7 +18,7 @@ setuptools.setup(
                 'License :: Apache 2.0',
                 'Operating System :: Windows/Linux/Mac'
         ],
-        install_requires=['palettable', 'scipy', 'bayesian-optimization'],
+        install_requires=['palettable', 'scipy', 'bayesian-optimization', 'tqdm'],
         python_requires = '>=3.10',
         packages = setuptools.find_packages(exclude = ['Jax','nlopt','scripts', 'tensorflow', 'tensorflow-probability', 'networkx'])
         )

@@ -1033,6 +1033,7 @@ class CrashesVehicle(Vehicle):
 
 
 class CrashesStochasticVehicle(StochasticVehicle):
+    """See also StochasticVehicle and CrashesVehicle for documentation."""
     def __init__(self, *args, **kwargs):
         self.crashed = False
         self.crash_time = None

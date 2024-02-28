@@ -598,6 +598,10 @@ def idm_mobil_parameters(truck_prob=0., stochasticity=True):
             'length': length}
 
 
+def stochastic_default_parameters():
+    raise NotImplementedError('Not implemented.')
+
+
 def stochastic_lc_havsim(veh, lc_actions, lc_followers, timeind):
     """lc_havsim model for StochasticVehicle.
 

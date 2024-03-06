@@ -120,9 +120,7 @@ def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, ve
 
 
 class Simulation:
-    """Implements a traffic microsimulation.
-
-    Basically just a wrapper for update_net.
+    """Does a traffic simulation.
 
     Attributes:
         roads: list of all Roads

@@ -2,18 +2,16 @@
 from safety_calibration import crash_confidence
 import pickle
 import havsim
-import havsim.plotting as hp
 import numpy as np
 import matplotlib.pyplot as plt
 import tqdm
 import sys
+import os.path as os
 
 # -------  SETTINGS  ------- #
 saved_sim = 'e94_16_17_test'
 min_crash_plots = 0
-max_crash_plots = 5
-show_plots = False
-save_plots = True
+max_crash_plots = 0
 # -------------------------- #
 
 
@@ -143,23 +141,40 @@ def do_speed_plot(args):
 
 
 if __name__ == '__main__':
+    argv = (saved_sim, min_crash_plots, max_crash_plots)
+    if len(sys.argv) > 1:
+        argv_len = len(sys.argv)
+        argv = (*sys.argv[1:min(argv_len, 4)], *argv[min(argv_len, 4)-1:])
+    saved_sim, min_crash_plots, max_crash_plots = argv
+
+    print('\nLoading saved result \''+str(saved_sim)+'\' and plotting crashes with indexes {:.n} through {:.n}'.format(
+        min_crash_plots, max_crash_plots))
+
+    pickle_path = os.join(os.dirname(__file__), '\\pickle files')
+    assert os.isdir(pickle_path), 'the directory \'\\pickle files\' does not exist'
+    file_path = os.join(pickle_path, saved_sim+'.pkl')
+    assert os.exists(file_path), 'the file \''+file_path + '\' does not exist'
+    with open(file_path, 'rb') as f:
+        all_vehicles_list, laneinds = pickle.load(f)
+    if os.exists(os.join(pickle_path, saved_sim+'_config.config')):
+        with open(os.join(pickle_path, saved_sim+'_config.config'), 'rb') as f:
+            config = pickle.load(f)
+    else:
+        print('Warning: config file failed to load', file=sys.stderr)
+
     e94_rear_ends = [0, 1, 1, 1, 0, 1, 3, 12, 23, 9, 5, 7, 5, 3, 11, 53, 92, 105, 81, 21, 4, 6, 2, 3]
     e94_sideswipes = [3, 0, 0, 1, 2, 3, 4, 5, 11, 10, 6, 7, 3, 9, 5, 15, 13, 21, 18, 10, 8, 4, 4, 8]
 
-    with open('pickle files/' + saved_sim + '.pkl', 'rb') as f:
-        all_vehicles_list, laneinds = pickle.load(f)
-    with open('pickle files/' + saved_sim + '_config'+'.config', 'rb') as f:
-        config = pickle.load(f)
-
-    print('\n--------Summary of '+saved_sim+'--------')
     sim_name, use_times, dt = config.get('sim_name', '?'), config.get('use_times', '?'), config.get('dt', .2)
-    timesteps_before, timesteps_after = config.get('timesteps_before', 100), config.get('timesteps_after', 5)
+    timesteps_before, timesteps_after = config.get('timesteps_before', 250), config.get('timesteps_after', 50)
     near_miss, rear_end, sideswipes, vmt, n_simulations = config.get('near misses', 0), config.get('rear ends', 0), \
         config.get('sideswipes', 0), config.get('vmt', 0), config.get('n_simulations', 0)
     re_veh, ss_veh, nm_veh = \
         config.get('rear end vehicles', 0), config.get('sideswipe vehicles', 0), config.get('near miss vehicles', 0)
-    print('{:n} replications of '.format(n_simulations)+str(sim_name)+' for times '+str(use_times))
-    print('Simulated {:.3} miles. Events: {:.0f} rear ends ({:.0f} vehicles)'.format(vmt, rear_end, re_veh) +
+    print('\n------------------Summary of '+saved_sim+'------------------')
+    print('Result of {:n} simulations of '.format(n_simulations)+str(sim_name) +
+          ' for times '+str(use_times)+'. Simulated {:.3} miles.'.format(vmt))
+    print('Events: {:.0f} rear ends ({:.0f} vehicles)'.format(rear_end, re_veh) +
           ',  {:.0f} sideswipes ({:.0f} vehicles)'.format(sideswipes, ss_veh) +
           ',  {:.0f} near misses ({:.0f} vehicles).'.format(near_miss, nm_veh))
     gamma_parameters, xi_parameters = config.get('gamma_parameters', '?'), config.get('xi_parameters', '?')
@@ -172,18 +187,18 @@ if __name__ == '__main__':
         data_sideswipes = sum(e94_sideswipes[use_times[0]:use_times[1]])
         out_data_rear_ends = crash_confidence(data_rear_ends, 2600, vmt/n_simulations)
         out_data_sideswipes = crash_confidence(data_sideswipes, 2600, vmt/n_simulations)
-        print('rear end inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_rear_ends) +
+        print('Rear end inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_rear_ends) +
               ' ground truth: {:.3} ({:.0f} crashes). ground truth 95% confidence: [{:.3}, {:.3}]'.format(
                   out_data_rear_ends[0], data_rear_ends, *out_data_rear_ends[1:]))
-        print('sideswipe inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_sideswipes) +
+        print('Sideswipe inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_sideswipes) +
               ' ground truth: {:.3} ({:.0f} crashes). ground truth 95% confidence: [{:.3}, {:.3}]'.format(
                   out_data_sideswipes[0], data_sideswipes, *out_data_sideswipes[1:]))
     else:
-        print('rear end inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_rear_ends))
-        print('sideswipe inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}]'.format(*out_sideswipes))
-    print('near miss inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}]\n'.format(*out_near_misses))
+        print('Rear end inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_rear_ends))
+        print('Sideswipe inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}]'.format(*out_sideswipes))
+    print('Near miss inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}]\n'.format(*out_near_misses))
 
-    rear_end, sideswipes, near_misses, severity = [], [], [], []
+    rear_end, sideswipes, near_misses, severity, speeds = [], [], [], [], []
     n_crashed_veh, n_near_miss_veh = 0, 0
 
     for count, all_vehicles in enumerate(all_vehicles_list):
@@ -198,7 +213,7 @@ if __name__ == '__main__':
         for crash_veh_list in crashes_only.values():
             n_crashed_veh += len(crash_veh_list)
             crash_times = [veh.crash_time for veh in crash_veh_list]
-            t_start, t_end = min(crash_times) - timesteps_before, max(crash_times) + timesteps_after
+            t_start, t_end = min(crash_times) - 80, max(crash_times) + 25
             platoon = havsim.helper.add_leaders(crash_veh_list, t_start, t_end)
             need_speed_plots = []
             for veh in crash_veh_list[:2]:
@@ -218,10 +233,9 @@ if __name__ == '__main__':
                         sideswipes.append(((t_start, t_end), platoon, need_speed_plots, count, None))
                     break
             veh1, veh2 = crash_veh_list[0], crash_veh_list[1]
-            try:
-                severity.append(abs(veh1.speedmem[veh1.crash_time-veh1.start]-veh2.speedmem[veh2.crash_time-veh2.start]))
-            except:
-                pass
+            severity.append(abs(veh1.speedmem[veh1.crash_time-veh1.start]-veh2.speedmem[veh2.crash_time-veh2.start]))
+            speeds.append(veh1.speedmem[veh1.crash_time-veh1.start])
+            speeds.append(veh2.speedmem[veh2.crash_time-veh2.start])
             for veh in crash_veh_list[2:]:
                 other = veh.leadmem[havsim.helper.count_leadmem(veh, veh.crash_time)][0]
                 if veh.crashed[0] == 'sideswipe':
@@ -230,24 +244,23 @@ if __name__ == '__main__':
                             pass
                     else:
                         other = crash_veh_list[0]
-                try:
-                    severity.append(abs(other.speedmem[veh.crash_time-other.start]-
-                                        veh.speedmem[veh.crash_time-veh.start]))
-                except:
-                    pass
+                severity.append(abs(other.speedmem[veh.crash_time-other.start]-veh.speedmem[veh.crash_time-veh.start]))
+                speeds.append(other.speedmem[veh.crash_time-other.start])
+                speeds.append(veh.speedmem[veh.crash_time-veh.start])
+
     for count, all_vehicles in enumerate(all_vehicles_list):
         for veh in all_vehicles:
             if len(veh.near_misses) == 0:
                 continue
             n_near_miss_veh += 1
             for times in veh.near_misses:
-                t_start, t_end = times[0] - timesteps_before, times[1] + timesteps_after
+                t_start, t_end = times[0] - 80, times[1] + 25
                 near_misses.append(((t_start, t_end), havsim.helper.add_leaders([veh], t_start, t_end),
                                     [veh], count, 'near miss'))
 
     all_sim = []
     for all_vehicles in all_vehicles_list:
-        sim, siminfo = hp.plot_format(all_vehicles,  laneinds)
+        sim, siminfo = havsim.plotting.plot_format(all_vehicles,  laneinds)
         all_sim.append((sim, siminfo))
 
     all_ani, plot_crashes = [], []
@@ -260,18 +273,39 @@ if __name__ == '__main__':
     my_crash_types = ['rear end']*len(rear_end[min_crash_plots:max_crash_plots])
     my_crash_types.extend(['sideswipe']*len(sideswipes[min_crash_plots:max_crash_plots]))
     my_crash_types.extend(['near miss'] * len(near_misses[min_crash_plots:max_crash_plots]))
-    print('Plotting {:n} rear ends, {:n} sideswipes, {:n} near misses, and crash severity'.format(
+    plot_str = 'Plotting {:n} rear ends, {:n} sideswipes, {:n} near misses'.format(
         len(rear_end[min_crash_plots:max_crash_plots]), len(sideswipes[min_crash_plots:max_crash_plots]),
-        len(near_misses[min_crash_plots:max_crash_plots])))
-    pbar = tqdm.tqdm(range(len(plot_crashes)+1), total=len(plot_crashes)+1, file=sys.stdout)
+        len(near_misses[min_crash_plots:max_crash_plots]))
+    if len(plot_crashes) == 0:
+        extra_plot = False
+        pbar_total = 0
+    else:
+        extra_plot = True
+        plot_str += ', and plotting speeds/speed differences at crash'
+        pbar_total = len(plot_crashes)+2
+    print(plot_str)
+
+    animation_path = os.abspath(os.join(pickle_path, '..', 'plots and animations'))
+    pbar = tqdm.tqdm(range(pbar_total), total=pbar_total, file=sys.stdout)
     pbar.set_description('Making plots')
-    fig = plt.figure()
-    plt.hist(severity, bins=[0+i*.5 for i in range(20)])
-    plt.xlabel('speed difference at crash (m/s)')
-    plt.ylabel('frequency')
-    if save_plots:
-        fig.savefig('pickle files/animations/'+saved_sim+'_severity.png', dpi=200)
-    pbar.update()
+
+    if extra_plot:
+        fig = plt.figure()
+        plt.hist(severity, bins=[0+i*.5 for i in range(20)])
+        plt.xlabel('speed difference at crash (m/s)')
+        plt.ylabel('frequency')
+        fig.savefig(os.join(animation_path, saved_sim+' - speed differences at crash.png'), dpi=200)
+        plt.close(fig)
+        pbar.update()
+
+        fig = plt.figure()
+        plt.hist(speeds, bins=[0+2*i for i in range(20)])
+        plt.xlabel('speed at crash (m/s)')
+        plt.ylabel('frequency')
+        fig.savefig(os.join(animation_path, saved_sim + ' - speeds at crash.png'), dpi=200)
+        plt.close(fig)
+        pbar.update()
+
     for ind_count, cur in enumerate(plot_crashes):
         times, platoon, need_speed_plots, count, my_crash_type = cur
         t_start, t_end = times
@@ -289,21 +323,17 @@ if __name__ == '__main__':
             title_str = title_str + ', ' + cur_event + ' (vehicle '+str(veh.vehid)+')'
 
         crash_str, crash_ind = my_crash_types[ind_count], inds[ind_count]
-        filename = 'pickle files/animations/' + saved_sim + ' - ' + crash_str + ' - ' + str(crash_ind)
-        save_name = filename if save_plots else None
-        ani = hp.animatetraj(sim, siminfo, platoon=[i.vehid for i in platoon], usetime=list(range(t_start, t_end+1)),
-                             spacelim=(min(min_p)-5, max(max_p)+3), lanelim=(3, -1), show_id=True, show_axis=True,
-                             title=title_str, save_name=save_name)
-        all_ani.append(ani)
+        filename = saved_sim + ' - ' + crash_str + ' - ' + str(crash_ind)
+        save_name = os.join(animation_path, filename)
+        ani = havsim.plotting.animatetraj(
+            sim, siminfo, platoon=[i.vehid for i in platoon], usetime=list(range(t_start, t_end+1)),
+            spacelim=(min(min_p)-5, max(max_p)+3), lanelim=(3, -1), show_id=True, show_axis=True, title=title_str,
+            save_name=save_name)
+        plt.close()
 
         for counter2, veh in enumerate(need_speed_plots):
             fig = do_speed_plot(prepare_speed_plot(veh, t_start, t_end, crash_type=my_crash_type))
-            if save_plots:
-                if len(need_speed_plots) > 1:
-                    fig.savefig(filename+' - '+str(counter2)+'.png', dpi=200)
-                else:
-                    fig.savefig(filename + '.png', dpi=200)
+            fig.savefig(filename+' - crash '+str(counter2)+'.png', dpi=200)
+            plt.close(fig)
         pbar.update()
     pbar.close()
-    if show_plots:
-        plt.show()

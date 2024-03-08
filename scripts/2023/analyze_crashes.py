@@ -1,5 +1,4 @@
 """Plot crashes, near misses and analyze crash rate from saved data from script safety sim."""
-from safety_calibration import crash_confidence
 import pickle
 import havsim
 import numpy as np
@@ -166,7 +165,6 @@ if __name__ == '__main__':
     e94_sideswipes = [3, 0, 0, 1, 2, 3, 4, 5, 11, 10, 6, 7, 3, 9, 5, 15, 13, 21, 18, 10, 8, 4, 4, 8]
 
     sim_name, use_times, dt = config.get('sim_name', '?'), config.get('use_times', '?'), config.get('dt', .2)
-    timesteps_before, timesteps_after = config.get('timesteps_before', 250), config.get('timesteps_after', 50)
     near_miss, rear_end, sideswipes, vmt, n_simulations = config.get('near misses', 0), config.get('rear ends', 0), \
         config.get('sideswipes', 0), config.get('vmt', 0), config.get('n_simulations', 0)
     re_veh, ss_veh, nm_veh = \
@@ -179,14 +177,14 @@ if __name__ == '__main__':
           ',  {:.0f} near misses ({:.0f} vehicles).'.format(near_miss, nm_veh))
     gamma_parameters, xi_parameters = config.get('gamma_parameters', '?'), config.get('xi_parameters', '?')
     print('gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters)+'.')
-    out_rear_ends = crash_confidence(rear_end, n_simulations, vmt/n_simulations)
-    out_sideswipes = crash_confidence(sideswipes, n_simulations, vmt/n_simulations)
-    out_near_misses = crash_confidence(near_miss, n_simulations, vmt/n_simulations)
+    out_rear_ends = havsim.helper.crash_confidence(rear_end, n_simulations, vmt/n_simulations)
+    out_sideswipes = havsim.helper.crash_confidence(sideswipes, n_simulations, vmt/n_simulations)
+    out_near_misses = havsim.helper.crash_confidence(near_miss, n_simulations, vmt/n_simulations)
     if use_times != '?':
         data_rear_ends = sum(e94_rear_ends[use_times[0]:use_times[1]])
         data_sideswipes = sum(e94_sideswipes[use_times[0]:use_times[1]])
-        out_data_rear_ends = crash_confidence(data_rear_ends, 2600, vmt/n_simulations)
-        out_data_sideswipes = crash_confidence(data_sideswipes, 2600, vmt/n_simulations)
+        out_data_rear_ends = havsim.helper.crash_confidence(data_rear_ends, 2600, vmt/n_simulations)
+        out_data_sideswipes = havsim.helper.crash_confidence(data_sideswipes, 2600, vmt/n_simulations)
         print('Rear end inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_rear_ends) +
               ' ground truth: {:.3} ({:.0f} crashes). ground truth 95% confidence: [{:.3}, {:.3}]'.format(
                   out_data_rear_ends[0], data_rear_ends, *out_data_rear_ends[1:]))

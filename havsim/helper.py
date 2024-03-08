@@ -1,6 +1,11 @@
 """Helper functions and utilities for loading/manipulating data."""
+import sys
+import os
 import numpy as np
 import math
+import argparse
+import ast
+
 # TODO - fix code style and documentation
 
 
@@ -207,6 +212,145 @@ def load_dataset(dataset, column_dict={'veh_id': 0, 'frame_id': 1, 'lane': 13, '
         convert_to_mem(veh_np, veh_dict)
         all_veh_dict[veh_id] = VehicleData(vehdict=all_veh_dict, **veh_dict)
     return all_veh_dict
+
+
+def script_args_helper(arg_names, default_args=None, description_str=None, arg_descriptions=None):
+    """Implements extra functionality when calling scripts from a python console.
+
+    This uses the package argparse to automatically generate docstring for the script when given -help/-h option.
+    This also implements the ability to use keyword arguments when calling scripts, so scripts may accept
+    keyword arguments with syntax as if it were a python function.
+
+    Args:
+        arg_names: list of str names, the names of the variables which should be defined for the script, in order.
+        default_args: list of default values for any keyword arguments. must be the same length or shorter
+            than arg_names. Any variables which do not have default values are (required) positional arguments.
+            Note that any positional arguments must come first in the order.
+        description_str: str to set as description in -help/-h docstring
+        arg_descriptions: list with same length as arg_names, giving a str description of the corresponding argument
+    Returns:
+        args: tuple of length arg_names, containing the ordered values to use for the script
+    """
+    # determine number of positional/keyword arguments
+    assert type(arg_names) == list or type(arg_names) == tuple
+    max_pos_index = -1
+    for count, arg in enumerate(arg_names):
+        if type(arg) == str:
+            continue
+        elif arg is None:
+            arg_names[count] = 'Undefined'
+            max_pos_index = count
+        else:
+            raise ValueError('Expected None or str for variable name, received '+str(arg))
+    n_args = len(arg_names)
+    if default_args is not None:
+        assert type(default_args) == list or type(default_args) == tuple
+        assert len(default_args) <= n_args, 'Expected at most '+str(n_args) + \
+                                            ' default arguments, received '+str(len(default_args))
+        n_pos_args = n_args - len(default_args)
+        assert n_pos_args > max_pos_index, 'Argument at index '+str(max_pos_index)+' was not given a name' + \
+            ', but a name is required since that argument was requested to be a keyword argument.'
+    else:
+        n_pos_args = n_args
+
+    # create usage string for argparser help message
+    file_str = str(os.path.basename(__file__))
+    usage_str = file_str
+    for count, arg in enumerate(arg_names):
+        if count < n_pos_args:
+            usage_str += ' '+arg
+        else:
+            usage_str += ' ['+arg+']'
+    usage_str += ' [-h]'
+    usage_str += '\n   '+str(n_pos_args)+' positional arguments, '+str(n_args-n_pos_args)+' keyword arguments.'
+    usage_str += ' Example: \''+file_str+' '
+    for arg in arg_names[:n_pos_args]:
+        usage_str += arg+' '
+    if n_args-n_pos_args > 0:
+        use_ind = n_pos_args+1 if n_args - n_pos_args > 1 else n_pos_args
+        usage_str += arg_names[use_ind]+'='+str(default_args[use_ind-n_pos_args])
+    usage_str += '\''
+    if description_str is not None:
+        assert type(description_str) == str
+
+    # make arg parser
+    parser = argparse.ArgumentParser(usage=usage_str, formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     description=description_str)
+    parser._positionals.title = 'Args'
+    if arg_descriptions is None:
+        for arg in arg_names:
+            parser.add_argument(arg)
+    else:
+        assert type(arg_descriptions) == list or type(arg_descriptions) == tuple
+        assert len(arg_descriptions) == n_args
+        for count, arg in enumerate(arg_names):
+            parser.add_argument(arg, help=arg_descriptions[count])
+
+    # manually populate the args for parse_args, by getting all arguments from sys.argv
+    args = [None]*n_args
+    arg_exists = [False] * n_args
+    arg_name_to_ind = dict(zip(arg_names, range(len(arg_names))))
+    kwargs = {}
+    seen_kwarg = False
+    flags = []
+    count = 0
+
+    for arg in sys.argv[1:]:
+        if arg[0] == '-':  # is a flag, e.g. -help
+            flags.append(arg)
+            continue
+
+        assert count < n_args, 'Too many arguments given. The arguments \''+str(args)+'\' were all set ' + \
+            ' and an additional argument '+arg+' was given.'
+
+        cur_split = arg.split('=', 1)
+        if len(cur_split) > 1:  # passed a keyword argument
+            arg_name, arg_value = cur_split
+            arg_value = arg_value[:-1] if arg_value[-1] == ',' else arg_value
+
+            # check if kwarg is valid
+            assert arg_name in arg_name_to_ind, 'Received keyword argument \''+arg+'\' but \''+arg_name+'\' is ' + \
+                'not a valid argument name. Should be one of: '+arg_names
+            if arg_name in kwargs:
+                raise ValueError('Received multiple keyword arguments for \''+arg_name+'\'')
+            if arg_exists[arg_name_to_ind[arg_name]]:
+                raise ValueError('Argument \''+arg_name+'\' was already set as \''+str(args[arg_name_to_ind[arg_name]])
+                                 + '\', but received an additional keyword argument '+arg)
+            if not seen_kwarg:
+                assert count >= n_pos_args, 'Expected a value for positional argument \''+arg_names[count] + \
+                                            '\' but received keyword argument \''+arg+'\''
+
+            # update keyword argument
+            kwargs[arg_name] = arg_value
+            seen_kwarg = True
+        else:  # positional argument
+            arg = arg[:-1] if arg[-1] == ',' else arg
+            assert not seen_kwarg, 'Received positional argument \''+arg+'\' after a keyword argument was given. Any'\
+                + ' positional arguments be given before keyword arguments.'
+            # update positional argument
+            args[count] = arg
+            arg_exists[count] = True
+        count += 1
+
+    # add any default arguments, verify that all required arguments were given, and give args to argparser
+    # todo fix messages/error behavior
+    # todo need to pass the flags to parser
+    assert sum(arg_exists[:n_pos_args]) == n_pos_args, 'Missing positional arguments. Expected values for \'' + \
+        '\', \''.join(arg_names[:n_pos_args])+'\', but received '+', '.join(map(str, args[:n_pos_args]))
+    is_input_str = []
+    for count, arg_name in enumerate(arg_names):
+        if arg_exists[count]:  # positional argument
+            is_input_str.append(True)
+        elif arg_name in kwargs:  # keyword argument
+            args[count] = kwargs[arg_name]
+            is_input_str.append(True)
+        else:  # optional argument taking default value
+            args[count] = default_args[count-n_pos_args]  # todo argparse wants a str, so pass the index as a str
+            is_input_str.append(False)
+
+    args = vars(parser.parse_args(args))
+    return (ast.literal_eval(args[arg_name]) if is_input_str[count] else args[arg_name]
+            for count, arg_name in enumerate(arg_names))
 
 
 class VehicleData:
@@ -1301,6 +1445,36 @@ def r_constant(currinfo, frames, T_n, rp, adj=True, h=.1):
 
     return relax, relaxadj
 
+
+def crash_confidence(crashes, n_sims, vmt_sim, z=1.96, inverse=True):
+    """Calculates confidence interval of a crash rate. Assumes number of crashes per simulation is poisson distributed.
+
+    Args:
+        crashes: total number of crashes
+        n_sims: total number of (identically distributed) simulations
+        vmt_sim: average number of miles driven per simulation
+        z: z-score corresponding to (1 - \alpha/2) percentile, where \alpha is the confidence interval.
+        inverse: if True, return inverse crash rate (miles/event). Otherwise, return crash rate (event/miles)
+    Returns:
+        mean: average crash rate (events/miles)
+        low: lower confidence interval of crash rate (events/miles)
+        high: upper confidence interval of crash rate (events/miles)
+    """
+    crashes = crashes if crashes > 0 else 0.69
+    mean = crashes/n_sims
+    if crashes < 20:
+        temp = crashes/n_sims + z**2/(2*n_sims)
+        temp2 = z/2/n_sims*(4*crashes + z**2)**.5
+        if inverse:
+            return vmt_sim/mean, vmt_sim/(temp+temp2), vmt_sim/(temp-temp2)
+        else:
+            return mean/vmt_sim, (temp-temp2)/vmt_sim, (temp+temp2)/vmt_sim
+    else:
+        temp = crashes**.5*z/n_sims
+        if inverse:
+            return vmt_sim/mean, vmt_sim/(mean + temp), vmt_sim/(mean - temp)
+        else:
+            return mean/vmt_sim, (mean - temp)/vmt_sim, (mean + temp)/vmt_sim
 
 def count_leadmem(veh, timeind):
     if timeind < veh.start:

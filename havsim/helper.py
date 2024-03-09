@@ -295,8 +295,9 @@ def script_args_helper(arg_names, default_args=None, description_str=None, arg_d
         else:
             usage_str += ' ['+arg+']'
     usage_str += ' [-h]'
-    usage_str += '\n'+str(n_pos_args)+' positional arguments, '+str(n_args-n_pos_args)+' keyword arguments.'
-    usage_str += '\nExamples:  \'python '+file_str
+    usage_str += '\n '+str(n_pos_args)+' required (positional) arguments, '+str(n_args-n_pos_args)+' optional ' + \
+                 '(keyword) arguments.'
+    usage_str += '\n Examples:  \'python '+file_str
     pos_args_str, kw_args_str = '', ''
     for count, arg in enumerate(arg_names[:n_pos_args]):
         pos_args_str += ' '+str(default_value(count))
@@ -324,7 +325,7 @@ def script_args_helper(arg_names, default_args=None, description_str=None, arg_d
 
     # manually populate the args for parse_args, by getting all arguments from sys.argv
     args = [None]*n_args
-    arg_exists = [False] * n_args
+    is_pos_arg = [False] * n_args
     arg_name_to_ind = dict(zip(arg_names, range(len(arg_names))))
     kwargs = {}
     seen_kwarg = False
@@ -349,7 +350,7 @@ def script_args_helper(arg_names, default_args=None, description_str=None, arg_d
                 'not a valid argument name. Should be one of: '+str(arg_names)
             if arg_name in kwargs:
                 raise ValueError('Received multiple keyword arguments for \''+arg_name+'\'')
-            if arg_exists[arg_name_to_ind[arg_name]]:
+            if is_pos_arg[arg_name_to_ind[arg_name]]:
                 raise ValueError('Argument \''+arg_name+'\' was already set as \''+str(args[arg_name_to_ind[arg_name]])
                                  + '\', but received an additional keyword argument '+arg)
             if not seen_kwarg:
@@ -365,15 +366,15 @@ def script_args_helper(arg_names, default_args=None, description_str=None, arg_d
                 + ' positional arguments be given before keyword arguments.'
             # update positional argument
             args[count] = arg
-            arg_exists[count] = True
+            is_pos_arg[count] = True
         count += 1
 
     # verify that all required arguments were given, and give args to argparser
-    assert sum(arg_exists[:n_pos_args]) == n_pos_args, 'Missing positional arguments. Expected values for \'' + \
+    assert sum(is_pos_arg[:n_pos_args]) == n_pos_args, 'Missing positional arguments. Expected values for \'' + \
         '\', \''.join(arg_names[:n_pos_args])+'\', but received '+', '.join(map(str, args[:n_pos_args]))
     is_default_arg = []
     for count, arg_name in enumerate(arg_names):
-        if arg_exists[count]:  # positional argument
+        if is_pos_arg[count]:  # positional argument
             is_default_arg.append(False)
         elif arg_name in kwargs:  # keyword argument
             args[count] = kwargs[arg_name]

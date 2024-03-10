@@ -295,8 +295,8 @@ def script_args_helper(arg_names, default_args=None, description_str=None, arg_d
         else:
             usage_str += ' ['+arg+']'
     usage_str += ' [-h]'
-    usage_str += '\n '+str(n_pos_args)+' required (positional) arguments, '+str(n_args-n_pos_args)+' optional ' + \
-                 '(keyword) arguments.'
+    usage_str += '\n '+str(n_pos_args)+' required arguments, '+str(n_args-n_pos_args)+' optional ' + \
+                 'arguments. Optional arguments can be given as keyword arguments.'
     usage_str += '\n Examples:  \'python '+file_str
     pos_args_str, kw_args_str = '', ''
     for count, arg in enumerate(arg_names[:n_pos_args]):

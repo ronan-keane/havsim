@@ -7,12 +7,6 @@ import tqdm
 import sys
 import os.path as os
 
-# -------  SETTINGS  ------- #
-saved_sim = 'e94_16_17_test'
-min_crash_plots = 0
-max_crash_plots = 0
-# -------------------------- #
-
 
 def prepare_speed_plot(my_veh, start, end, crash_type=None):
     crash_type = my_veh.crashed[0] if crash_type is None else crash_type
@@ -140,11 +134,11 @@ def do_speed_plot(args):
 
 
 if __name__ == '__main__':
-    argv = (saved_sim, min_crash_plots, max_crash_plots)
-    if len(sys.argv) > 1:
-        argv_len = len(sys.argv)
-        argv = (*sys.argv[1:min(argv_len, 4)], *argv[min(argv_len, 4)-1:])
-    saved_sim, min_crash_plots, max_crash_plots = argv
+    arg_names = ['saved_sim', 'min_crash_plots', 'max_crash_plots']
+    default_args = ['e94_16_17_test', 0, 0]
+    description_str = None
+
+    saved_sim, min_crash_plots, max_crash_plots = None, None, None
 
     print('\nLoading saved result \''+str(saved_sim)+'\' and plotting crashes with indexes {:.n} through {:.n}'.format(
         min_crash_plots, max_crash_plots))

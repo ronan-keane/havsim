@@ -288,9 +288,9 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None, timesteps=18000):
     onramp_newveh = veh_parameters(['main road', 'exit'])
     increment_inflow = {'boundary_type': 'seql2', 'kwargs': {'c': .8, 'eql_speed': True, 'transition': 20}}
     if main_inflow is None:
-        main_inflow = lambda timeind: 3200 / 3600 / 2 * min(timeind, 10000) / 10000
+        main_inflow = lambda timeind: 3200 / 3600 / 2 * min(timeind, 8000) / 8000
     if onramp_inflow is None:
-        onramp_inflow = lambda timeind: 600 / 3600 * min(timeind, 12000) / 12000
+        onramp_inflow = lambda timeind: 800 / 3600 * min(timeind, 12000) / 12000
 
     # main_get_inflow = {'time_series': main_inflow}
     # onramp_get_inflow = {'time_series': onramp_inflow}

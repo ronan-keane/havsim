@@ -319,7 +319,7 @@ if __name__ == '__main__':
             title_str = title_str + ', ' + cur_event + ' (vehicle '+str(veh.vehid)+')'
 
         crash_str, crash_ind = my_crash_types[ind_count], inds[ind_count]
-        filename = saved_sim + ' - ' + crash_str + ' - ' + str(crash_ind)
+        filename = saved_sim + '_' + crash_str + '_' + str(crash_ind)
         save_name = os.join(animation_path, filename)
         ani = havsim.plotting.animatetraj(
             sim, siminfo, platoon=[i.vehid for i in platoon], usetime=list(range(t_start, t_end+1)),
@@ -329,7 +329,7 @@ if __name__ == '__main__':
 
         for counter2, veh in enumerate(need_speed_plots):
             fig = do_speed_plot(prepare_speed_plot(veh, t_start, t_end, crash_type=my_crash_type))
-            fig.savefig(filename+' - crash '+str(counter2)+'.png', dpi=200)
+            fig.savefig(os.join(animation_path, filename+'_veh_'+str(counter2)+'.png'), dpi=200)
             plt.close(fig)
         pbar.update()
     pbar.close()

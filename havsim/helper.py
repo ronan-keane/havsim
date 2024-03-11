@@ -231,7 +231,7 @@ def script_args_helper(arg_names, default_args=None, description_str=None, arg_d
         description_str: None, or str to set as description in -help/-h docstring
         arg_descriptions: None, or list with same length as arg_names, giving a str description of each argument
         n_pos_args: if n_pos_args is None, the number of positional arguments is defined by comparing the length
-            of default_args and arg_names. This can manually specify the n_pos_args. In that case, we allow
+            of default_args and arg_names. If n_pos_args is manually specified we allow
             default_args to be the same length as arg_names, which can be used to make the docstring a bit nicer.
     Returns:
         args: tuple of length arg_names, containing the ordered values to use for the script
@@ -320,8 +320,17 @@ def script_args_helper(arg_names, default_args=None, description_str=None, arg_d
     else:
         assert type(arg_descriptions) == list or type(arg_descriptions) == tuple
         assert len(arg_descriptions) == n_args
+        n_no_default = n_args - len(default_args) if default_args is not None else n_args
         for count, arg in enumerate(arg_names):
-            parser.add_argument(arg, help=arg_descriptions[count])
+            help_str = arg_descriptions[count]
+            help_str = help_str if help_str[-1] == '.' else help_str+'.'
+            if count < n_no_default:
+                pass
+            elif count < n_pos_args:
+                help_str += ' Required. Example value: '+str(default_value(count))
+            else:
+                help_str += ' Optional. Default value: '+str(default_value(count))
+            parser.add_argument(arg, help=help_str)
 
     # manually populate the args for parse_args, by getting all arguments from sys.argv
     args = [None]*n_args
@@ -394,7 +403,7 @@ def script_args_helper(arg_names, default_args=None, description_str=None, arg_d
                 ast.literal_eval(args_dict[arg_name])
             except ValueError:
                 print('Could not evaluate input. If due to \'malformed node or string\', this error is probably '
-                      'caused by missing dashes (missing \' \' or " ") on the input.', file=sys.stderr)
+                      'caused by missing dashes (missing \' \' and/or " ") on the input.', file=sys.stderr)
                 raise
             args[count] = ast.literal_eval(args_dict[arg_name])
     return args

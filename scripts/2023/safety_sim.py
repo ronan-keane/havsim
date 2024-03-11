@@ -45,7 +45,7 @@ def do_simulation(show_pbar):
         for veh in all_vehicles:
             if len(veh.near_misses) > 0:
                 for times in veh.near_misses:
-                    t_start, t_end = times[0] - 100, times[1] + 5
+                    t_start, t_end = times[0] - 100, times[1] + 25
                     my_vehs.extend(havsim.helper.add_leaders([veh], t_start, t_end))
         my_vehs = list(set(my_vehs))
         [veh._remove_veh_references() for veh in my_vehs]  # makes pickling efficient
@@ -161,7 +161,7 @@ if __name__ == '__main__':
         'rear end vehicles': all_re_veh,
         'vmt': all_vmt/1609.34,
         'timesteps_before': 100,
-        'timesteps_after': 5,
+        'timesteps_after': 25,
         'dt': .2
     }
     with open('pickle files/' + save_name + '_config'+'.config', 'wb') as f:

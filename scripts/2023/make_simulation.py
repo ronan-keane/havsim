@@ -302,3 +302,7 @@ def merge_bottleneck(main_inflow=None, onramp_inflow=None, timesteps=18000):
     lanes = {main_road[0]: 0, main_road[1]: 1, onramp[0]: 2}
 
     return simulation, lanes
+
+
+if __name__ == '__main__':
+    raise ValueError('This script is not meant to be called. The functions here are imported by other scripts.')

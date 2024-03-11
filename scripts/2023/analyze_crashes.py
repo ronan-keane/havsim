@@ -135,16 +135,20 @@ def do_speed_plot(args):
 
 if __name__ == '__main__':
     arg_names = ['saved_sim', 'min_crash_plots', 'max_crash_plots']
-    default_args = ['e94_16_17_test', 0, 0]
-    description_str = None
+    default_args = ['e94_16_17_test', 0, 1]
+    description_str = 'For the specified saved data, print out crash statistics ' + \
+                      ' and save plots for as many crashes and near misses as requested.'
+    arg_descriptions = ['str, name of saved data to load', 'int, make and save plots for all crashes with index in ' +
+                        'range(min_crash_plots, max_crash_plots)', 'int, max index to save plots for']
+    n_pos_args = 0
+    saved_sim, min_crash_plots, max_crash_plots = havsim.helper.script_args_helper(
+        arg_names, default_args, description_str, arg_descriptions, n_pos_args)
 
-    saved_sim, min_crash_plots, max_crash_plots = None, None, None
-
-    print('\nLoading saved result \''+str(saved_sim)+'\' and plotting crashes with indexes {:.n} through {:.n}'.format(
+    print('\nLoading saved result \''+str(saved_sim)+'\' and plotting crashes with indexes {:n} through {:n}'.format(
         min_crash_plots, max_crash_plots))
 
-    pickle_path = os.join(os.dirname(__file__), '\\pickle files')
-    assert os.isdir(pickle_path), 'the directory \'\\pickle files\' does not exist'
+    pickle_path = os.join(os.dirname(__file__), 'pickle files')
+    assert os.isdir(pickle_path), 'the directory '+str(pickle_path)+' does not exist'
     file_path = os.join(pickle_path, saved_sim+'.pkl')
     assert os.exists(file_path), 'the file \''+file_path + '\' does not exist'
     with open(file_path, 'rb') as f:
@@ -163,14 +167,14 @@ if __name__ == '__main__':
         config.get('sideswipes', 0), config.get('vmt', 0), config.get('n_simulations', 0)
     re_veh, ss_veh, nm_veh = \
         config.get('rear end vehicles', 0), config.get('sideswipe vehicles', 0), config.get('near miss vehicles', 0)
-    print('\n------------------Summary of '+saved_sim+'------------------')
+    gamma_parameters, xi_parameters = config.get('gamma_parameters', '?'), config.get('xi_parameters', '?')
+    print('\n----------------Summary of \''+saved_sim+'\'----------------')
     print('Result of {:n} simulations of '.format(n_simulations)+str(sim_name) +
-          ' for times '+str(use_times)+'. Simulated {:.3} miles.'.format(vmt))
+          ' for times '+str(use_times)+'. Simulated {:.3} miles.'.format(vmt) +
+          ' gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters)+'.')
     print('Events: {:.0f} rear ends ({:.0f} vehicles)'.format(rear_end, re_veh) +
           ',  {:.0f} sideswipes ({:.0f} vehicles)'.format(sideswipes, ss_veh) +
           ',  {:.0f} near misses ({:.0f} vehicles).'.format(near_miss, nm_veh))
-    gamma_parameters, xi_parameters = config.get('gamma_parameters', '?'), config.get('xi_parameters', '?')
-    print('gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters)+'.')
     out_rear_ends = havsim.helper.crash_confidence(rear_end, n_simulations, vmt/n_simulations)
     out_sideswipes = havsim.helper.crash_confidence(sideswipes, n_simulations, vmt/n_simulations)
     out_near_misses = havsim.helper.crash_confidence(near_miss, n_simulations, vmt/n_simulations)
@@ -179,16 +183,16 @@ if __name__ == '__main__':
         data_sideswipes = sum(e94_sideswipes[use_times[0]:use_times[1]])
         out_data_rear_ends = havsim.helper.crash_confidence(data_rear_ends, 2600, vmt/n_simulations)
         out_data_sideswipes = havsim.helper.crash_confidence(data_sideswipes, 2600, vmt/n_simulations)
-        print('Rear end inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_rear_ends) +
-              ' ground truth: {:.3} ({:.0f} crashes). ground truth 95% confidence: [{:.3}, {:.3}]'.format(
-                  out_data_rear_ends[0], data_rear_ends, *out_data_rear_ends[1:]))
-        print('Sideswipe inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_sideswipes) +
-              ' ground truth: {:.3} ({:.0f} crashes). ground truth 95% confidence: [{:.3}, {:.3}]'.format(
-                  out_data_sideswipes[0], data_sideswipes, *out_data_sideswipes[1:]))
+        print('Rear end inverse crash rate, [95% confidence interval]: {:.3}, [{:.3}, {:.3}].'.format(*out_rear_ends) +
+              ' Ground truth (based on {:.0f} crashes): {:.3} [{:.3}, {:.3}].'.format(
+               data_rear_ends, *out_data_rear_ends))
+        print('Sideswipe inverse crash rate, [95% confidence interval]: {:.3}, [{:.3}, {:.3}].'.format(
+              *out_sideswipes) + ' Ground truth (based on {:.0f} crashes): {:.3}, [{:.3}, {:.3}].'.format(
+              data_sideswipes, *out_data_sideswipes))
     else:
-        print('Rear end inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_rear_ends))
-        print('Sideswipe inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}]'.format(*out_sideswipes))
-    print('Near miss inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}]\n'.format(*out_near_misses))
+        print('Rear end inverse crash rate, [95% confidence interval]: {:.3}, [{:.3}, {:.3}].'.format(*out_rear_ends))
+        print('Sideswipe inverse crash rate, [95% confidence interval]: {:.3}, [{:.3}, {:.3}].'.format(*out_sideswipes))
+    print('Near miss inverse rate, [95% confidence interval]: {:.3}, [{:.3}, {:.3}].\n'.format(*out_near_misses))
 
     rear_end, sideswipes, near_misses, severity, speeds = [], [], [], [], []
     n_crashed_veh, n_near_miss_veh = 0, 0

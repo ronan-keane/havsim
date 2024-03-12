@@ -16,7 +16,7 @@ if __name__ == '__main__':
                         'bool, if True then make plots of the simulation', 'bool, if True then make animation']
     n_pos_arg = 0
     save_name, save_output, make_plots, make_animation = \
-        havsim.helper.script_args_helper(arg_names, default_args, description_str, arg_descriptions, n_pos_arg)
+        havsim.helper.parse_args(arg_names, default_args, description_str, arg_descriptions, n_pos_arg)
 
     simulation, laneinds = merge_bottleneck()
     all_vehicles = simulation.simulate()

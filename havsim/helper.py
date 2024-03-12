@@ -215,7 +215,7 @@ def load_dataset(dataset, column_dict={'veh_id': 0, 'frame_id': 1, 'lane': 13, '
     return all_veh_dict
 
 
-def script_args_helper(arg_names, default_args=None, description_str=None, arg_descriptions=None, n_pos_args=None):
+def parse_args(arg_names, default_args=None, description_str=None, arg_descriptions=None, n_pos_args=None):
     """Implements extra functionality when calling scripts from a python console.
 
     This uses the package argparse to automatically generate docstring for the script when given -help/-h option.

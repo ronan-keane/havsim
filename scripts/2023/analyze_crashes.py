@@ -141,7 +141,7 @@ if __name__ == '__main__':
     arg_descriptions = ['str, name of saved data to load', 'int, make and save plots for all crashes with index in ' +
                         'range(min_crash_plots, max_crash_plots)', 'int, max index to save plots for']
     n_pos_args = 0
-    saved_sim, min_crash_plots, max_crash_plots = havsim.helper.script_args_helper(
+    saved_sim, min_crash_plots, max_crash_plots = havsim.helper.parse_args(
         arg_names, default_args, description_str, arg_descriptions, n_pos_args)
 
     print('\nLoading saved result \''+str(saved_sim)+'\' and plotting crashes with indexes {:n} through {:n}'.format(

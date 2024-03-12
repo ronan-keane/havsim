@@ -63,7 +63,7 @@ if __name__ == '__main__':
              ' If False, only vehicles in crashes are saved.']
     n_pos_args = 0
     save_name, n_simulations, sim_name, use_times, gamma_parameters, xi_parameters, n_workers, batch_size, \
-        save_crashes_only = havsim.helper.script_args_helper(arg_names, default_args, d_str, arg_d, n_pos_args)
+        save_crashes_only = havsim.helper.parse_args(arg_names, default_args, d_str, arg_d, n_pos_args)
 
     now = datetime.now()
     print('\nStarting job \'' + save_name + '\' at ' + now.strftime("%H:%M:%S"))

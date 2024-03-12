@@ -1155,6 +1155,7 @@ def plotspacetime(meas, platooninfo, timeint=50, xint=70, lane=1, use_avg='mean'
     plt.ylabel('Space')
     cbar = plt.colorbar()  # colorbar
     cbar.set_label('Speed')
+    return fig
 
 
 def plotspacetime_helper(myinput, timeint, xint, lane, avg_type, return_discretization=False, return_vehlist=False,

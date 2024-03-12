@@ -3,37 +3,47 @@ import pickle
 import havsim as hs
 import havsim.plotting as hp
 import matplotlib.pyplot as plt
+import os
 
 if __name__ == '__main__':
-    arg_names = ['save_name']
+    arg_names = ['save_name', 'show_plots', 'plot_times']
+    default_args = ['e94_16_17_test', False, None]
+    desc_str = 'Example of loading saved data and using plotting functions'
+    arg_desc = ['str, name of file to load from pickle files folder, not including extension',
+                'bool, whether or not to show plots',
+                'tuple of two floats. If specified, only show those times in all plots. ' +
+                'If None, uses the full time for spacetime plot, and a shorter time for others']
+    n_pos_arg = 0
+    save_name, show_plots, plot_times = hs.helper.parse_args(arg_names, default_args, desc_str, arg_desc, n_pos_arg)
 
-    with open('pickle files/'+filename+'.pkl', 'rb') as f:
+    pickle_path = os.path.join(os.path.dirname(__file__), 'pickle files')
+    file_path = os.path.join(pickle_path, save_name + '.pkl')
+    assert os.path.exists(file_path), 'the file \'' + file_path + '\' does not exist'
+    with open(file_path, 'rb') as f:
         all_vehicles, lanes = pickle.load(f)
-    with open('pickle files/'+filename+'_config.config', 'rb') as f:
+    config_path = os.path.join(pickle_path, save_name+'_config.config')
+    assert os.path.exists(config_path), 'the file \'' + file_path + '\' exists, but the .config does not'
+    with open(os.path.join(pickle_path, save_name+'_config.config'), 'rb') as f:
         config = pickle.load(f)
-    use_times = config.get('use_times', [16, 17])
+        start, end = config.get('use_times', [16, 17])
+        if plot_times is None:
+            start2, end2 = start + (end-start)*.35, start + (end-start)*.65
+        elif len(plot_times) == 2:
+            start2, end2 = plot_times
+            start, end = plot_times
+
 
     all_vehicles = hs.reload(all_vehicles[0], lanes)
     sim, siminfo = hp.plot_format(all_vehicles, lanes)
-    # sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (800, 1350))
     sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (7300, 9300))
 
-    # ani = hp.animatetraj(sim, siminfo, usetime=list(range(1000, 3000)), show_id=False, spacelim=(0, 2000), lanelim=(3, -1))
-    # ani2 = hp.animatetraj(sim, siminfo, usetime=list(range(5000, 9000)), show_id=False, spacelim=(0, 2000), lanelim=(3, -1))
+    fig = hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 40))  # todo save
 
-    # hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[288000, 300000], colorcode=True)
-    # hp.platoonplot(sim2, None, siminfo2, lane=0, opacity=0, timerange=[int(18000 * 15.7), int(18000 * 16.3)],
-    #                colorcode=True)
-    hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[int(18000*15.5), int(18000*15.8)], colorcode=False)
+    hp.plotflows(sim, [[5200, 5300], [7600, 7700], [8400, 8500], [9250, 9350]], [18000*start, 18000*end], 300, h=.2)
 
-    # hp.plotflows(sim, [[1000, 1100], [9300, 9400], [8800, 8900], [8200, 8300]],
-                 # [18000*use_times[0], 18000*use_times[1]], 300, h=.2)
+    hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[int(18000*start2), int(18000*end2)])
 
-    # ani2 = hp.animatetraj(sim2, siminfo2, usetime=list(range(int(18000*15.5), int(18000*16.5))), show_id=False,
-    #                       spacelim=(8400, 9300), lanelim=(3.5, -1), interval=10,
-    #                       save_name='pickle files/animations/'+filename+'_animation')
-
-    # hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 40))
-    # hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=0, speed_bounds=(0, 40))
-
-    plt.show()
+    ani = hp.animatetraj(sim2, siminfo2, usetime=list(range(int(18000*start2), int(18000*end2))),
+                         show_id=False, lanelim=(3.5, -1))
+    if show_plots:
+        plt.show()

@@ -1,7 +1,7 @@
 """Simple example simulation."""
 from make_simulation import merge_bottleneck
 import matplotlib.pyplot as plt
-import os.path as os
+import os
 import pickle
 import havsim
 import havsim.plotting as hp
@@ -12,8 +12,8 @@ if __name__ == '__main__':
     default_args = ['bottleneck_sim_0', False, True, True]
     description_str = 'Simple example simulation of a merge bottleneck on a 2-lane highway.'
     arg_descriptions = ['if saving the output, save_name is a str for the filename, not including the extension',
-        'bool, if True then save the simulation result in save_name',
-        'bool, if True then make plots of the simulation', 'bool, if True then make animation']
+                        'bool, if True then save the simulation result in save_name',
+                        'bool, if True then make plots of the simulation', 'bool, if True then make animation']
     n_pos_arg = 0
     save_name, save_output, make_plots, make_animation = \
         havsim.helper.script_args_helper(arg_names, default_args, description_str, arg_descriptions, n_pos_arg)
@@ -22,9 +22,11 @@ if __name__ == '__main__':
     all_vehicles = simulation.simulate()
 
     if save_output:
-        pickle_path = os.join(os.dirname(__file__), 'pickle files')
-        assert os.isdir(pickle_path), 'the directory ' + str(pickle_path) + ' does not exist'
-        with open(os.join(pickle_path, save_name + '.pkl'), 'wb') as f:
+        pickle_path = os.path.join(os.path.dirname(__file__), 'pickle files')
+        if not os.path.exists(pickle_path):
+            print('Warning: the directory ' + pickle_path + ' does not exist.')
+            os.makedirs(pickle_path)
+        with open(os.path.join(pickle_path, save_name + '.pkl'), 'wb') as f:
             pickle.dump([all_vehicles, laneinds], f)
     sim, siminfo = hp.plot_format(all_vehicles, laneinds)
     if make_plots:

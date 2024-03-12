@@ -4,9 +4,9 @@ import havsim as hs
 import havsim.plotting as hp
 import matplotlib.pyplot as plt
 
-filename = 'e94_test'
-
 if __name__ == '__main__':
+    arg_names = ['save_name']
+
     with open('pickle files/'+filename+'.pkl', 'rb') as f:
         all_vehicles, lanes = pickle.load(f)
     with open('pickle files/'+filename+'_config.config', 'rb') as f:

@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tqdm
 import sys
-import os.path as os
+import os
 
 
 def prepare_speed_plot(my_veh, start, end, crash_type=None):
@@ -147,14 +147,14 @@ if __name__ == '__main__':
     print('\nLoading saved result \''+str(saved_sim)+'\' and plotting crashes with indexes {:n} through {:n}'.format(
         min_crash_plots, max_crash_plots))
 
-    pickle_path = os.join(os.dirname(__file__), 'pickle files')
-    assert os.isdir(pickle_path), 'the directory '+str(pickle_path)+' does not exist'
-    file_path = os.join(pickle_path, saved_sim+'.pkl')
-    assert os.exists(file_path), 'the file \''+file_path + '\' does not exist'
+    pickle_path = os.path.join(os.path.dirname(__file__), 'pickle files')
+    assert os.path.isdir(pickle_path), 'the directory '+str(pickle_path)+' does not exist'
+    file_path = os.path.join(pickle_path, saved_sim+'.pkl')
+    assert os.path.exists(file_path), 'the file \''+file_path + '\' does not exist'
     with open(file_path, 'rb') as f:
         all_vehicles_list, laneinds = pickle.load(f)
-    if os.exists(os.join(pickle_path, saved_sim+'_config.config')):
-        with open(os.join(pickle_path, saved_sim+'_config.config'), 'rb') as f:
+    if os.path.exists(os.path.join(pickle_path, saved_sim+'_config.config')):
+        with open(os.path.join(pickle_path, saved_sim+'_config.config'), 'rb') as f:
             config = pickle.load(f)
     else:
         print('Warning: config file failed to load', file=sys.stderr)
@@ -281,7 +281,7 @@ if __name__ == '__main__':
         pbar_total = len(plot_crashes)+2
     print(plot_str)
 
-    animation_path = os.abspath(os.join(pickle_path, '..', 'plots and animations'))
+    animation_path = os.path.abspath(os.path.join(pickle_path, '..', 'plots and animations'))
     pbar = tqdm.tqdm(range(pbar_total), total=pbar_total, file=sys.stdout)
     pbar.set_description('Making plots')
 
@@ -290,7 +290,7 @@ if __name__ == '__main__':
         plt.hist(severity, bins=[0+i*.5 for i in range(20)])
         plt.xlabel('speed difference at crash (m/s)')
         plt.ylabel('frequency')
-        fig.savefig(os.join(animation_path, saved_sim+' - speed differences at crash.png'), dpi=200)
+        fig.savefig(os.path.join(animation_path, saved_sim+' - speed differences at crash.png'), dpi=200)
         plt.close(fig)
         pbar.update()
 
@@ -298,7 +298,7 @@ if __name__ == '__main__':
         plt.hist(speeds, bins=[0+2*i for i in range(20)])
         plt.xlabel('speed at crash (m/s)')
         plt.ylabel('frequency')
-        fig.savefig(os.join(animation_path, saved_sim + ' - speeds at crash.png'), dpi=200)
+        fig.savefig(os.path.join(animation_path, saved_sim + ' - speeds at crash.png'), dpi=200)
         plt.close(fig)
         pbar.update()
 
@@ -320,7 +320,7 @@ if __name__ == '__main__':
 
         crash_str, crash_ind = my_crash_types[ind_count], inds[ind_count]
         filename = saved_sim + '_' + crash_str + '_' + str(crash_ind)
-        save_name = os.join(animation_path, filename)
+        save_name = os.path.join(animation_path, filename)
         ani = havsim.plotting.animatetraj(
             sim, siminfo, platoon=[i.vehid for i in platoon], usetime=list(range(t_start, t_end+1)),
             spacelim=(min(min_p)-5, max(max_p)+3), lanelim=(3, -1), show_id=True, show_axis=True, title=title_str,
@@ -329,7 +329,7 @@ if __name__ == '__main__':
 
         for counter2, veh in enumerate(need_speed_plots):
             fig = do_speed_plot(prepare_speed_plot(veh, t_start, t_end, crash_type=my_crash_type))
-            fig.savefig(os.join(animation_path, filename+'_veh_'+str(counter2)+'.png'), dpi=200)
+            fig.savefig(os.path.join(animation_path, filename+'_veh_'+str(counter2)+'.png'), dpi=200)
             plt.close(fig)
         pbar.update()
     pbar.close()

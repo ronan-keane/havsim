@@ -1,6 +1,7 @@
 """Plotting functions."""
 # TODO fix code style/documentation
 # TODO update all code to use new VehicleData format instead of older meas/platooninfo format.
+# when switching to VehicleData, also need to update pickle files/data, scripts, and saving/loading methods/code
 import numpy as np
 import math
 

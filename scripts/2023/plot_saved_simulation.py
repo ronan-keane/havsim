@@ -10,9 +10,9 @@ if __name__ == '__main__':
     default_args = ['e94_16_17_test', False, None]
     desc_str = 'Example of loading saved data and using plotting functions'
     arg_desc = ['str, name of file to load from pickle files folder, not including extension',
-                'bool, whether or not to show plots',
+                'bool, whether or not to show plots (always save them)',
                 'tuple of two floats. If specified, only show those times in all plots. ' +
-                'If None, uses the full time for spacetime plot, and a shorter time for others']
+                'If None, uses the full time for spacetime/flow plot, and a shorter time for others']
     n_pos_arg = 0
     save_name, show_plots, plot_times = hs.helper.parse_args(arg_names, default_args, desc_str, arg_desc, n_pos_arg)
 
@@ -31,19 +31,27 @@ if __name__ == '__main__':
         elif len(plot_times) == 2:
             start2, end2 = plot_times
             start, end = plot_times
-
+    animation_path = os.path.abspath(os.path.join(pickle_path, '..', 'plots and animations'))
+    if not os.path.exists(animation_path):
+        os.makedirs(animation_path)
 
     all_vehicles = hs.reload(all_vehicles[0], lanes)
     sim, siminfo = hp.plot_format(all_vehicles, lanes)
     sim2, siminfo2 = hp.clip_distance(all_vehicles, sim, (7300, 9300))
 
-    fig = hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 40))  # todo save
+    fig = hp.plotspacetime(sim, siminfo, timeint=40, xint=30, lane=1, speed_bounds=(0, 40))
+    fig.savefig(os.path.join(animation_path, save_name+'_spacetime_lane1.png'), dpi=200)
 
-    hp.plotflows(sim, [[5200, 5300], [7600, 7700], [8400, 8500], [9250, 9350]], [18000*start, 18000*end], 300, h=.2)
+    fig, fig2 = hp.plotflows(sim, [[5200, 5300], [7600, 7700], [8400, 8500], [9250, 9350]],
+                             [18000*start, 18000*end], 300, h=.2)
+    fig.savefig(os.path.join(animation_path, save_name + '_fundamental_diagram.png'), dpi=200)
+    fig2.savefig(os.path.join(animation_path, save_name + '_flows.png'), dpi=200)
 
-    hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[int(18000*start2), int(18000*end2)])
+    fig = hp.platoonplot(sim2, None, siminfo2, lane=1, opacity=0, timerange=[int(18000*start2), int(18000*end2)])
+    fig.savefig(os.path.join(animation_path, save_name + '_trajectories.png'), dpi=200)
 
+    ani_filepath = os.path.join(animation_path, save_name + '_movie')
     ani = hp.animatetraj(sim2, siminfo2, usetime=list(range(int(18000*start2), int(18000*end2))),
-                         show_id=False, lanelim=(3.5, -1))
+                         show_id=False, lanelim=(3.5, -1), save_name=ani_filepath)
     if show_plots:
         plt.show()

@@ -282,6 +282,8 @@ if __name__ == '__main__':
     print(plot_str)
 
     animation_path = os.path.abspath(os.path.join(pickle_path, '..', 'plots and animations'))
+    if not os.path.exists(animation_path):
+        os.makedirs(animation_path)
     pbar = tqdm.tqdm(range(pbar_total), total=pbar_total, file=sys.stdout)
     pbar.set_description('Making plots')
 

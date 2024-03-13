@@ -332,7 +332,7 @@ def platoonplot(meas, sim, platooninfo, platoon=[], newfig=True, clr=['C0', 'C1'
     axs.autoscale(axis='x')
     axs.autoscale(axis='y')
 
-    return
+    return fig
 
 
 def extract_relevant_data(veh, timerange):
@@ -462,8 +462,9 @@ def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane=N
     # for i in k:
     #     unzipped_k += i
 
+    mfd_fig = None
     if MFD:
-        plt.figure()
+        mfd_fig = plt.figure()
         marker_list = ['o', '^', 'x', 's']
         # different marker types
         for count, curq in enumerate(q):
@@ -476,8 +477,9 @@ def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane=N
         plt.ylabel("flow (veh/hr)")
         # plt.show()
 
+    flow_fig = None
     if Flows:
-        plt.figure()
+        flow_fig = plt.figure()
         for i in range(len(spacea)):
             q[i] = np.array(q[i])
             plt.plot(time_sequence_for_line, q[i])
@@ -485,7 +487,7 @@ def plotflows(meas, spacea, timea, agg, MFD=True, Flows=True, FDagg=None, lane=N
         plt.ylabel("flow (veh/hr)")
         # plt.show()
 
-    return
+    return mfd_fig, flow_fig
 
 
 def plotvhd(meas, sim, platooninfo, vehicle_id, draw_arrow=False, arrow_interval=10, effective_headway=False, rp=None,

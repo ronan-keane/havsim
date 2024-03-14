@@ -5,10 +5,11 @@ from .road import Lane, Road, get_headway
 from .opt import bayes_opt
 
 from havsim import plotting
+from havsim import helper
 # from havsim import old
 
 __all__ = ['Vehicle', 'CrashesStochasticVehicle', 'reload',
            'Simulation', 'CrashesSimulation',
            'Lane', 'Road', 'get_headway',
            'bayes_opt',
-           'plotting']
+           'plotting', 'helper']

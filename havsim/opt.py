@@ -28,12 +28,11 @@ def bayes_opt(f, pbounds, n_iter=100, init_points=0, init_guesses=None, save_nam
 
     def make_opt_str(opt):
         evals = (opt.max['target'], opt.res[-1]['target'], sum([i['target'] for i in opt.res[-10:]])/len(opt.res[-10:]))
-        out = 'Best Evaluation: {:.1f}, Most Recent: {:.1f}, Moving Average: {:.1f}. '.format(*evals)
+        out = 'Best: {:.1f}, Last: {:.1f}, Last 10: {:.1f}. '.format(*evals)
         out += 'Best parameters: ' + str(list(opt.max['params'].values())) + '. '
-        out += 'Most recent: ' + str(list(opt.res[-1]['params'].values())) + '.'
         return out
 
-    optimizer = bo.BayesianOptimization(f=f, pbounds=make_dict(pbounds), allow_duplicate_points=True, verbose=1)
+    optimizer = bo.BayesianOptimization(f=f, pbounds=make_dict(pbounds), allow_duplicate_points=True, verbose=0)
     if prev_opt_name is not None:
         bo.util.load_logs(optimizer, logs=[prev_opt_name+'.json'])
     if save_name is not None:
@@ -42,8 +41,7 @@ def bayes_opt(f, pbounds, n_iter=100, init_points=0, init_guesses=None, save_nam
     n_init_guesses = len(init_guesses) if init_guesses is not None else 0
     total_iters = n_iter+init_points + n_init_guesses
     pbar = tqdm.tqdm(range(total_iters), total=total_iters, leave=True, position=0)
-    pbar.set_description('Function Evaluations')
-    pbar.set_postfix_str('idk test')
+    pbar.set_description('Iter')
 
     for cur_iter in pbar:
         if cur_iter < n_init_guesses:

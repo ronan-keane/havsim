@@ -9,7 +9,6 @@ and downstream boundary conditions (see havsim.simulation.road.Road)
 import copy
 import time
 import tqdm
-import sys
 from .road import get_headway
 from .helper import count_leadmem
 from . import vehicle_orders
@@ -199,14 +198,15 @@ class Simulation:
         self.timeind += 1
         self.prev_vehicles.extend(remove_vehicles)
 
-    def simulate(self, timesteps=None, pbar=True, verbose=True, return_stats=False):
+    def simulate(self, timesteps=None, pbar=True, verbose=True, return_stats=False, pbar_position=0):
         """Do simulation for requested number of timesteps and return all vehicles.
 
         Args:
             timesteps: int number of timesteps to run simulation. If None, use default value.
-            pbar: bool, if True then do simulation with progress bar
+            pbar: bool or tqdm.tqdm, if True then do simulation with progress bar
             verbose: bool, if True then print out when finished
             return_stats: bool, if True then return extra stats of the (elapsed_time, total timesteps, vmt)
+            pbar_position: int, the position for the progress bar
         Returns:
             all_vehicles: list of Vehicles in the simulation
             stats: Tuple of (elapsed_time, n_updates, vmt), only returned if return_times is True.
@@ -217,7 +217,7 @@ class Simulation:
         timesteps = self.timesteps if timesteps is None else timesteps
         elapsed_time = time.time()
         if pbar:
-            my_pbar = tqdm.tqdm(range(timesteps), file=sys.stdout)
+            my_pbar = tqdm.tqdm(range(timesteps), position=pbar_position, leave=not bool(pbar_position))
             my_pbar.set_description('Simulation timesteps')
             for i in my_pbar:
                 self.step()
@@ -381,6 +381,7 @@ class CrashesSimulation(Simulation):
             pbar: bool, if True then do simulation with progress bar
             verbose: bool, if True then print out when finished
             return_stats: bool, if True then return extra stats of the (elapsed_time, total timesteps, vmt)
+            pbar_position: int, the position for the progress bar
         Returns:
             all_vehicles: list of Vehicles in the simulation
             stats: Tuple of (elapsed_time, n_updates, vmt, rear_ends, sideswipes, ...), only returned
@@ -395,7 +396,8 @@ class CrashesSimulation(Simulation):
                 sideswipe_veh: number of vehicles involved in crash caused by sideswipe
                 near_miss_veh: number of vehicles which had a near miss
         """
-        out = super().simulate(timesteps=timesteps, pbar=pbar, verbose=verbose, return_stats=return_stats)
+        out = super().simulate(timesteps=timesteps, pbar=pbar, verbose=verbose,
+                               return_stats=return_stats, pbar_position=pbar_position)
         self._process_near_miss_times()
 
         rear_ends, sideswipes, near_misses, rear_end_veh, sideswipe_veh, nm_veh = 0, 0, 0, 0, 0, 0

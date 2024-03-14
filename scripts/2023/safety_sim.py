@@ -5,7 +5,6 @@ import pickle
 import multiprocessing
 import tqdm
 import os
-import sys
 from datetime import datetime
 from time import sleep
 

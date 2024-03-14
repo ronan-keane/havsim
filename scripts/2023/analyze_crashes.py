@@ -4,7 +4,6 @@ import havsim
 import numpy as np
 import matplotlib.pyplot as plt
 import tqdm
-import sys
 import os
 
 
@@ -157,7 +156,7 @@ if __name__ == '__main__':
         with open(os.path.join(pickle_path, saved_sim+'_config.config'), 'rb') as f:
             config = pickle.load(f)
     else:
-        print('Warning: config file failed to load', file=sys.stderr)
+        print('Warning: config file failed to load')
 
     e94_rear_ends = [0, 1, 1, 1, 0, 1, 3, 12, 23, 9, 5, 7, 5, 3, 11, 53, 92, 105, 81, 21, 4, 6, 2, 3]
     e94_sideswipes = [3, 0, 0, 1, 2, 3, 4, 5, 11, 10, 6, 7, 3, 9, 5, 15, 13, 21, 18, 10, 8, 4, 4, 8]
@@ -284,7 +283,7 @@ if __name__ == '__main__':
     animation_path = os.path.abspath(os.path.join(pickle_path, '..', 'plots and animations'))
     if not os.path.exists(animation_path):
         os.makedirs(animation_path)
-    pbar = tqdm.tqdm(range(pbar_total), total=pbar_total, file=sys.stdout)
+    pbar = tqdm.tqdm(range(pbar_total), total=pbar_total)
     pbar.set_description('Making plots')
 
     if extra_plot:

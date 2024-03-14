@@ -35,7 +35,7 @@ def bayes_opt_wrapper(f, pbounds, n_iter=100, init_points=0, init_guesses=None, 
     if prev_opt_name is not None:
         bo.util.load_logs(optimizer, logs=[prev_opt_name+'.json'])
     if save_name is not None:
-        logger = bo.logger.JSONLogger(path=save_name)
+        logger = bo.JSONLogger(path=save_name)
         optimizer.subscribe(bo.Events.OPTIMIZATION_STEP, logger)
     n_init_guesses = len(init_guesses) if init_guesses is not None else 0
     total_iters = n_iter+init_points + n_init_guesses

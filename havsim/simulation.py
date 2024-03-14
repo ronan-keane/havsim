@@ -6,11 +6,14 @@ The Vehicle class defines the vehicle update model and stores the memory of the 
 The Simulation is mainly set up by defining the Roads/Lanes, and setting up the upstream
 and downstream boundary conditions (see havsim.simulation.road.Road)
 """
-import havsim as hs
 import copy
 import time
 import tqdm
 import sys
+from .road import get_headway
+from .helper import count_leadmem
+from . import vehicle_orders
+from . import update_lane_routes
 
 
 def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, vehid, timeind, dt):
@@ -72,14 +75,14 @@ def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, ve
         relaxvehs.append(veh.fol)
 
         # update leader follower relationships, lane/road
-        hs.update_lane_routes.update_veh_after_lc(lc_actions, veh, timeind)
+        update_lane_routes.update_veh_after_lc(lc_actions, veh, timeind)
 
         relaxvehs.append(veh)
         relaxvehs.append(veh.fol)
 
         # update a vehicle's lane events and route events for the new lane
-        hs.update_lane_routes.set_lane_events(veh)
-        hs.update_lane_routes.set_route_events(veh, timeind)
+        update_lane_routes.set_lane_events(veh)
+        update_lane_routes.set_route_events(veh, timeind)
 
     for veh in set(relaxvehs):  # apply relaxation
         veh.set_relax(timeind, dt)
@@ -89,21 +92,21 @@ def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, ve
         veh.update(timeind, dt)
     for veh in vehicles:
         if veh.lead is not None:
-            veh.hd = hs.get_headway(veh, veh.lead)
+            veh.hd = get_headway(veh, veh.lead)
 
     # update left and right followers
-    hs.vehicle_orders.update_all_lrfol_multiple(vehicles)
+    vehicle_orders.update_all_lrfol_multiple(vehicles)
 
     # update merge_anchors
     for curlane in merge_lanes:
-        hs.update_lane_routes.update_merge_anchors(curlane, lc_actions)
+        update_lane_routes.update_merge_anchors(curlane, lc_actions)
 
     # update roads (lane events) and routes
     remove_vehicles = []
     for veh in vehicles:
         # check vehicle's lane events and route events, acting if necessary
-        hs.update_lane_routes.update_lane_events(veh, timeind, remove_vehicles)
-        hs.update_lane_routes.update_route_events(veh, timeind)
+        update_lane_routes.update_lane_events(veh, timeind, remove_vehicles)
+        update_lane_routes.update_route_events(veh, timeind)
     # remove vehicles which leave
     for veh in remove_vehicles:
         vehicles.remove(veh)
@@ -479,8 +482,8 @@ class CrashesSimulation(Simulation):
 
     @staticmethod
     def _process_near_miss_interval(veh, start, end):
-        start_ind = hs.helper.count_leadmem(veh, start)
-        end_ind = hs.helper.count_leadmem(veh, end)
+        start_ind = count_leadmem(veh, start)
+        end_ind = count_leadmem(veh, end)
         if start_ind == end_ind:
             return [(start, end)]
         temp = [leadmem[1] for leadmem in veh.leadmem[start_ind+1:end_ind+1]]

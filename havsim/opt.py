@@ -4,9 +4,8 @@ import tqdm
 import pickle
 
 
-def bayes_opt_wrapper(f, pbounds, n_iter=100, init_points=0, init_guesses=None, save_name=None,
-                      prev_opt_name=None):
-    """Wrapper for bayes_opt package.
+def bayes_opt(f, pbounds, n_iter=100, init_points=0, init_guesses=None, save_name=None, prev_opt_name=None):
+    """Wrapper for bayes_opt package (pip install bayesian-optimization).
 
     Args:
         f: function to maximize. It has a call signature f(**args) and the args are passed as a dict, such that the
@@ -14,12 +13,15 @@ def bayes_opt_wrapper(f, pbounds, n_iter=100, init_points=0, init_guesses=None, 
         pbounds: list of tuples, where each tuple is the upper/lower bounds for the parameter with that index.
         n_iter: int number of iterations to perform (not counting guesses/initialization)
         init_points: int number of initial random points
-        init_guesses: if not None, list of lists, where each list represents a set of parameters.
+        init_guesses: if not None, list of lists, where each list represents a set of parameters (list of floats).
         save_name: if not None, filepath to save an optimization log, and the result of the optimization.
+            The 'save_name.json' file can be used internally by bayes_opt. the 'save_name_res.pkl' is a list
+            of dicts, where each dict has keys 'target' (the value returned by function f) and 'params' (giving the
+            parameters used to evaluate f)
         prev_opt_name: if not None, can be the save_name from a previous run, and the log will be loaded, which
             essentially has the effect of restarting the optimizer.
     Returns:
-        optimizer: the BayesianOptimization
+        optimizer: the BayesianOptimization object
     """
     def make_dict(out):
         return {str(count): i for count, i in enumerate(out)}

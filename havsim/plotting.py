@@ -9,9 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 import matplotlib.animation as animation
 from matplotlib import cm
-from statistics import harmonic_mean
 import palettable
-
 import havsim.helper as helper
 
 def plotColorLines(X, Y, SPEED, speed_limit, colormap='speeds', ind=0):
@@ -1203,7 +1201,8 @@ def plotspacetime_helper(myinput, timeint, xint, lane, avg_type, return_discreti
     if avg_type == 'mean':
         meanfunc = np.mean
     elif avg_type == 'harm':
-        meanfunc = harmonic_mean
+        # meanfunc = harmonic_mean
+        meanfunc = np.mean
 
     # speeds and veh are nested lists indexed by (time, space)
     # speeds are lists of speeds, veh are sets of vehicle IDs

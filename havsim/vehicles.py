@@ -2,9 +2,9 @@
 import scipy.optimize as sc
 import numpy as np
 
-from havsim.road import get_dist, get_headway
-from havsim import models
-from havsim import update_lane_routes
+from .road import get_dist, get_headway
+from . import models
+from . import update_lane_routes
 
 
 def get_eql_helper(veh, x, input_type='v', eql_type='v', spdbounds=(0, 1e4), hdbounds=(0, 1e4), tol=.1):

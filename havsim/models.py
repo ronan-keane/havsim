@@ -1,6 +1,6 @@
 """Houses all the different models for simulation."""
 
-import havsim
+from .road import get_headway
 import numpy as np
 
 
@@ -440,7 +440,7 @@ def new_relaxation(veh, timeind, dt):
             return
     else:
         old_s = veh.hd
-        new_s = havsim.get_headway(veh, veh.lead)
+        new_s = get_headway(veh, veh.lead)
         relax_amount_s = old_s - new_s
         relax_amount_v = prev_lead.speed - veh.lead.speed
     rp = veh.relax_parameters

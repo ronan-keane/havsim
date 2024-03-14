@@ -84,6 +84,7 @@ if __name__ == '__main__':
     batch_iters = batch_iters + 1 if leftover > 0 else batch_iters
     print('\nWorking on first simulation...')
     pbar = tqdm.tqdm(range(n_simulations), total=n_simulations, file=sys.stdout)
+    pbar.set_description('Simulations finished')
     cur_iter = 0
 
     # do parallel simulations in batches
@@ -113,7 +114,6 @@ if __name__ == '__main__':
                             all_nm_veh / max(all_near_miss, 1))
             sim_stats = (vmt_miles, cur_updates / cur_time_used * min(n_workers, cur_sims))
             pbar.update()
-            pbar.set_description('Simulations finished')
             pbar.set_postfix_str('Miles/Event (Rear end/Sideswipe/Near miss): {:.1e}/{:.1e}/{:.1e}'.format(
                 *crash_stats) + ',  Events: {:.0f}/{:.0f}/{:.0f}'.format(*event_stats) +
                                  ',  Vehicles/Event: {:.1f}/{:.1f}/{:.2f}'.format(*event_stats2) +

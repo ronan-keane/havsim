@@ -7,7 +7,7 @@ import os
 
 if __name__ == '__main__':
     arg_names = ['save_name', 'show_plots', 'plot_times']
-    default_args = ['e94_16_17_test', False, None]
+    default_args = ['e94_16_17_test', True, None]
     desc_str = 'Example of loading saved data and using plotting functions'
     arg_desc = ['str, name of file to load from pickle files folder, not including extension',
                 'bool, whether or not to show plots (always save them)',
@@ -20,6 +20,7 @@ if __name__ == '__main__':
     file_path = os.path.join(pickle_path, save_name + '.pkl')
     assert os.path.exists(file_path), 'the file \'' + file_path + '\' does not exist'
     with open(file_path, 'rb') as f:
+        print('Saving plots for '+file_path)
         all_vehicles, lanes = pickle.load(f)
     config_path = os.path.join(pickle_path, save_name+'_config.config')
     assert os.path.exists(config_path), 'the file \'' + file_path + '\' exists, but the .config does not'

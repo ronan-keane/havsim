@@ -203,8 +203,8 @@ class Simulation:
 
         Args:
             timesteps: int number of timesteps to run simulation. If None, use default value.
-            pbar: bool or tqdm.tqdm, if True then do simulation with progress bar. If tqdm.tqdm, use that
-                progress bar.
+            pbar: bool or int, if True or int, do simulation with tqdm progress bar. Let pbar=1 for nested
+                progress bar
             return_stats: bool, if True then return extra stats of the (elapsed_time, total timesteps, vmt)
         Returns:
             all_vehicles: list of Vehicles in the simulation
@@ -216,7 +216,10 @@ class Simulation:
         timesteps = self.timesteps if timesteps is None else timesteps
         elapsed_time = time.time()
         if pbar:
-            my_pbar = pbar if type(pbar) == tqdm.tqdm else tqdm.tqdm(range(timesteps))
+            if type(pbar) == int:
+                my_pbar = tqdm.tqdm(total=timesteps, position=1, leave=False)
+            else:
+                my_pbar = tqdm.tqdm(total=timesteps, position=0, leave=True)
             my_pbar.set_description('Current simulation timesteps')
             for i in range(timesteps):
                 self.step()
@@ -376,7 +379,7 @@ class CrashesSimulation(Simulation):
 
         Args:
             timesteps: int number of timesteps to run simulation. If None, use default value.
-            pbar: bool or tqdm.tqdm, if True then do simulation with progress bar
+            pbar: bool or int, if True or int, do simulation with tqdm progress bar.
             return_stats: bool, if True then return extra stats of the (elapsed_time, n_updates, vmt, rear_ends, ...)
         Returns:
             all_vehicles: list of Vehicles in the simulation

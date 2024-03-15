@@ -9,17 +9,13 @@ from datetime import datetime
 from time import sleep
 
 
-def do_simulation(my_pbar):
-    if my_pbar:
-        my_pbar.reset()
-        my_pbar.set_postfix_str('')
-
-    # make + run simulation
-    simulation, my_lanes = e94(use_times, gamma_parameters, xi_parameters)
-    all_vehicles, my_stats = simulation.simulate(pbar=my_pbar, return_stats=True)
+def do_simulation(my_args):
+    use_pbar, my_use_times, my_gamma_parameters, my_xi_parameters, crashes_only = my_args
+    simulation, my_lanes = e94(my_use_times, my_gamma_parameters, my_xi_parameters)
+    all_vehicles, my_stats = simulation.simulate(pbar=use_pbar, return_stats=True)
 
     # save vehicles
-    if save_crashes_only:
+    if crashes_only:
         my_vehs = []
         for crash in simulation.crashes:
             crash_times = [veh.crash_time for veh in crash]
@@ -45,9 +41,7 @@ if __name__ == '__main__':
                  'n_workers', 'batch_size', 'save_crashes_only']
     default_args = ['e94_16_17_test', 40, 'e94', [16, 17], [-.13, .3, .2, .6, 1.5], [.8, 3.75],
                     round(.4*multiprocessing.cpu_count()), 300, True]
-    d_str = 'Run multiple simulations in parallel using multiprocessing, and save the result. By default, ' \
-            'only vehicles with crashes, near misses, or vehicles that interact with such vehicles ' \
-            'will be saved. If all vehicles are saved, note that the filesize will be very large.'
+    d_str = 'Run multiple simulations in parallel using multiprocessing, and save the result.'
     arg_d = ['str, giving the filename (not including extension) to save to inside \'pickle files\' folder',
              'int, number of simulations to run.',
              'str, name of area to simulate, one of {\'e94\', \'w94\'}',
@@ -73,7 +67,9 @@ if __name__ == '__main__':
     print('\nStarting job \'' + save_name + '\' at ' + now.strftime("%H:%M:%S"))
     print('Requested simulations: {:n}. Workers: {:n}. Simulation area: \''.format(n_simulations, n_workers)
           + sim_name + '\'. Simulation times: ' + str(use_times))
-    print('gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters) + '.')
+    print('gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters) + '.\n')
+    pbar = tqdm.tqdm(total=n_simulations, position=0, leave=True)
+    pbar.set_description('Simulations')
 
     all_rear_end, all_sideswipe, all_near_miss, all_vmt, all_re_veh, all_ss_veh, all_nm_veh = 0, 0, 0, 0, 0, 0, 0
     initial_update_rate, cur_update_rate, cur_time_used, cur_updates, time_used = 0, 0, 0, 0, 0
@@ -82,18 +78,13 @@ if __name__ == '__main__':
     leftover = n_simulations - batch_iters * batch_size
     batch_iters = batch_iters + 1 if leftover > 0 else batch_iters
 
-    print('\n')
-    pbar = tqdm.tqdm(total=n_simulations, position=0, leave=True)
-    pbar_inner = tqdm.tqdm(total=int(18000*(use_times[1]-use_times[0])), position=1, leave=True)
-    pbar.set_description('Simulations')
-
     # do parallel simulations in batches
     for i in range(batch_iters):
         all_veh_lists = []
         cur_sims = leftover if i == batch_iters - 1 and leftover > 0 else batch_size
         pool = multiprocessing.Pool(min(n_workers, cur_sims))
-        args = [False for k in range(cur_sims)]
-        args[0] = pbar_inner
+        args = [(False, use_times, gamma_parameters, xi_parameters, save_crashes_only) for k in range(cur_sims)]
+        args[0] = (1, *args[0][1:])
 
         for count, out in enumerate(pool.imap_unordered(do_simulation, args)):
             stats, vehs, lanes = out

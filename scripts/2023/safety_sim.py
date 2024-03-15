@@ -9,14 +9,14 @@ from datetime import datetime
 from time import sleep
 
 
-def do_simulation(show_pbar):
+def do_simulation(my_pbar):
+    if my_pbar:
+        my_pbar.reset()
+        my_pbar.set_postfix_str('')
+
     # make + run simulation
     simulation, my_lanes = e94(use_times, gamma_parameters, xi_parameters)
-    all_vehicles, my_stats = simulation.simulate(pbar=show_pbar, verbose=False, return_stats=True)
-    if show_pbar:
-        print('Simulation took {:.0f} seconds. Simulated {:.1e} miles and {:n} vehicles. '.format(
-            my_stats[0], my_stats[2] / 1609.34, len(all_vehicles)) + ' Simulation speed (updates/sec): {:.1e}\n'.format(
-            my_stats[1] / my_stats[0]))
+    all_vehicles, my_stats = simulation.simulate(pbar=my_pbar, return_stats=True)
 
     # save vehicles
     if save_crashes_only:
@@ -64,16 +64,16 @@ if __name__ == '__main__':
     save_name, n_simulations, sim_name, use_times, gamma_parameters, xi_parameters, n_workers, batch_size, \
         save_crashes_only = havsim.helper.parse_args(arg_names, default_args, d_str, arg_d, n_pos_args)
 
-    now = datetime.now()
-    print('\nStarting job \'' + save_name + '\' at ' + now.strftime("%H:%M:%S"))
-    print('Requested number of simulations: {:n}. Workers: {:n}. Simulation: \''.format(n_simulations, n_workers)
-          + sim_name + '\'. Simulation times: ' + str(use_times))
-    print('gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters) + '.')
-
     pickle_path = os.path.join(os.path.dirname(__file__), 'pickle files')
     if not os.path.exists(pickle_path):
-        print('Warning: the directory '+pickle_path+' does not exist.')
+        print('Warning: the directory ' + pickle_path + ' does not exist.')
         os.makedirs(pickle_path)
+
+    now = datetime.now()
+    print('\nStarting job \'' + save_name + '\' at ' + now.strftime("%H:%M:%S"))
+    print('Requested simulations: {:n}. Workers: {:n}. Simulation area: \''.format(n_simulations, n_workers)
+          + sim_name + '\'. Simulation times: ' + str(use_times))
+    print('gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters) + '.')
 
     all_rear_end, all_sideswipe, all_near_miss, all_vmt, all_re_veh, all_ss_veh, all_nm_veh = 0, 0, 0, 0, 0, 0, 0
     initial_update_rate, cur_update_rate, cur_time_used, cur_updates, time_used = 0, 0, 0, 0, 0
@@ -81,10 +81,11 @@ if __name__ == '__main__':
     batch_iters = int(n_simulations // batch_size)
     leftover = n_simulations - batch_iters * batch_size
     batch_iters = batch_iters + 1 if leftover > 0 else batch_iters
-    print('\nWorking on first simulation...')
-    pbar = tqdm.tqdm(range(n_simulations), total=n_simulations, file=sys.stdout)
-    pbar.set_description('Simulations finished')
-    cur_iter = 0
+
+    print('\n')
+    pbar = tqdm.tqdm(total=n_simulations, position=0, leave=True)
+    pbar_inner = tqdm.tqdm(total=int(18000*(use_times[1]-use_times[0])), position=1, leave=True)
+    pbar.set_description('Simulations')
 
     # do parallel simulations in batches
     for i in range(batch_iters):
@@ -92,7 +93,7 @@ if __name__ == '__main__':
         cur_sims = leftover if i == batch_iters - 1 and leftover > 0 else batch_size
         pool = multiprocessing.Pool(min(n_workers, cur_sims))
         args = [False for k in range(cur_sims)]
-        args[0] = True if i == 0 else False
+        args[0] = pbar_inner
 
         for count, out in enumerate(pool.imap_unordered(do_simulation, args)):
             stats, vehs, lanes = out
@@ -104,20 +105,14 @@ if __name__ == '__main__':
             cur_time_used, cur_updates = cur_time_used + time_used, cur_updates + n_updates
 
             # reporting
-            cur_iter += 1
             vmt_miles = all_vmt / 1609.34
             crash_stats = (vmt_miles / max(all_rear_end, .69), vmt_miles / max(all_sideswipe, .69),
                            vmt_miles / max(all_near_miss, .69))
             event_stats = (all_rear_end, all_sideswipe, all_near_miss)
-            event_stats2 = (all_re_veh / max(all_rear_end, 1), all_ss_veh / max(all_sideswipe, 1),
-                            all_nm_veh / max(all_near_miss, 1))
-            sim_stats = (vmt_miles, cur_updates / cur_time_used * min(n_workers, cur_sims))
+            update_stats = cur_updates / cur_time_used * min(n_workers, cur_sims)
             pbar.update()
-            pbar.set_postfix_str('Miles/Event (Rear end/Sideswipe/Near miss): {:.1e}/{:.1e}/{:.1e}'.format(
-                *crash_stats) + ',  Events: {:.0f}/{:.0f}/{:.0f}'.format(*event_stats) +
-                                 ',  Vehicles/Event: {:.1f}/{:.1f}/{:.2f}'.format(*event_stats2) +
-                                 ',  Miles: {:.2e},  Updates/Sec: {:.1e}'.format(*sim_stats))
-
+            pbar.set_postfix_str('Events: {:n}/{:n}{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
+                *event_stats, *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
         pool.close()
         pool.join()
 
@@ -177,7 +172,7 @@ if __name__ == '__main__':
     print('Simulated {:.3} miles. Events: {:.0f} rear ends ({:.0f} vehicles)'.format(
         vmt_miles, all_rear_end, all_re_veh) + ',  {:.0f} sideswipes ({:.0f} vehicles)'.format(
         all_sideswipe, all_ss_veh) + ',  {:.0f} near misses ({:.0f} vehicles).'.format(all_near_miss, all_nm_veh))
-    print('rear end inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}].'.format(*out_rear_ends))
-    print('sideswipe inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}]'.format(*out_sideswipe))
-    print('near miss inverse crash rate: {:.3}. 95% confidence: [{:.3}, {:.3}]'.format(*out_near_miss))
-    print('Finished  ' + save_name + ' at ' + after.strftime("%H:%M:%S"))
+    print('Rear end inverse crash rate, [95% confidence interval]: {:.3}, [{:.3}, {:.3}].'.format(*out_rear_ends))
+    print('Sideswipe inverse crash rate, [95% confidence interval]: {:.3}, [{:.3}, {:.3}]'.format(*out_sideswipe))
+    print('Near miss inverse rate, [95% confidence interval]: {:.3}, [{:.3}, {:.3}]'.format(*out_near_miss))
+    print('Finished  \'' + save_name + '\' at ' + after.strftime("%H:%M:%S"))

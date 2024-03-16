@@ -217,7 +217,7 @@ class Simulation:
         elapsed_time = time.time()
         if pbar:
             if type(pbar) == int:
-                my_pbar = tqdm.tqdm(total=timesteps, position=1, leave=False)
+                my_pbar = tqdm.tqdm(total=timesteps, position=pbar, leave=False)
             else:
                 my_pbar = tqdm.tqdm(total=timesteps, position=0, leave=True)
             my_pbar.set_description('Current simulation timesteps')

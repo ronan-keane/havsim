@@ -83,8 +83,8 @@ if __name__ == '__main__':
         all_veh_lists = []
         cur_sims = leftover if i == batch_iters - 1 and leftover > 0 else batch_size
         pool = multiprocessing.Pool(min(n_workers, cur_sims))
-        args = [(False, use_times, gamma_parameters, xi_parameters, save_crashes_only) for k in range(cur_sims)]
-        args[0] = (1, *args[0][1:])
+        inner_pbar = [1 if k % (2*n_workers) == 0 else False for k in range(cur_sims)]
+        args = [(inner_pbar[k], use_times, gamma_parameters, xi_parameters, save_crashes_only) for k in range(cur_sims)]
 
         for count, out in enumerate(pool.imap_unordered(do_simulation, args)):
             stats, vehs, lanes = out
@@ -101,7 +101,11 @@ if __name__ == '__main__':
                            vmt_miles / max(all_near_miss, .69))
             event_stats = (all_rear_end, all_sideswipe, all_near_miss)
             update_stats = cur_updates / cur_time_used * min(n_workers, cur_sims)
-            if count == 0:
+            pbar.update()
+            pbar.set_postfix_str('Events: {:n}/{:n}/{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
+                *event_stats, *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
+            if inner_pbar[count]:
+                sleep(.01)
                 total = int(18000*(use_times[1]-use_times[0]))
                 postfix = ' [Simulated {:.1e} miles and {:n} vehicles. Updates/sec: {:.1e}. '.format(
                     vmt/1609.34, n_veh, n_updates/time_used) + 'Time used: {:.1f}.]'.format(time_used)
@@ -109,9 +113,6 @@ if __name__ == '__main__':
                                        bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}'+postfix)
                 pbar_inner.update(total)
                 pbar_inner.set_postfix_str('')
-            pbar.update()
-            pbar.set_postfix_str('Events: {:n}/{:n}/{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
-                *event_stats, *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
         pool.close()
         pool.join()
 

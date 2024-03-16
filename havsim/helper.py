@@ -372,7 +372,8 @@ def parse_args(arg_names, default_args=None, description_str=None, arg_descripti
         else:  # positional argument
             arg = arg[:-1] if arg[-1] == ',' else arg
             assert not seen_kwarg, 'Received positional argument \''+arg+'\' after a keyword argument was given. Any'\
-                + ' positional arguments be given before keyword arguments.'
+                + ' positional arguments be given before keyword arguments.\nThis error can also be caused by missing'\
+                + ' " " around a dict/list.'
             # update positional argument
             args[count] = arg
             is_pos_arg[count] = True

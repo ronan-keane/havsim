@@ -33,7 +33,7 @@ def do_simulation(my_args):
         [veh._remove_veh_references() for veh in all_vehicles]
         my_vehs = all_vehicles
 
-    return my_stats, my_vehs, my_lanes
+    return (*my_stats, len(all_vehicles)), my_vehs, my_lanes
 
 
 if __name__ == '__main__':
@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
         for count, out in enumerate(pool.imap_unordered(do_simulation, args)):
             stats, vehs, lanes = out
-            time_used, n_updates, vmt, rear_end, sideswipe, near_miss, re_veh, ss_veh, nm_veh = stats
+            time_used, n_updates, vmt, rear_end, sideswipe, near_miss, re_veh, ss_veh, nm_veh, n_veh = stats
             all_veh_lists.append(vehs)
             all_rear_end, all_sideswipe, all_near_miss, all_vmt = \
                 all_rear_end + rear_end, all_sideswipe + sideswipe, all_near_miss + near_miss, all_vmt + vmt
@@ -101,8 +101,16 @@ if __name__ == '__main__':
                            vmt_miles / max(all_near_miss, .69))
             event_stats = (all_rear_end, all_sideswipe, all_near_miss)
             update_stats = cur_updates / cur_time_used * min(n_workers, cur_sims)
+            if count == 0:
+                total = int(18000*(use_times[1]-use_times[0]))
+                postfix = ' [Simulated {:.1e} miles and {:n} vehicles. Updates/sec: {:.1e}. '.format(
+                    vmt/1609.34, n_veh, n_updates/time_used) + 'Time used: {:.1f}.]'.format(time_used)
+                pbar_inner = tqdm.tqdm(total=total, position=1, leave=False, desc='Current simulation timesteps',
+                                       bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}'+postfix)
+                pbar_inner.update(total)
+                pbar_inner.set_postfix_str('')
             pbar.update()
-            pbar.set_postfix_str('Events: {:n}/{:n}{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
+            pbar.set_postfix_str('Events: {:n}/{:n}/{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
                 *event_stats, *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
         pool.close()
         pool.join()
@@ -118,6 +126,7 @@ if __name__ == '__main__':
         if 1.1 * cur_update_rate < initial_update_rate and i < batch_iters - 1:
             sleep(time_used * .2)
     pbar.close()
+    pbar_inner.close()
 
     # save result + config
     if batch_iters > 1:
@@ -159,7 +168,7 @@ if __name__ == '__main__':
     out_rear_ends = havsim.helper.crash_confidence(all_rear_end, n_simulations, vmt_miles / n_simulations)
     out_sideswipe = havsim.helper.crash_confidence(all_sideswipe, n_simulations, vmt_miles / n_simulations)
     out_near_miss = havsim.helper.crash_confidence(all_near_miss, n_simulations, vmt_miles / n_simulations)
-    print('\n-----------SUMMARY-----------')
+    print('\n\n-----------SUMMARY-----------')
     print('Simulated {:.3} miles. Events: {:.0f} rear ends ({:.0f} vehicles)'.format(
         vmt_miles, all_rear_end, all_re_veh) + ',  {:.0f} sideswipes ({:.0f} vehicles)'.format(
         all_sideswipe, all_ss_veh) + ',  {:.0f} near misses ({:.0f} vehicles).'.format(all_near_miss, all_nm_veh))

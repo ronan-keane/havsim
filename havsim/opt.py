@@ -29,7 +29,7 @@ def bayes_opt(f, pbounds, n_iter=100, init_points=0, init_guesses=None, save_nam
     def make_opt_str(opt):
         evals = (opt.max['target'], opt.res[-1]['target'], sum([i['target'] for i in opt.res[-10:]])/len(opt.res[-10:]))
         out = 'Best: {:.1f}, Last: {:.1f}, Last 10: {:.1f}. '.format(*evals)
-        out += 'Best parameters: ' + str(list(opt.max['params'].values())) + '. '
+        out += 'Best params: (' + ', '.join(['{:.1f}'.format(val) for val in opt.max['params'].values()]) + ')'
         return out
 
     optimizer = bo.BayesianOptimization(f=f, pbounds=make_dict(pbounds), allow_duplicate_points=True, verbose=0)
@@ -41,7 +41,7 @@ def bayes_opt(f, pbounds, n_iter=100, init_points=0, init_guesses=None, save_nam
     n_init_guesses = len(init_guesses) if init_guesses is not None else 0
     total_iters = n_iter+init_points + n_init_guesses
     pbar = tqdm.tqdm(range(total_iters), total=total_iters, leave=True, position=0)
-    pbar.set_description('Iter')
+    pbar.set_description('Params tested')
 
     for cur_iter in pbar:
         if cur_iter < n_init_guesses:

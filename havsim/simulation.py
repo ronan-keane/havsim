@@ -247,7 +247,7 @@ class Simulation:
                         vmt += prev_lane.roadlen[cur_lanemem[0].road]
                         prev_lane = cur_lanemem[0]
         if pbar:
-            my_pbar.set_postfix_str('Simulated {:.1e} miles and {:n} vehicles. Updates/sec: {:.1e}'.format(
+            my_pbar.set_postfix_str('Simulated {:.1e} miles and {:n} vehicles. Updates/sec: {:.1e}.'.format(
                 vmt/1609.34, len(all_vehicles), n_updates/elapsed_time))
         if return_stats:
             stats = (elapsed_time, n_updates, vmt)

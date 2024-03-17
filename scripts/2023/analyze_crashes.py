@@ -135,13 +135,11 @@ def do_speed_plot(args):
 if __name__ == '__main__':
     arg_names = ['saved_sim', 'min_crash_plots', 'max_crash_plots']
     default_args = ['e94_16_17_test', 0, 1]
-    description_str = 'For the specified saved data, print out crash statistics ' + \
-                      ' and save plots for as many crashes and near misses as requested.'
-    arg_descriptions = ['str, name of saved data to load', 'int, make and save plots for all crashes with index in ' +
-                        'range(min_crash_plots, max_crash_plots)', 'int, max index to save plots for']
-    n_pos_args = 0
-    saved_sim, min_crash_plots, max_crash_plots = havsim.helper.parse_args(
-        arg_names, default_args, description_str, arg_descriptions, n_pos_args)
+    desc_str = 'For the specified saved data, print out crash statistics ' + \
+        ' and save plots for as many crashes and near misses as requested.'
+    arg_de = ['str, name of saved data to load', 'int, make and save plots for all crashes with index in ' +
+              'range(min_crash_plots, max_crash_plots)', 'int, max index to save plots for']
+    saved_sim, min_crash_plots, max_crash_plots = havsim.parse_args(arg_names, default_args, desc_str, arg_de, 0)
 
     print('\nLoading saved result \''+str(saved_sim)+'\' and plotting crashes with indexes {:n} through {:n}'.format(
         min_crash_plots, max_crash_plots))

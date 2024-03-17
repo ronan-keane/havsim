@@ -10,7 +10,7 @@ from matplotlib.collections import LineCollection
 import matplotlib.animation as animation
 from matplotlib import cm
 import palettable
-import havsim.helper as helper
+from . import helper
 
 def plotColorLines(X, Y, SPEED, speed_limit, colormap='speeds', ind=0):
     """X and Y are x/y data to plot, SPEED gives the color for each data pair."""

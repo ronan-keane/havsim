@@ -54,9 +54,8 @@ if __name__ == '__main__':
              'multiprocessing.Pool. If set too low, may run out of memory.',
              'bool, if True then save all vehicles. This will cause a large filesize per simulation. '
              ' If False, only vehicles in crashes are saved.']
-    n_pos_args = 0
     save_name, n_simulations, sim_name, use_times, gamma_parameters, xi_parameters, n_workers, batch_size, \
-        save_crashes_only = havsim.helper.parse_args(arg_names, default_args, d_str, arg_d, n_pos_args)
+        save_crashes_only = havsim.parse_args(arg_names, default_args, d_str, arg_d, 0)
 
     pickle_path = os.path.join(os.path.dirname(__file__), 'pickle files')
     if not os.path.exists(pickle_path):

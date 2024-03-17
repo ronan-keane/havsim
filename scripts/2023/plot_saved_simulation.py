@@ -13,8 +13,7 @@ if __name__ == '__main__':
                 'bool, whether or not to show plots (always save them)',
                 'tuple of two floats. If specified, only show those times in all plots. ' +
                 'If None, uses the full time for spacetime/flow plot, and a shorter time for others']
-    n_pos_arg = 0
-    save_name, show_plots, plot_times = hs.helper.parse_args(arg_names, default_args, desc_str, arg_desc, n_pos_arg)
+    save_name, show_plots, plot_times = hs.parse_args(arg_names, default_args, desc_str, arg_desc, 0)
 
     pickle_path = os.path.join(os.path.dirname(__file__), 'pickle files')
     file_path = os.path.join(pickle_path, save_name + '.pkl')

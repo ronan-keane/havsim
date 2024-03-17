@@ -2,7 +2,7 @@
 """
 Functions for updating vehicle orders.
 """
-from havsim.road import get_dist
+from .road import get_dist
 import numpy as np
 import math
 

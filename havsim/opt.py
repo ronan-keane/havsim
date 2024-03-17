@@ -204,8 +204,6 @@ def parse_args(arg_names, default_args=None, description_str=None, arg_descripti
     return args
 
 
-
-
 def bayes_opt(f, pbounds, n_iter=100, init_points=0, init_guesses=None, save_name=None, prev_opt_name=None):
     """Wrapper for bayes_opt package (pip install bayesian-optimization).
 

@@ -2,7 +2,8 @@
 """
 Functions for setting/updating lane events, route events, and code for changing lanes.
 """
-import havsim
+from .road import get_headway
+from .vehicle_orders import update_leadfol_after_lc
 
 
 def update_veh_after_lc(lc_actions, veh, timeind):
@@ -42,7 +43,7 @@ def update_veh_after_lc(lc_actions, veh, timeind):
     veh.update_lc_state(timeind, lc=True)
 
     # updates to vehicle orders
-    havsim.vehicle_orders.update_leadfol_after_lc(veh, lcsidelane, newlcsidelane, lc, timeind)
+    update_leadfol_after_lc(veh, lcsidelane, newlcsidelane, lc, timeind)
 
     return
 
@@ -164,7 +165,7 @@ def update_lane_events(veh, timeind, remove_vehicles):
             fol.leadmem.append((lead, timeind+1))
             if lead is not None:
                 lead.fol = fol
-                fol.hd = havsim.get_headway(fol, lead)
+                fol.hd = get_headway(fol, lead)
             if veh.lfol is not None:
                 veh.lfol.rlead.remove(veh)
             if veh.rfol is not None:

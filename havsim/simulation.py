@@ -385,15 +385,15 @@ class CrashesSimulation(Simulation):
             all_vehicles: list of Vehicles in the simulation
             stats: Tuple of (elapsed_time, n_updates, vmt, rear_ends, sideswipes, ...), only returned
                 if return_stats is True.
-                elapsed_time: clock time to run simulation
-                n_updates: total number of vehicle updates done in simulation
-                vmt: total distance traveled in the simulation (units are meters by default)
-                rear_ends: number of rear ends in simulation
-                sideswipes: number of sideswipes in simulation
-                near_misses: number of near misses in simulation
-                rear_end_veh: number of vehicles involved in crash caused by rear end
-                sideswipe_veh: number of vehicles involved in crash caused by sideswipe
-                near_miss_veh: number of vehicles which had a near miss
+                0 - elapsed_time: clock time to run simulation
+                1 - n_updates: total number of vehicle updates done in simulation
+                2 - vmt: total distance traveled in the simulation (units are meters by default)
+                3 - rear_ends: number of rear ends in simulation
+                4 - sideswipes: number of sideswipes in simulation
+                5 - near_misses: number of near misses in simulation
+                6 - rear_end_veh: number of vehicles involved in crash caused by rear end
+                7 - sideswipe_veh: number of vehicles involved in crash caused by sideswipe
+                8 - near_miss_veh: number of vehicles which had a near miss
         """
         out = super().simulate(timesteps=timesteps, pbar=pbar, return_stats=return_stats)
         self._process_near_miss_times()

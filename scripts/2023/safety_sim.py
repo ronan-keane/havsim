@@ -70,9 +70,7 @@ if __name__ == '__main__':
     pbar = tqdm.tqdm(total=n_simulations, position=0, leave=True)
     pbar.set_description('Simulations')
 
-    all_rear_end, all_sideswipe, all_near_miss, all_vmt, all_re_veh, all_ss_veh, all_nm_veh = 0, 0, 0, 0, 0, 0, 0
-    initial_update_rate, cur_update_rate, cur_time_used, cur_updates, time_used = 0, 0, 0, 0, 0
-    all_veh_lists, lanes = None, None
+    all_stats = (0,)*10
     batch_iters = int(n_simulations // batch_size)
     leftover = n_simulations - batch_iters * batch_size
     batch_iters = batch_iters + 1 if leftover > 0 else batch_iters
@@ -87,27 +85,20 @@ if __name__ == '__main__':
 
         for count, out in enumerate(pool.imap_unordered(do_simulation, args)):
             stats, vehs, lanes = out
-            time_used, n_updates, vmt, rear_end, sideswipe, near_miss, re_veh, ss_veh, nm_veh, n_veh = stats
+            all_stats = (*(all_stats[count] + k for count, k in enumerate(stats[:-1])), all_stats[-1])
             all_veh_lists.append(vehs)
-            all_rear_end, all_sideswipe, all_near_miss, all_vmt = \
-                all_rear_end + rear_end, all_sideswipe + sideswipe, all_near_miss + near_miss, all_vmt + vmt
-            all_re_veh, all_ss_veh, all_nm_veh = all_re_veh + re_veh, all_ss_veh + ss_veh, all_nm_veh + nm_veh
-            cur_time_used, cur_updates = cur_time_used + time_used, cur_updates + n_updates
 
             # reporting
-            vmt_miles = all_vmt / 1609.34
-            crash_stats = (vmt_miles / max(all_rear_end, .69), vmt_miles / max(all_sideswipe, .69),
-                           vmt_miles / max(all_near_miss, .69))
-            event_stats = (all_rear_end, all_sideswipe, all_near_miss)
-            update_stats = cur_updates / cur_time_used * min(n_workers, cur_sims)
+            crash_stats = (all_stats[2] / 1609.34 / max(k, .69) for k in all_stats[3:6])
+            update_stats = all_stats[1] / all_stats[0] * min(n_workers, cur_sims)
             pbar.update()
             pbar.set_postfix_str('Events: {:n}/{:n}/{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
-                *event_stats, *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
+                *all_stats[3:6], *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
             if inner_pbar[count]:
                 sleep(.01)
                 total = int(18000*(use_times[1]-use_times[0]))
                 postfix = ' [Simulated {:.1e} miles and {:n} vehicles. Updates/sec: {:.1e}. '.format(
-                    vmt/1609.34, n_veh, n_updates/time_used) + 'Time used: {:.1f}.]'.format(time_used)
+                    stats[2]/1609.34, stats[-1], stats[1]/stats[0]) + 'Time used: {:.1f}.]'.format(stats[0])
                 pbar_inner = tqdm.tqdm(total=total, position=1, leave=False, desc='Current simulation timesteps',
                                        bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}'+postfix)
                 pbar_inner.update(total)
@@ -120,11 +111,12 @@ if __name__ == '__main__':
             with open(os.path.join(pickle_path, save_name + '-part-' + str(i) + '.pkl'), 'wb') as f:
                 pickle.dump(all_veh_lists, f)
         # include pauses if needed
-        cur_update_rate, cur_time_used, cur_updates = cur_updates / cur_time_used, 0, 0
         if i == 0:
-            initial_update_rate = cur_update_rate
-        if 1.1 * cur_update_rate < initial_update_rate and i < batch_iters - 1:
-            sleep(time_used * .2)
+            all_stats, cur_rate = (0, 0, *all_stats[2:-1], all_stats[1]/all_stats[0]), all_stats[1]/all_stats[0]
+        else:
+            all_stats, cur_rate = (0, 0, *all_stats[2:]), all_stats[1]/all_stats[0]
+        if 1.1 * cur_rate < all_stats[-1] and i < batch_iters - 1:
+            sleep(stats[0] * .5)
     pbar.close()
     pbar_inner.close()
 
@@ -148,15 +140,15 @@ if __name__ == '__main__':
         'gamma_parameters': gamma_parameters,
         'xi_parameters': xi_parameters,
         'time elapsed': (after - now).total_seconds(),
-        'initial update rate': initial_update_rate,
-        'update rate': cur_update_rate,
-        'near misses': all_near_miss,
-        'rear ends': all_rear_end,
-        'sideswipes': all_sideswipe,
-        'near miss vehicles': all_nm_veh,
-        'sideswipe vehicles': all_ss_veh,
-        'rear end vehicles': all_re_veh,
-        'vmt': all_vmt / 1609.34,
+        'initial update rate': all_stats[-1],
+        'update rate': cur_rate*n_workers,
+        'near misses': all_stats[5],
+        'rear ends': all_stats[3],
+        'sideswipes': all_stats[4],
+        'near miss vehicles': all_stats[8],
+        'sideswipe vehicles': all_stats[7],
+        'rear end vehicles': all_stats[6],
+        'vmt': all_stats[2] / 1609.34,
         'timesteps_before': 100,
         'timesteps_after': 25,
         'dt': .2
@@ -164,14 +156,13 @@ if __name__ == '__main__':
     with open(os.path.join(pickle_path, save_name + '_config.config'), 'wb') as f:
         pickle.dump(config, f)
 
-    vmt_miles = all_vmt / 1609.34
-    out_rear_ends = havsim.helper.crash_confidence(all_rear_end, n_simulations, vmt_miles / n_simulations)
-    out_sideswipe = havsim.helper.crash_confidence(all_sideswipe, n_simulations, vmt_miles / n_simulations)
-    out_near_miss = havsim.helper.crash_confidence(all_near_miss, n_simulations, vmt_miles / n_simulations)
+    out_rear_ends = havsim.helper.crash_confidence(all_stats[3], n_simulations, all_stats[2] / 1609.34 / n_simulations)
+    out_sideswipe = havsim.helper.crash_confidence(all_stats[4], n_simulations, all_stats[2] / 1609.34 / n_simulations)
+    out_near_miss = havsim.helper.crash_confidence(all_stats[5], n_simulations, all_stats[2] / 1609.34 / n_simulations)
     print('\n\n-----------SUMMARY-----------')
     print('Simulated {:.3} miles. Events: {:.0f} rear ends ({:.0f} vehicles)'.format(
-        vmt_miles, all_rear_end, all_re_veh) + ',  {:.0f} sideswipes ({:.0f} vehicles)'.format(
-        all_sideswipe, all_ss_veh) + ',  {:.0f} near misses ({:.0f} vehicles).'.format(all_near_miss, all_nm_veh))
+        all_stats[2]/1609.34, all_stats[3], all_stats[6]) + ',  {:.0f} sideswipes ({:.0f} vehicles)'.format(
+        all_stats[4], all_stats[7]) + ',  {:.0f} near misses ({:.0f} vehicles).'.format(all_stats[5], all_stats[8]))
     print('Rear end inverse crash rate, [95% confidence interval]: {:.3}, [{:.3}, {:.3}].'.format(*out_rear_ends))
     print('Sideswipe inverse crash rate, [95% confidence interval]: {:.3}, [{:.3}, {:.3}]'.format(*out_sideswipe))
     print('Near miss inverse rate, [95% confidence interval]: {:.3}, [{:.3}, {:.3}]'.format(*out_near_miss))

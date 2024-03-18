@@ -1,4 +1,4 @@
-"""Script to calibrate the stochastic crash parameters """
+"""Script to calibrate the stochastic crash parameters."""
 import havsim
 from make_simulation import e94
 import multiprocessing
@@ -22,7 +22,7 @@ def calculate_objective_value(n_rear_end, n_sideswipe, n_near_miss, vmt, re_veh,
 
 
 if __name__ == '__main__':
-    arg_names = ['save_name', 'n_workers', 'use_times', 'gamma_bounds', 'xi_bounds', 'min_n_simulations',
+    arg_names = ['save_name', 'n_workers', 'use_times', 'gamma_bounds', 'xi_bounds', 'min_simulations', 'n_simulations',
                  'prev_opt_name', 'n_iter', 'init_points', 'init_guesses']
     default_args = ['e94_calibration_1', round(.4*multiprocessing.cpu_count()), [[11, 12], [16, 17]],
                     [(-1, .2), (.2, .75), (0, 2), (0, 2), (1, 2.5)], [(.2, 2), (2, 5.5)], 100, None, 100, 0,
@@ -42,6 +42,7 @@ if __name__ == '__main__':
          ' will always be a multiple of this number. If set too small, will make the pool inefficient. The number'
          ' of simulations that is run per objective function evaluation is determined dynamically, based on'
          ' the confidence interval of the simulated crashes, and the (un)certainty in the crashes data.',
+         'int, "typical" number of simulations to run for each time interval.',
          'if not None, the save_name from a previous run, and the .json log will be loaded, which will restart'
          ' the opimizer.',
          'int, number of optimization steps to perform (number of objective function evaluations)',
@@ -50,7 +51,7 @@ if __name__ == '__main__':
          'to evaluate (gamma parameters concatenated with xi parameters).']
     e94_rear_ends = [0, 1, 1, 1, 0, 1, 3, 12, 23, 9, 5, 7, 5, 3, 11, 53, 92, 105, 81, 21, 4, 6, 2, 3]
     e94_sideswipes = [3, 0, 0, 1, 2, 3, 4, 5, 11, 10, 6, 7, 3, 9, 5, 15, 13, 21, 18, 10, 8, 4, 4, 8]
-    save_name, n_workers, use_times, gamma_bounds, xi_bounds, min_sims, prev_opt_name, n_iter, \
+    save_name, n_workers, use_times, gamma_bounds, xi_bounds, min_sims, n_sims, prev_opt_name, n_iter, \
         init_points, init_guesses = havsim.parse_args(arg_names, default_args, desc_str, arg_de, 0)
     gamma_bounds.extend(xi_bounds)
 
@@ -91,6 +92,14 @@ if __name__ == '__main__':
 
             # check status of the time interval cur_t_ind
             cur_n_sims += min_sims
+            start, end = use_times[cur_t_ind]
+            vmt = stats[cur_t_ind][2]/1609.34/cur_n_sims
+            data_re = sum(e94_rear_ends[int(start):int(end)]) - e94_rear_ends[int(start)] * (start - int(start)) \
+                + e94_rear_ends[int(end)] * (end - int(end))
+            data_ss = sum(e94_sideswipes[int(start):int(end)]) - e94_sideswipes[int(start)] * (start - int(start)) \
+                + e94_sideswipes[int(end)] * (end - int(end))
+            out_data_re = havsim.helper.crash_confidence(data_re, 2600, vmt)
+            out_data_ss = havsim.helper.crash_confidence(data_ss, 2600, vmt)
             # calculate the data confidence, calculate simulated confidence, compare, maybe calculate loss.
             havsim.helper.crash_confidence(stats[cur_t_ind][3], cur_n_sims, stats[cur_t_ind][2]/1609.34/cur_n_sims)
 

@@ -26,8 +26,9 @@ def calculate_objective_value(cur_t_ind, cur_n_sims, data_re, data_ss, stats):
         out_nm = havsim.helper.crash_confidence(stats[i][5], cur_n_sims[i], vmt)
         nm_ratio = 1/(1/out_re[0] + 1/out_ss[0])/out_nm[0]
 
-        # absolute percentage error in inverse rates, multiplied by 100
-        out[i] += 100*(abs(out_data_re[0] - out_re[0])/out_data_re[0] + abs(out_data_ss[0] - out_ss[0])/out_data_ss[0])
+        # main term is to match the empirical crash rate
+        out[i] += 100*(abs(out_data_re[0] - out_re[0])/min(out_data_re[0], out_re[0])
+                       + abs(out_data_ss[0] - out_ss[0])/min(out_data_ss[0], out_ss[0]))
         # regularizer for near misses
         if 10 < nm_ratio < 20:
             pass

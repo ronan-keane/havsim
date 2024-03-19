@@ -15,18 +15,42 @@ def do_simulation(my_args):
     return *my_stats, len(all_vehicles)
 
 
-def calculate_objective_value(n_rear_end, n_sideswipe, n_near_miss, vmt, re_veh, ss_veh, nm_veh, n_sims,
-                              n_rear_end_data, n_sideswipe_data, n_days_data):
+def calculate_objective_value(cur_t_ind, cur_n_sims, data_re, data_ss, stats):
+    out = 0
+    for i in range(cur_t_ind+1):
+        vmt = stats[i][2]/1609.34/cur_n_sims[i]
+        out_data_re = havsim.helper.crash_confidence(data_re[i], 2600, vmt)
+        out_data_ss = havsim.helper.crash_confidence(data_ss[i], 2600, vmt)
+        out_re = havsim.helper.crash_confidence(stats[i][3], cur_n_sims[i], vmt)
+        out_ss = havsim.helper.crash_confidence(stats[i][4], cur_n_sims[i], vmt)
+        out_nm = havsim.helper.crash_confidence(stats[i][5], cur_n_sims[i], vmt)
+        nm_ratio = 1/(1/out_re[0] + 1/out_ss[0])/out_nm[0]
 
-    pass  # l2 crash rate target, regularizer for near miss + nveh/crash + confidence width
+        # absolute percentage error in inverse rates, multiplied by 100
+        out += 100*(abs(out_data_re[0] - out_re[0])/out_data_re[0] + abs(out_data_ss[0] - out_ss[0])/out_data_ss[0])
+        # regularizer for near misses
+        if 10 < nm_ratio < 20:
+            pass
+        else:
+            out += 10 + abs(nm_ratio-15)
+        # regularizer for vehicles per crash
+        out += 100*(abs(stats[i][6]/stats[i][3] - 2.205) + abs(stats[i][7]/stats[i][4] - 2.035))
+        # regularizer for confidence width
+        if out_re[2] - out_re[1] > out_data_re[2] - out_data_re[1]:
+            out += 10*((out_re[2]-out_re[1])/(out_data_re[2] - out_data_re[1]) - .5)**2
+        if out_ss[2] - out_ss[1] > out_data_ss[2] - out_data_ss[1]:
+            out += 10 * ((out_ss[2] - out_ss[1]) / (out_data_ss[2] - out_data_ss[1]) - .5) ** 2
+
+    return out/(cur_t_ind+1)
 
 
 if __name__ == '__main__':
     arg_names = ['save_name', 'n_workers', 'use_times', 'gamma_bounds', 'xi_bounds', 'min_simulations', 'n_simulations',
                  'prev_opt_name', 'n_iter', 'init_points', 'init_guesses']
     default_args = ['e94_calibration_1', round(.4*multiprocessing.cpu_count()), [[11, 12], [16, 17]],
-                    [(-1, .2), (.2, .75), (0, 2), (0, 2), (1, 2.5)], [(.2, 2), (2, 5.5)], 100, None, 100, 0,
-                    [[-.13, .3, .2, .6, 1.5, .8, 3.75], [-.5, .5, .3, .5, 1.5, .8, 3.75]]]
+                    [(-1, .2), (.2, .75), (0, 2), (0, 2), (1, 2.5)], [(.2, 2), (2, 5.5)], 100, 300, None, 100, 0,
+                    [[-.13, .3, .2, .6, 1.5, .8, 3.75], [-.5, .5, .3, .5, 1.5, .8, 3.75],
+                     [-.11, .3, .25, .65, 1.5, .8, 3.25]]]
     desc_str = 'Calibrate gamma/xi parameters by simulating the crash rate under realistic conditions, '\
         'and compare against crashes data. This is an intensive procedure which requires running many simulations.'
     arg_de = \
@@ -60,17 +84,24 @@ if __name__ == '__main__':
         gamma_parameters = [my_args[str(i)] for i in range(5)]
         xi_parameters = [my_args[str(5 + i)] for i in range(2)]
 
-        pbar = tqdm.tqdm(total=min_sims*len(use_times), position=1, leave=False)
-        stats = [(0,)*9 for i in range(len(use_times))]
-        cur_t_ind, cur_n_sims = 0, 0
-        can_evaluate = False
-        while not can_evaluate:
+        data_re, data_ss = [], []
+        for start, end in use_times:
+            data_re.append(sum(e94_rear_ends[int(start):int(end)]) - e94_rear_ends[int(start)] * (start - int(start))
+                           + e94_rear_ends[int(end)] * (end - int(end)))
+            data_ss.append(sum(e94_sideswipes[int(start):int(end)]) - e94_sideswipes[int(start)] * (start - int(start))
+                           + e94_sideswipes[int(end)] * (end - int(end)))
+
+        # repeatedly do pools of simulations, until can evaluate the loss
+        pbar = tqdm.tqdm(total=n_sims*len(use_times), position=1, leave=False)
+        stats, cur_n_sims = [(0,)*9 for i in range(len(use_times))], [0 for i in range(len(use_times))]
+        cur_t_ind = 0
+        while cur_t_ind < len(use_times):
             pool = multiprocessing.Pool(n_workers)
             inner_pbar = [2 if k % (2*n_workers) == 0 else False for k in range(min_sims)]
             args = [(inner_pbar[k], use_times[cur_t_ind], gamma_parameters, xi_parameters) for k in range(min_sims)]
 
             for count, out in enumerate(pool.imap_unordered(do_simulation, args)):
-                stats[cur_t_ind] = tuple((out[count2] + k for count2, k in enumerate(stats[cur_t_ind])))
+                stats[cur_t_ind] = tuple((k + out[count2] for count2, k in enumerate(stats[cur_t_ind])))
 
                 # reporting
                 pbar.update()
@@ -83,27 +114,44 @@ if __name__ == '__main__':
                     total = int(18000 * (use_times[cur_t_ind][1] - use_times[cur_t_ind][0]))
                     postfix = ' [Simulated {:.1e} miles and {:n} vehicles. Updates/sec: {:.1e}. '.format(
                         out[2] / 1609.34, out[-1], out[1] / out[0]) + 'Time used: {:.1f}.]'.format(out[0])
-                    pbar_inner = tqdm.tqdm(total=total, position=1, leave=False, desc='Current simulation timesteps',
+                    pbar_inner = tqdm.tqdm(total=total, position=2, leave=False, desc='Current simulation timesteps',
                                            bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}' + postfix)
                     pbar_inner.update(total)
                     pbar_inner.set_postfix_str('')
             pool.close()
             pool.join()
+            cur_n_sims[cur_t_ind] += min_sims
 
             # check status of the time interval cur_t_ind
-            cur_n_sims += min_sims
-            start, end = use_times[cur_t_ind]
-            vmt = stats[cur_t_ind][2]/1609.34/cur_n_sims
-            data_re = sum(e94_rear_ends[int(start):int(end)]) - e94_rear_ends[int(start)] * (start - int(start)) \
-                + e94_rear_ends[int(end)] * (end - int(end))
-            data_ss = sum(e94_sideswipes[int(start):int(end)]) - e94_sideswipes[int(start)] * (start - int(start)) \
-                + e94_sideswipes[int(end)] * (end - int(end))
-            out_data_re = havsim.helper.crash_confidence(data_re, 2600, vmt)
-            out_data_ss = havsim.helper.crash_confidence(data_ss, 2600, vmt)
-            # calculate the data confidence, calculate simulated confidence, compare, maybe calculate loss.
-            havsim.helper.crash_confidence(stats[cur_t_ind][3], cur_n_sims, stats[cur_t_ind][2]/1609.34/cur_n_sims)
+            vmt = stats[cur_t_ind][2]/1609.34/cur_n_sims[cur_t_ind]
+            out_data_re = havsim.helper.crash_confidence(data_re[cur_t_ind], 2600, vmt)
+            out_data_ss = havsim.helper.crash_confidence(data_ss[cur_t_ind], 2600, vmt)
+            out_re = havsim.helper.crash_confidence(stats[cur_t_ind][3], cur_n_sims[cur_t_ind], vmt)
+            out_ss = havsim.helper.crash_confidence(stats[cur_t_ind][4], cur_n_sims[cur_t_ind], vmt)
+            if out_re[2] < out_data_re[1] or out_re[1] > out_data_re[2]:
+                break  # if completely outside confidence, stop immediately
+            if out_ss[2] < out_data_ss[1] or out_ss[1] > out_data_ss[2]:
+                break
+            if cur_n_sims[cur_t_ind] < n_sims:  # if less than requested, keep doing
+                pass
+            elif cur_n_sims[cur_t_ind] > 3*n_sims:  # too many simulations, need to move to next one
+                cur_t_ind += 1
+            elif (out_re[2] - out_re[1]) < 1.5*(out_data_re[2]-out_data_re[1]) and \
+                    (out_ss[2] - out_ss[1]) < 1.5*(out_data_ss[2] - out_data_ss[1]):
+                cur_t_ind += 1  # confidence width met, move to next one
+            elif out_re[0] < out_data_re[1] or out_re[0] > out_data_re[2]:
+                break  # outside confidence and done more than n_sims, so stop immediately
+            elif out_ss[0] < out_data_ss[1] or out_ss[0] > out_data_ss[2]:
+                break
+            else:  # need more simulations, update pbar
+                cur_total = sum(cur_n_sims[0:cur_t_ind]) + cur_n_sims[cur_t_ind]
+                new_total = cur_total + (len(cur_n_sims)-cur_t_ind)*n_sims
+                pbar = tqdm.tqdm(total=new_total, position=1, leave=False)
+                pbar.update(cur_total)
+                pbar.set_postfix_str('Events: {:n}/{:n}/{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
+                    *stats[cur_t_ind][3:6], *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
 
-
+        return calculate_objective_value(cur_t_ind, cur_n_sims, data_re, data_ss, stats)
 
     now = datetime.now()
     print('\nStarting job \'' + save_name + '\' at ' + now.strftime("%H:%M:%S"))

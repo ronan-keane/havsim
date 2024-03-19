@@ -368,7 +368,7 @@ class CrashesSimulation(Simulation):
                         crashed = ('rear end', timeind)
                         self._add_new_crash(veh, lead, crashed, timeind)
 
-                if 0 < hd/(veh.speed - lead.speed + 1e-6) < 0.5 or hd < 0:  # check for possible near misses
+                if 0 < hd/(veh.speed - lead.speed + 1e-6) < 0.6 or hd < 0:  # check for possible near misses
                     if veh in self.near_miss_times:
                         self.near_miss_times[veh].append(timeind)
                     elif not veh.crashed:

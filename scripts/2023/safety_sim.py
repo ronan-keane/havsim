@@ -67,7 +67,7 @@ if __name__ == '__main__':
     print('Requested simulations: {:n}. Workers: {:n}. Simulation area: \''.format(n_simulations, n_workers)
           + sim_name + '\'. Simulation times: ' + str(use_times))
     print('gamma parameters: ' + str(gamma_parameters) + '. xi parameters: ' + str(xi_parameters) + '.\n')
-    pbar = tqdm.tqdm(total=n_simulations, position=0, leave=True)
+    pbar = tqdm.tqdm(total=n_simulations, position=0, leave=True, dynamic_ncols=True)
     pbar.set_description('Simulations')
 
     all_stats = (0,)*10

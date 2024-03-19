@@ -240,7 +240,7 @@ def bayes_opt(f, pbounds, n_iter=100, init_points=0, init_guesses=None, save_nam
         optimizer.subscribe(bo.Events.OPTIMIZATION_STEP, logger)
     n_init_guesses = len(init_guesses) if init_guesses is not None else 0
     total_iters = n_iter+init_points + n_init_guesses
-    pbar = tqdm.tqdm(range(total_iters), total=total_iters, leave=True, position=0)
+    pbar = tqdm.tqdm(range(total_iters), total=total_iters, leave=True, position=0, dynamic_ncols=True)
     pbar.set_description('Params tested')
 
     for cur_iter in pbar:

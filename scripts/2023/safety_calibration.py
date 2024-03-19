@@ -52,8 +52,9 @@ if __name__ == '__main__':
                  'prev_opt_name', 'n_iter', 'init_points', 'init_guesses']
     default_args = ['e94_calibration_1', round(.4*multiprocessing.cpu_count()), [[11, 12], [16, 17]],
                     [(-1, .2), (.2, .75), (0, 2), (0, 2), (1, 2.5)], [(.2, 2), (2, 5.5)], 100, 300, None, 100, 0,
-                    [[-.13, .3, .2, .6, 1.5, .8, 3.75], [-.5, .5, .3, .5, 1.5, .8, 3.75],
-                     [-.11, .3, .25, .65, 1.5, .8, 3.25], [-.13, .3, .3, 1., 2., .6, 2.8]]]
+                    [[-.13, .3, .3, 1., 2., .6, 3.],
+                     [-.13, .3, .2, .6, 1.5, .8, 3.75], [-.5, .5, .3, .5, 1.5, .8, 3.75],
+                     [-.11, .3, .25, .65, 1.5, .8, 3.25]]]
     desc_str = 'Calibrate gamma/xi parameters by simulating the crash rate under realistic conditions, '\
         'and compare against crashes data. This is an intensive procedure which requires running many simulations.'
     arg_de = \

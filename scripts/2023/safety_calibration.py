@@ -153,5 +153,6 @@ if __name__ == '__main__':
         print('Warning: the directory ' + pickle_path + ' does not exist.')
         os.makedirs(pickle_path)
 
-    havsim.bayes_opt(evaluate_crash_rate, gamma_bounds, n_iter=n_iter, init_points=init_points,
-                     init_guesses=init_guesses, save_name=save_name, prev_opt_name=prev_opt_name)
+    prev_opt_name = None if prev_opt_name is None else os.path.join(pickle_path, prev_opt_name)
+    havsim.bayes_opt(evaluate_crash_rate, gamma_bounds, init_points=init_points, init_guesses=init_guesses,
+                     n_iter=n_iter, save_name=os.path.join(pickle_path, save_name), prev_opt_name=prev_opt_name)

@@ -34,7 +34,10 @@ def calculate_objective_value(cur_t_ind, cur_n_sims, data_re, data_ss, stats):
         else:
             out += 10 + abs(nm_ratio-15)
         # regularizer for vehicles per crash
-        out += 100*(abs(stats[i][6]/stats[i][3] - 2.205) + abs(stats[i][7]/stats[i][4] - 2.035))
+        if stats[i][3] > 0:
+            out += 100 * abs(stats[i][6] / stats[i][3] - 2.205)
+        if stats[i][4] > 0:
+            out += 100 * abs(stats[i][7]/stats[i][4] - 2.035)
         # regularizer for confidence width
         if out_re[2] - out_re[1] > out_data_re[2] - out_data_re[1]:
             out += 10*((out_re[2]-out_re[1])/(out_data_re[2] - out_data_re[1]) - .5)**2
@@ -50,7 +53,7 @@ if __name__ == '__main__':
     default_args = ['e94_calibration_1', round(.4*multiprocessing.cpu_count()), [[11, 12], [16, 17]],
                     [(-1, .2), (.2, .75), (0, 2), (0, 2), (1, 2.5)], [(.2, 2), (2, 5.5)], 100, 300, None, 100, 0,
                     [[-.13, .3, .2, .6, 1.5, .8, 3.75], [-.5, .5, .3, .5, 1.5, .8, 3.75],
-                     [-.11, .3, .25, .65, 1.5, .8, 3.25]]]
+                     [-.11, .3, .25, .65, 1.5, .8, 3.25], [-.13, .3, .3, 1., 2., .6, 2.8]]]
     desc_str = 'Calibrate gamma/xi parameters by simulating the crash rate under realistic conditions, '\
         'and compare against crashes data. This is an intensive procedure which requires running many simulations.'
     arg_de = \
@@ -109,15 +112,6 @@ if __name__ == '__main__':
                 update_stats = stats[cur_t_ind][1] / stats[cur_t_ind][0] * n_workers
                 pbar.set_postfix_str('Events: {:n}/{:n}/{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
                     *stats[cur_t_ind][3:6], *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
-                if inner_pbar[count]:
-                    sleep(0.05)
-                    total = int(18000 * (use_times[cur_t_ind][1] - use_times[cur_t_ind][0]))
-                    postfix = ' [Simulated {:.1e} miles and {:n} vehicles. Updates/sec: {:.1e}. '.format(
-                        out[2] / 1609.34, out[-1], out[1] / out[0]) + 'Time used: {:.1f}.]'.format(out[0])
-                    pbar_inner = tqdm.tqdm(total=total, position=2, leave=False, desc='Current simulation timesteps',
-                                           bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}' + postfix)
-                    pbar_inner.update(total)
-                    pbar_inner.set_postfix_str('')
             pool.close()
             pool.join()
             cur_n_sims[cur_t_ind] += min_sims

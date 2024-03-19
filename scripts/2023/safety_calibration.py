@@ -110,7 +110,7 @@ if __name__ == '__main__':
                 pbar.set_postfix_str('Events: {:n}/{:n}/{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
                     *stats[cur_t_ind][3:6], *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
                 if inner_pbar[count]:
-                    sleep(0.01)
+                    sleep(0.05)
                     total = int(18000 * (use_times[cur_t_ind][1] - use_times[cur_t_ind][0]))
                     postfix = ' [Simulated {:.1e} miles and {:n} vehicles. Updates/sec: {:.1e}. '.format(
                         out[2] / 1609.34, out[-1], out[1] / out[0]) + 'Time used: {:.1f}.]'.format(out[0])

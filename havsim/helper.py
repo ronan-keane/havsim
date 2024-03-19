@@ -1333,6 +1333,7 @@ def crash_confidence(crashes, n_sims, vmt_sim, z=1.96, inverse=True):
         else:
             return mean/vmt_sim, (mean - temp)/vmt_sim, (mean + temp)/vmt_sim
 
+
 def count_leadmem(veh, timeind):
     if timeind < veh.start:
         return 0

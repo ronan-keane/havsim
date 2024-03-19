@@ -84,7 +84,7 @@ if __name__ == '__main__':
     gamma_bounds.extend(xi_bounds)
 
 
-    def evaluate_crash_rate(my_args):
+    def evaluate_crash_rate(**my_args):
         gamma_parameters = [my_args[str(i)] for i in range(5)]
         xi_parameters = [my_args[str(5 + i)] for i in range(2)]
 

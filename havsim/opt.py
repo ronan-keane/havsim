@@ -208,7 +208,7 @@ def bayes_opt(f, pbounds, n_iter=100, init_points=0, init_guesses=None, save_nam
     """Wrapper for bayes_opt package (pip install bayesian-optimization).
 
     Args:
-        f: function to maximize. It has a call signature f(args) and the 'args' are passed as a dict, such that the
+        f: function to maximize. It has a call signature f(**args) and the 'args' are passed as a dict, such that the
             index i argument has the key 'i'. Arguments should all be scalar floats. f returns a scalar float.
         pbounds: list of tuples, where each tuple is the upper/lower bounds for the parameter with that index.
         n_iter: int number of iterations to perform (not counting guesses/initialization)

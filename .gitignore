@@ -142,5 +142,8 @@ scripts/spring 2020/testaccidentfree.nb
 .idea/workspace.xml
 *.xml
 
-scripts/2023/pickle files/
-/scripts/2023/plots and animations
+scripts/2023/pickle files/*
+!scripts/2023/pickle files/e94_16_17_test.pkl
+!scripts/2023/pickle files/e94_16_17_test_config.config
+scripts/2023/plots and animations/*
+

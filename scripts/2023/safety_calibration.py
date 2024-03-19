@@ -140,14 +140,8 @@ if __name__ == '__main__':
             elif out_ss[0] < out_data_ss[1] or out_ss[0] > out_data_ss[2]:
                 break
             else:  # need more simulations, update pbar
-                cur_total = sum(cur_n_sims[0:cur_t_ind]) + cur_n_sims[cur_t_ind]
-                new_total = cur_total + (len(cur_n_sims)-cur_t_ind-1)*n_sims + min_sims
-                pbar = tqdm.tqdm(total=new_total, position=1, leave=False, desc='Current test')
-                pbar.update(cur_total)
-                crash_stats = (stats[cur_t_ind][2] / 1609.34 / max(k, .69) for k in stats[cur_t_ind][3:6])
-                update_stats = stats[cur_t_ind][1] / stats[cur_t_ind][0] * n_workers
-                pbar.set_postfix_str('Events: {:n}/{:n}/{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
-                    *stats[cur_t_ind][3:6], *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
+                cur_total = sum(cur_n_sims[0:cur_t_ind]) + cur_n_sims[cur_t_ind] + (len(cur_n_sims)-cur_t_ind-1)*n_sims
+                pbar.total = cur_total + min_sims
 
         return calculate_objective_value(cur_t_ind, cur_n_sims, data_re, data_ss, stats)
 

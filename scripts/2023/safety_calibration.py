@@ -56,7 +56,7 @@ if __name__ == '__main__':
     default_args = ['e94_calibration_1', round(.4*multiprocessing.cpu_count()), [[11, 12], [16, 17]],
                     [(-1, .2), (.2, .75), (0, 2), (0, 2), (1, 2.5)], [(.2, 2), (2, 5.5)], 100, 300, None, 100, 0,
                     [[-.13, .3, .2, .6, 1.5, .8, 3.75], [-.11, .3, .25, .65, 1.5, .8, 3.25],
-                     [-.13, .3, .15, .75, 2., 1., 3.]]]
+                     [-.13, .35, .1, .5, 2., .5, 3.75]]]
     desc_str = 'Calibrate gamma/xi parameters by simulating the crash rate under realistic conditions, '\
         'and compare against crashes data. This is an intensive procedure which requires running many simulations.'
     arg_de = \
@@ -113,8 +113,9 @@ if __name__ == '__main__':
                 pbar.update()
                 crash_stats = (stats[cur_t_ind][2] / 1609.34 / max(k, .69) for k in stats[cur_t_ind][3:6])
                 update_stats = stats[cur_t_ind][1] / stats[cur_t_ind][0] * n_workers
-                pbar.set_postfix_str('Events: {:n}/{:n}/{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
-                    *stats[cur_t_ind][3:6], *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
+                pbar.set_postfix_str('Times: '+str(use_times[cur_t_ind])+'. Events: {:n}/{:n}/{:n}. '.format(
+                    *stats[cur_t_ind][3:6]) + 'Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(*crash_stats) +
+                    '  Updates/Sec: {:.1e}.'.format(update_stats))
             pool.close()
             pool.join()
             cur_n_sims[cur_t_ind] += min_sims
@@ -148,6 +149,8 @@ if __name__ == '__main__':
 
     now = datetime.now()
     print('\nStarting job \'' + save_name + '\' at ' + now.strftime("%H:%M:%S"))
+    print('use_times: '+str(use_times)+'. n_workers: '+str(n_workers)+'. min_simulations: '+str(min_sims))
+    print('parameter bounds: '+str(gamma_bounds)+'\n')
     pickle_path = os.path.join(os.path.dirname(__file__), 'pickle files')
     if not os.path.exists(pickle_path):
         print('Warning: the directory ' + pickle_path + ' does not exist.')

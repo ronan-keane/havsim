@@ -227,9 +227,10 @@ def bayes_opt(f, pbounds, n_iter=100, init_points=0, init_guesses=None, save_nam
         return {str(count): i for count, i in enumerate(out)}
 
     def make_opt_str(opt):
-        evals = (opt.max['target'], opt.res[-1]['target'], sum([i['target'] for i in opt.res[-10:]])/len(opt.res[-10:]))
-        out = 'Best: {:.1f}, Last: {:.1f}, Last 10: {:.1f}. '.format(*evals)
-        out += 'Best params: (' + ', '.join(['{:.1f}'.format(val) for val in opt.max['params'].values()]) + ')'
+        evals = (opt.max['target'], opt.res[-1]['target'])
+        out = 'Best: {:.1f}, Last: {:.1f}. '.format(*evals)
+        out += 'Best params: (' + ', '.join(['{:.1f}'.format(val) for val in opt.max['params'].values()]) + ')' + \
+            '. Last: (' + ', '.join(['{:.1f}'.format(val) for val in opt.res[-1]['params'].values()]) + ')'
         return out
 
     optimizer = bo.BayesianOptimization(f=f, pbounds=make_dict(pbounds), allow_duplicate_points=True, verbose=0)

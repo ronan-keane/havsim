@@ -71,6 +71,9 @@ def update_net(vehicles, lc_actions, lc_followers, inflow_lanes, merge_lanes, ve
 
     relaxvehs = []  # keeps track of vehicles which need relaxation applied
     for veh in lc_actions:
+        if getattr(veh, lc_actions[veh]+'lane') is None:  # this prevents a rare bug (I don't understand how it happens)
+            continue
+
         relaxvehs.append(veh.fol)
 
         # update leader follower relationships, lane/road

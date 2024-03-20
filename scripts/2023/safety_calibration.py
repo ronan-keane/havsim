@@ -53,7 +53,7 @@ def calculate_objective_value(cur_t_ind, cur_n_sims, data_re, data_ss, stats):
 if __name__ == '__main__':
     arg_names = ['save_name', 'n_workers', 'use_times', 'gamma_bounds', 'xi_bounds', 'min_simulations', 'n_simulations',
                  'prev_opt_name', 'n_iter', 'init_points', 'init_guesses']
-    default_args = ['e94_calibration_1', round(.38*multiprocessing.cpu_count()), [[11, 12], [16, 17]],
+    default_args = ['e94_calibration_1', round(.38*multiprocessing.cpu_count()), [[17, 18], [14, 15]],
                     [(-1, .2), (.2, .75), (0, 2), (0, 2), (1, 2.5)], [(.2, 2), (2, 5.5)],
                     2*round(.38*multiprocessing.cpu_count()), 6*round(.38*multiprocessing.cpu_count()),
                     None, 100, 0,
@@ -147,6 +147,7 @@ if __name__ == '__main__':
                 cur_total = sum(cur_n_sims[0:cur_t_ind]) + cur_n_sims[cur_t_ind] + (len(cur_n_sims)-cur_t_ind-1)*n_sims
                 pbar.total = cur_total + min_sims
 
+        pbar.disable = True
         return calculate_objective_value(cur_t_ind, cur_n_sims, data_re, data_ss, stats)
 
     now = datetime.now()

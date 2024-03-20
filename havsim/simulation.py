@@ -150,10 +150,6 @@ class Simulation:
             dt: float for how many time units pass for each timestep. Defaults to .2.
             roads: list of all the roads in the simulation
             timesteps: int number of default timesteps
-
-        Returns:
-            None. Note that we keep references to all vehicles through vehicles and prev_vehicles,
-            a Vehicle stores its own memory.
         """
         # automatically get inflow/merge lanes
         assert isinstance(roads, list)
@@ -252,6 +248,7 @@ class Simulation:
         if pbar:
             my_pbar.set_postfix_str('Simulated {:.1e} miles and {:n} vehicles. Updates/sec: {:.1e}.'.format(
                 vmt/1609.34, len(all_vehicles), n_updates/elapsed_time))
+            my_pbar.disable = True
         if return_stats:
             stats = (elapsed_time, n_updates, vmt)
             return all_vehicles, stats

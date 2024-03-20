@@ -94,14 +94,6 @@ if __name__ == '__main__':
             pbar.update()
             pbar.set_postfix_str('Events: {:n}/{:n}/{:n}. Miles/Events: {:.1e}/{:.1e}/{:.1e}.'.format(
                 *all_stats[3:6], *crash_stats) + '  Updates/Sec: {:.1e}.'.format(update_stats))
-            if inner_pbar[count]:
-                sleep(.15)
-                total = int(18000*(use_times[1]-use_times[0]))
-                postfix = ' [Simulated {:.1e} miles and {:n} vehicles. Updates/sec: {:.1e}. '.format(
-                    stats[2]/1609.34, stats[-1], stats[1]/stats[0]) + 'Time used: {:.1f}.]'.format(stats[0])
-                pbar_inner = tqdm.tqdm(total=total, position=1, leave=False, desc='Current simulation timesteps',
-                                       bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}'+postfix, initial=total)
-                pbar_inner.set_postfix_str('')
         pool.close()
         pool.join()
 
@@ -117,7 +109,6 @@ if __name__ == '__main__':
         if 1.1 * cur_rate < all_stats[-1] and i < batch_iters - 1:
             sleep(stats[0] * .5)
     pbar.close()
-    pbar_inner.close()
 
     # save result + config
     if batch_iters > 1:

@@ -1,5 +1,5 @@
 ## havsim - a traffic simulator written in python
-havsim implements a parametric model of human driving, which includes a stochastic model of human driving errors. havsim can realistically simulate traffic (including crashes and near misses) on an arbitrary highway network.
+havsim implements a parametric model of human driving, which includes a stochastic model of human driving errors. It can realistically simulate traffic flow, including safety events, on an arbitrary highway network.
 
 # Install
 1. Download the repository from github
@@ -8,32 +8,65 @@ havsim implements a parametric model of human driving, which includes a stochast
 pip install -e .
 ```
   
-# Description
-Refer to the provided scripts for examples of using havsim.
+# Usage
+If you've never used havsim before, the first thing you should do is look at the included scripts. Those scripts explain how to use havsim to simulate traffic, generate safety events, and do plotting/saving. 
+If you want to try setting up your own simulation in havsim, you should also look at the included notebook.
 
-## Code Structure
-To use havsim, you should try using some of the included scripts, which are in the scripts folder. The havsim folder contains all the code used to implement the simulation and vehicle models.
+## Scripts
+You can see the documentation for any script by running
+```
+python path_to_script.py -h
+```
+where "path_to_script" would be replaced with the filepath to the relevant script. 
+All scripts can be run with default settings like
+```
+python path_to_script.py
+```
+or settings can be manually specified. The arguments for a script can be given as positional arguments (like normal), but we also support passing the arguments as keyword arguments, using python syntax.
+```
+python path_to_script.py 0 1 some_arg_name=(...)
+```
+where the first argument gets 0, the second arguments gets 1 and the argument "some_arg_name" gets the value (...). 
 
-     /scripts/
-        analyze_crashes.py - Used to analyze output from safety_sim.py 
-        safety_sim.py - Do parallel simulations, and save crashes only, or run a single simulation and save full output.
-        bottleneck_simulation.py - Example of creating simple simulation from scratch
-        quickstart_simulation.ipynb - quickstart guide for creating simulations in havsim
-        make_simulation.py - Setup more complicated simulations
-        plot_saved_simulation.py - Example of making plots from saved simulation
-        safety_calibration.py - Example of calibrating stochastic safety parameters using crashes data
-        cf_calibration.py - Example of calibrating car following parameters using trajectory data
-     
+*Note that any saved files (e.g. saved Vehicles) will go to the folder "scripts\pickle files" and any saved plots/animations will go to the folder "scripts\plots and animations"*
+
+### bottleneck_simulation.py - Run a single simulation of a merge bottleneck, save the result, and plot it.
+```
+python scripts\bottleneck_simulation.py
+```
+### safety_sim.py - Run multiple simulations of I94 in Ann Arbor, and save the result 
+```
+python scripts\safety_sim.py
+```
+### plot_saved_simulation.py - Load a saved simulation, and plot the result
+```
+python scripts\plot_saved_simulation.py save_name='e94_16_17_test'
+```
+### analyze_crashes.py - From saved vehicles/simulations, find all the crashes/near misses, and plot them
+```
+python scripts\analyze_crashes.py
+```
+### safety_calibration.py - calibrate the StochasticCrashesVehicle parameters using bayesian optimization
+```
+python scripts\safety_calibration.py
+```
+
+# The havsim code structure and model explanation
+```
      /havsim/
         vehicles.py - the Vehicle class and subclassed Vehicles
         road.py - the Road and Lane classes (used to define road networks and boundary conditions)
         simulation.py - the Simulation class which implements the simulation logic
         models.py - the havsim lane changing model (lc_havsim), IDM, default parameters
+        opt.py - wrappers for calling optimization algorithms
+        vehicle_orders.py - used internally in simulation update code
+        update_lane_routes.py - used internally in simulation update code
         plotting.py - included plotting functions
-         ...
+        helper.py - miscellaneous functions
+```
 
-# The havsim model
-## The deterministic havsim model (havsim.Vehicle) 
+## The havsim model
+### The deterministic havsim model (havsim.Vehicle) 
 - Based on traditional traffic flow models
 - 6 parameter car following model
   - acceleration from IDM - 5 parameters
@@ -44,44 +77,14 @@ To use havsim, you should try using some of the included scripts, which are in t
    - route model adjusts the lane changing state so vehicles will stay on their planned route - 2 parameters
 - Default parameters given in havsim.models.default_parameters()
 
-## The stochastic havsim model (havsim.CrashesStochasticVehicle)
+### The stochastic havsim model (havsim.CrashesStochasticVehicle)
 - Incorporates human driving errors into the model, which can lead to rear ends and sideswipe crashes.
 - 7 parameter model of human driving errors
   - human perception response time - 4 parameters
   - errors in lane changing decisions - 3 parameters
 - Default parameters given in havsim.models.stochastic_default_parameters()
      
-# Usage
-You can see what havsim can do by running the included scripts. The beginning of scripts define what they will do, and can be changed accordingly.
-### safety_sim.py
-```
-# -------  SETTINGS  ------- #
-save_name: str, the output will be saved at havsim/scripts/pickle files/save_name.pkl
-n_simulation: int number of simulations to run
-n_workers: int number of workers to use for multiprocessing
-batch_size: int number of simulations per batch (may run out of memory if batch_size is too large)
-save_crashes_only: bool, by default, only save Vehicles which crash or have near misses, or have interaction with
-     those crashed/near missed Vehicles. By default, if the n_simulation=1, then all Vehicles will be saved.
-sim_name: str, name of simulation to run
-use_times: list of \[start, end\], where start is the start time of the simulation and end is the end
-     time of the simulation (times are floats between \[0-24\))
-gamma_parameters: stochastic parameters to use for simulation (see havsim.vehicles.StochasticVehicle)
-xi_parameters: stochastic parameters to use for simulation (see havsim.vehicles.StochasticVehicle)
-# -------------------------- #
-```
-     
-Example output:
 
-### analyze_crashes.py
-```
-# -------  SETTINGS  ------- #
-saved_sim: str, the name of the output (the save_name from safety_sim.py)
-min_crash_plots: int, plot all crashes with index from min_crash_plots to max_crash_plots
-max_crash_plots: int, plot all crashes with index from min_crash_plots to max_crash_plots
-show_plots: bool, whether or not to show figures
-save_plots: bool, whether or not to save figures/animations
-# -------------------------- #
-```
 # References
 ```
 @article{havsim2021,

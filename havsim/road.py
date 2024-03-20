@@ -787,6 +787,7 @@ class AnchorVehicle:
 
         self.lfol = None  # anchor vehicles just need the lead/llead/rlead attributes. no need for (l/r)fol
         self.rfol = None
+        self.fol = None
         self.lead = None if self.init_lead is None else copy.deepcopy(self.init_lead)
         self.rlead = [] if self.init_rlead is None else copy.deepcopy(self.init_rlead)
         self.llead = [] if self.init_llead is None else copy.deepcopy(self.init_llead)

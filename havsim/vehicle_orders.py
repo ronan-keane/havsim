@@ -100,7 +100,7 @@ def update_all_lrfol_multiple(vehicles):
         else:
             update_rfol_recursive(veh, rfol, rovertaken)
 
-    #now to finish the order we have to update all vehicles which overtook
+    # now to finish the order we have to update all vehicles which overtook
     for lfol, overtook in lovertaken.items():
         if len(overtook) == 1:  # we know what lfol new rfol is - it can only be one thing
             veh = overtook[0]

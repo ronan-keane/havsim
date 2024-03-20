@@ -235,6 +235,8 @@ def bayes_opt(f, pbounds, n_iter=100, init_points=0, init_guesses=None, save_nam
 
     optimizer = bo.BayesianOptimization(f=f, pbounds=make_dict(pbounds), allow_duplicate_points=True, verbose=0)
     if prev_opt_name is not None:
+        if init_points > 0 or init_guesses is not None:
+            print('Warning: requested to load previous optimizer, but also gave initial guesses')
         bo.util.load_logs(optimizer, logs=[prev_opt_name+'.json'])
     if save_name is not None:
         logger = bo.JSONLogger(path=save_name)

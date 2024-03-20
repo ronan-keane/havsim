@@ -17,16 +17,18 @@ You can see the documentation for any script by running
 ```
 python path_to_script.py -h
 ```
-where "path_to_script" would be replaced with the filepath to the relevant script. 
+where "path_to_script" would be replaced with the relevant filepath. 
+
 All scripts can be run with default settings like
 ```
 python path_to_script.py
 ```
-or settings can be manually specified. The arguments for a script can be given as positional arguments (like normal), but we also support passing the arguments as keyword arguments, using python syntax.
+
+To manually specify arguments, one can use positional arguments (like normal), but you can also pass arguments as keyword arguments using python syntax
 ```
-python path_to_script.py 0 1 some_arg_name=(...)
+python path_to_script.py 0 1 some_arg_name="..."
 ```
-where the first argument gets 0, the second arguments gets 1 and the argument "some_arg_name" gets the value (...). 
+In the example above, the first argument gets 0, the second arguments gets 1 and the argument "some_arg_name" gets the value ...
 
 *Note that any saved files (e.g. saved Vehicles) will go to the folder "scripts\pickle files" and any saved plots/animations will go to the folder "scripts\plots and animations"*
 
@@ -42,7 +44,7 @@ python scripts\safety_sim.py
 ```
 python scripts\plot_saved_simulation.py save_name='e94_16_17_test'
 ```
-### analyze_crashes.py - From saved vehicles/simulations, find all the crashes/near misses, and plot them
+### analyze_crashes.py - From saved vehicles/simulations, plot and save all the crashes/near misses and print out statistics
 ```
 python scripts\analyze_crashes.py
 ```
